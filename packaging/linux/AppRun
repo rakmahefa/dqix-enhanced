@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+APPDIR="${APPDIR:-$(cd -- "$(dirname -- "$0")" && pwd)}"
+PACKAGE_DIR="$APPDIR/usr/share/dqix-enhanced"
+BUNDLED_SOURCE="$PACKAGE_DIR/source"
+TOOLCHAIN_ARCHIVE="$PACKAGE_DIR/toolchain.tar.gz"
+VERSION="$(cat "$PACKAGE_DIR/APP_VERSION")"
+DATA_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/dqix-enhanced-linux"
+WORKSPACE="$DATA_ROOT/workspace"
+CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/dqix-enhanced-appimage"
+ENV_DIR="$CACHE_ROOT/toolchain"
+
+die() {
+    printf 'DQIX Enhanced Builder: %s\n' "$*" >&2
+    exit 1
+}
+
+usage() {
+    cat <<EOF
+DQIX Enhanced Builder $VERSION
+
+Portable Linux builder for DQIX Enhanced. It does not include a ROM or a
+prebuilt game. The first build requires your own legally dumped .nds ROM.
+
+Usage:
+  $0 [ROM.nds]             Build if needed, then launch the local game
+  $0 --build-only [ROM.nds] Build without launching the game
+  $0 --rebuild [ROM.nds]    Rebuild; defaults to the locally stored ROM
+  $0 --self-test            Check bundled Python, compiler and SDL2 toolchain
+  $0 --version              Print the source version
+  $0 --help                 Show this help
+
+The local workspace, including generated game code and the ROM copy, is:
+  $WORKSPACE
+
+Do not publish or share that workspace. Enhanced rendering requires a compatible
+host OpenGL driver; the AppImage bundles SDL2 and the build toolchain, not GPU drivers.
+EOF
+}
+
+case "${1:-}" in
+    --help|-h)
+        usage
+        exit 0
+        ;;
+    --version)
+        printf '%s\n' "$VERSION"
+        exit 0
+        ;;
+esac
+
+ACTION="run"
+ROM=""
+case "${1:-}" in
+    --self-test)
+        ACTION="self-test"
+        shift
+        ;;
+    --build-only)
+        ACTION="build-only"
+        shift
+        ROM="${1:-}"
+        if [ "$#" -gt 0 ]; then shift; fi
+        ;;
+    --rebuild)
+        ACTION="rebuild"
+        shift
+        ROM="${1:-}"
+        if [ "$#" -gt 0 ]; then shift; fi
+        ;;
+    *)
+        ROM="${1:-}"
+        if [ "$#" -gt 0 ]; then shift; fi
+        ;;
+esac
+[ "$#" -eq 0 ] || die "unexpected extra arguments; use --help for usage"
+
+[ -d "$BUNDLED_SOURCE" ] || die "AppImage source bundle is missing"
+[ -f "$TOOLCHAIN_ARCHIVE" ] || die "bundled toolchain archive is missing"
+mkdir -p "$CACHE_ROOT" "$DATA_ROOT" "$WORKSPACE"
+
+EXPECTED_SHA="$(cat "$PACKAGE_DIR/toolchain.sha256")"
+ACTUAL_SHA="$(sha256sum "$TOOLCHAIN_ARCHIVE" | awk '{print $1}')"
+[ "$EXPECTED_SHA" = "$ACTUAL_SHA" ] || die "bundled toolchain checksum does not match"
+
+if [ ! -x "$ENV_DIR/bin/python3" ] || [ ! -f "$ENV_DIR/.toolchain-sha256" ] ||
+   [ "$(cat "$ENV_DIR/.toolchain-sha256" 2>/dev/null || true)" != "$EXPECTED_SHA" ]; then
+    rm -rf "$ENV_DIR"
+    mkdir -p "$ENV_DIR"
+    tar -xzf "$TOOLCHAIN_ARCHIVE" -C "$ENV_DIR"
+    [ -x "$ENV_DIR/bin/conda-unpack" ] || die "toolchain archive is invalid: conda-unpack is missing"
+    "$ENV_DIR/bin/conda-unpack"
+    printf '%s\n' "$EXPECTED_SHA" > "$ENV_DIR/.toolchain-sha256"
+fi
+
+export CONDA_PREFIX="$ENV_DIR"
+export CONDA_DEFAULT_ENV=dqix-builder
+export PATH="$ENV_DIR/bin:$PATH"
+if [ -d "$ENV_DIR/etc/conda/activate.d" ]; then
+    for activation_script in "$ENV_DIR"/etc/conda/activate.d/*.sh; do
+        [ -f "$activation_script" ] && . "$activation_script"
+    done
+fi
+export LD_LIBRARY_PATH="$ENV_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export PYTHONNOUSERSITE=1
+
+if command -v x86_64-conda-linux-gnu-cc >/dev/null 2>&1; then
+    export CC="$(command -v x86_64-conda-linux-gnu-cc)"
+elif command -v x86_64-conda-linux-gnu-gcc >/dev/null 2>&1; then
+    export CC="$(command -v x86_64-conda-linux-gnu-gcc)"
+elif command -v gcc >/dev/null 2>&1; then
+    export CC="$(command -v gcc)"
+else
+    die "the bundled C compiler was not found"
+fi
+
+# Copy the source into a writable user workspace. The packaged source tree
+# deliberately excludes build/, game/, extracted ROM data and ROM files.
+# cp -a overlays updated source files while preserving the user's generated
+# build/ and game/ directories, saves and local ROM copy.
+cp -a "$BUNDLED_SOURCE/." "$WORKSPACE/"
+
+if [ "$ACTION" = "self-test" ]; then
+    "$ENV_DIR/bin/python3" -c 'import yaml; print("PyYAML", yaml.__version__)'
+    make --version | head -n 1
+    sdl2-config --version
+    command -v "$CC" >/dev/null
+    smoke_dir="$(mktemp -d "$CACHE_ROOT/smoke.XXXXXX")"
+    trap 'rm -rf "$smoke_dir"' EXIT
+    read -r -a sdl_cflags <<< "$(sdl2-config --cflags)"
+    read -r -a sdl_libs <<< "$(sdl2-config --libs)"
+    cat > "$smoke_dir/sdl-smoke.c" <<'C'
+#include <SDL.h>
+int main(void) { return SDL_Init(0); }
+C
+    "$CC" "${sdl_cflags[@]}" "$smoke_dir/sdl-smoke.c" "${sdl_libs[@]}" -o "$smoke_dir/sdl-smoke"
+    printf 'AppImage builder self-test passed.\n'
+    exit 0
+fi
+
+NEED_BUILD=0
+if [ "$ACTION" = "build-only" ] || [ "$ACTION" = "rebuild" ] || [ ! -x "$WORKSPACE/game/dqix" ]; then
+    NEED_BUILD=1
+fi
+
+if [ "$NEED_BUILD" -eq 1 ]; then
+    if [ -z "$ROM" ] && [ -f "$WORKSPACE/game/data/dqix.nds" ]; then
+        ROM="$WORKSPACE/game/data/dqix.nds"
+    fi
+    if [ -z "$ROM" ]; then
+        if [ -t 0 ]; then
+            printf 'Path to your own DQIX .nds ROM: '
+            IFS= read -r ROM
+        else
+            die "first build needs a ROM path. Run this AppImage from a terminal with /path/to/your-ROM.nds; see --help."
+        fi
+    fi
+    [ -f "$ROM" ] || die "ROM file not found: $ROM"
+    ROM="$(realpath -- "$ROM")"
+    printf 'Building locally from the supplied ROM. Generated files stay in %s\n' "$WORKSPACE"
+    (cd "$WORKSPACE" && "$WORKSPACE/tools/build-game.sh" "$ROM")
+fi
+
+if [ "$ACTION" = "build-only" ]; then
+    printf 'Build finished. Local game directory: %s/game\n' "$WORKSPACE"
+    exit 0
+fi
+
+[ -x "$WORKSPACE/game/play.sh" ] || die "build did not produce game/play.sh"
+exec "$WORKSPACE/game/play.sh"
