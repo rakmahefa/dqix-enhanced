@@ -205,7 +205,8 @@ class BuilderApp:
             messagebox.showerror("Workspace requis", "Choisissez un dossier workspace.", parent=self.root)
             return
         workspace = Path(workspace_text).expanduser().resolve()
-        if (workspace == Path.home() or workspace == Path("/") or workspace == self.source\n                or workspace in self.source.parents or self.source in workspace.parents):
+        if (workspace == Path.home() or workspace == Path("/") or workspace == self.source
+                or workspace in self.source.parents or self.source in workspace.parents):
             messagebox.showerror(
                 "Dossier non autorisé",
                 "Choisissez un dossier dédié au workspace, et non votre dossier personnel, la racine ou les sources de l'AppImage.",
@@ -319,7 +320,7 @@ class BuilderApp:
         self.root.after(100, self._poll_events)
 
     def _launch_game(self) -> None:
-        workspace = self.workspace_path or Path(self.workspace_var.get()).expanduser().resolve()
+        workspace = Path(self.workspace_var.get()).expanduser().resolve()
         play_script = workspace / "game" / "play.sh"
         if not play_script.is_file():
             messagebox.showerror("Jeu introuvable", "Aucun jeu compilé n'a été trouvé dans ce workspace.", parent=self.root)
