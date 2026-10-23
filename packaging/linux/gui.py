@@ -229,6 +229,8 @@ class BuilderApp:
                 return
 
         self.running = True
+        self.progress.stop()
+        self.progress.configure(mode="determinate", value=0)
         self.progress_value = 1
         self.progress.configure(value=self.progress_value)
         self.progress_text.set("Préparation du workspace…")
@@ -291,8 +293,18 @@ class BuilderApp:
                 elif kind == "progress":
                     value, status = payload  # type: ignore[misc]
                     self.progress_value = max(self.progress_value, int(value))
-                    self.progress.configure(value=self.progress_value)
-                    self.progress_text.set(str(status))
+                    status = str(status)
+                    if status in ("Recompilation ARM9/ARM7 vers C", "Compilation du runtime et du jeu"):
+                        if self.progress.cget("mode") != "indeterminate":
+                            self.progress.stop()
+                            self.progress.configure(mode="indeterminate")
+                            self.progress.start(50)
+                    else:
+                        if self.progress.cget("mode") != "determinate":
+                            self.progress.stop()
+                            self.progress.configure(mode="determinate")
+                        self.progress.configure(value=self.progress_value)
+                    self.progress_text.set(status)
                 elif kind == "success":
                     self.workspace_path = Path(payload)  # type: ignore[arg-type]
                     self.running = False
@@ -309,6 +321,9 @@ class BuilderApp:
                     )
                 elif kind == "failure":
                     self.running = False
+                    if self.progress.cget("mode") == "indeterminate":
+                        self.progress.stop()
+                        self.progress.configure(mode="determinate", value=self.progress_value)
                     self.build_button.configure(state="normal")
                     self.rom_browse.configure(state="normal")
                     self.workspace_browse.configure(state="normal")
