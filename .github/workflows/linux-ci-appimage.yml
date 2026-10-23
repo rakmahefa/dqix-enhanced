@@ -61,6 +61,7 @@ jobs:
         uses: mamba-org/setup-micromamba@v3
         with:
           environment-file: packaging/linux/environment.yml
+          create-args: --strict-channel-priority
           cache-environment: true
           cache-downloads: true
           init-shell: bash
