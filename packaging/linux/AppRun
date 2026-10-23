@@ -20,22 +20,24 @@ usage() {
     cat <<EOF
 DQIX Enhanced Builder $VERSION
 
-Portable Linux builder for DQIX Enhanced. It does not include a ROM or a
-prebuilt game. The first build requires your own legally dumped .nds ROM.
+By default, opens a graphical window where you select your ROM (.nds),
+choose a workspace folder, build the game and follow progress.
 
 Usage:
-  $0 [ROM.nds]             Build if needed, then launch the local game
-  $0 --build-only [ROM.nds] Build without launching the game
-  $0 --rebuild [ROM.nds]    Rebuild; defaults to the locally stored ROM
-  $0 --self-test            Check bundled Python, compiler and SDL2 toolchain
-  $0 --version              Print the source version
-  $0 --help                 Show this help
+  $0                       Open the graphical builder
+  $0 --gui                 Open the graphical builder
+  $0 --self-test           Check the bundled Python, Tk, compiler and SDL2 toolchain
+  $0 --build-only ROM.nds  Build from ROM without launching the game
+  $0 --rebuild [ROM.nds]   Rebuild from the ROM or the local workspace copy
+  $0 ROM.nds               Build from ROM and launch the game
+  $0 --version             Print the source version
+  $0 --help                Show this help
 
-The local workspace, including generated game code and the ROM copy, is:
+Default workspace:
   $WORKSPACE
 
-Do not publish or share that workspace. Enhanced rendering requires a compatible
-host OpenGL driver; the AppImage bundles SDL2 and the build toolchain, not GPU drivers.
+The workspace contains the copied ROM, generated game code, game and saves.
+Do not publish or share it. Enhanced rendering needs a compatible host OpenGL driver.
 EOF
 }
 
@@ -50,9 +52,13 @@ case "${1:-}" in
         ;;
 esac
 
-ACTION="run"
+ACTION="gui"
 ROM=""
 case "${1:-}" in
+    --gui)
+        ACTION="gui"
+        shift
+        ;;
     --self-test)
         ACTION="self-test"
         shift
@@ -69,16 +75,19 @@ case "${1:-}" in
         ROM="${1:-}"
         if [ "$#" -gt 0 ]; then shift; fi
         ;;
+    "")
+        ;;
     *)
+        ACTION="run"
         ROM="${1:-}"
-        if [ "$#" -gt 0 ]; then shift; fi
+        shift
         ;;
 esac
 [ "$#" -eq 0 ] || die "unexpected extra arguments; use --help for usage"
 
 [ -d "$BUNDLED_SOURCE" ] || die "AppImage source bundle is missing"
 [ -f "$TOOLCHAIN_ARCHIVE" ] || die "bundled toolchain archive is missing"
-mkdir -p "$CACHE_ROOT" "$DATA_ROOT" "$WORKSPACE"
+mkdir -p "$CACHE_ROOT"
 
 EXPECTED_SHA="$(cat "$PACKAGE_DIR/toolchain.sha256")"
 ACTUAL_SHA="$(sha256sum "$TOOLCHAIN_ARCHIVE" | awk '{print $1}')"
@@ -98,8 +107,7 @@ export CONDA_PREFIX="$ENV_DIR"
 export CONDA_DEFAULT_ENV=dqix-builder
 export PATH="$ENV_DIR/bin:$PATH"
 if [ -d "$ENV_DIR/etc/conda/activate.d" ]; then
-    # Conda activation snippets may reference environment variables before
-    # defining them; temporarily disable nounset just for their initialization.
+    # Conda activation snippets may reference variables before defining them.
     set +u
     for activation_script in "$ENV_DIR"/etc/conda/activate.d/*.sh; do
         [ -f "$activation_script" ] && . "$activation_script"
@@ -119,14 +127,19 @@ else
     die "the bundled C compiler was not found"
 fi
 
-# Copy the source into a writable user workspace. The packaged source tree
-# deliberately excludes build/, game/, extracted ROM data and ROM files.
-# cp -a overlays updated source files while preserving the user's generated
-# build/ and game/ directories, saves and local ROM copy.
-cp -a "$BUNDLED_SOURCE/." "$WORKSPACE/"
-
 if [ "$ACTION" = "self-test" ]; then
-    "$ENV_DIR/bin/python3" -c 'import yaml; print("PyYAML", yaml.__version__)'
+    "$ENV_DIR/bin/python3" -c '
+import ast
+from pathlib import Path
+import tkinter
+from tkinter import filedialog, ttk
+import yaml
+gui = Path("'"$BUNDLED_SOURCE"'/packaging/linux/gui.py")
+ast.parse(gui.read_text(encoding="utf-8"))
+print("Python/Tk:", tkinter.TkVersion)
+print("PyYAML:", yaml.__version__)
+print("GUI source syntax: OK")
+'
     make --version | head -n 1
     sdl2-config --version
     command -v "$CC" >/dev/null
@@ -143,33 +156,35 @@ C
     exit 0
 fi
 
-NEED_BUILD=0
-if [ "$ACTION" = "build-only" ] || [ "$ACTION" = "rebuild" ] || [ ! -x "$WORKSPACE/game/dqix" ]; then
-    NEED_BUILD=1
+if [ "$ACTION" = "gui" ]; then
+    exec "$ENV_DIR/bin/python3" "$BUNDLED_SOURCE/packaging/linux/gui.py" \
+        --source "$BUNDLED_SOURCE" \
+        --default-workspace "$WORKSPACE" \
+        --version "$VERSION"
 fi
 
-if [ "$NEED_BUILD" -eq 1 ]; then
-    if [ -z "$ROM" ] && [ -f "$WORKSPACE/game/data/dqix.nds" ]; then
-        ROM="$WORKSPACE/game/data/dqix.nds"
-    fi
-    if [ -z "$ROM" ]; then
-        if [ -t 0 ]; then
-            printf 'Path to your own DQIX .nds ROM: '
-            IFS= read -r ROM
-        else
-            die "first build needs a ROM path. Run this AppImage from a terminal with /path/to/your-ROM.nds; see --help."
-        fi
-    fi
-    [ -f "$ROM" ] || die "ROM file not found: $ROM"
-    ROM="$(realpath -- "$ROM")"
-    printf 'Building locally from the supplied ROM. Generated files stay in %s\n' "$WORKSPACE"
-    (cd "$WORKSPACE" && "$WORKSPACE/tools/build-game.sh" "$ROM")
+# Non-interactive/terminal fallback for automation and advanced users.
+mkdir -p "$WORKSPACE"
+cp -a "$BUNDLED_SOURCE/." "$WORKSPACE/"
+
+if [ -z "$ROM" ] && [ -f "$WORKSPACE/game/data/dqix.nds" ]; then
+    ROM="$WORKSPACE/game/data/dqix.nds"
 fi
+if [ -z "$ROM" ]; then
+    if [ -t 0 ]; then
+        printf 'Path to your own DQIX .nds ROM: '
+        IFS= read -r ROM
+    else
+        die "this command needs a ROM path. Open the AppImage without arguments to use the graphical builder."
+    fi
+fi
+[ -f "$ROM" ] || die "ROM file not found: $ROM"
+ROM="$(realpath -- "$ROM")"
+printf 'Building locally from the supplied ROM. Generated files stay in %s\n' "$WORKSPACE"
+(cd "$WORKSPACE" && bash "$WORKSPACE/tools/build-game.sh" "$ROM")
 
 if [ "$ACTION" = "build-only" ]; then
     printf 'Build finished. Local game directory: %s/game\n' "$WORKSPACE"
     exit 0
 fi
-
-[ -x "$WORKSPACE/game/play.sh" ] || die "build did not produce game/play.sh"
 exec "$WORKSPACE/game/play.sh"
