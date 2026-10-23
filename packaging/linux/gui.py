@@ -205,7 +205,7 @@ class BuilderApp:
             messagebox.showerror("Workspace requis", "Choisissez un dossier workspace.", parent=self.root)
             return
         workspace = Path(workspace_text).expanduser().resolve()
-        if workspace == Path.home() or workspace == Path("/") or workspace == self.source:
+        if (workspace == Path.home() or workspace == Path("/") or workspace == self.source\n                or workspace in self.source.parents or self.source in workspace.parents):
             messagebox.showerror(
                 "Dossier non autorisé",
                 "Choisissez un dossier dédié au workspace, et non votre dossier personnel, la racine ou les sources de l'AppImage.",
@@ -240,6 +240,7 @@ class BuilderApp:
         self.worker.start()
 
     def _build_worker(self, rom: Path, workspace: Path) -> None:
+        worker_progress = 4
         try:
             self.events.put(("status", "Préparation des sources dans le workspace"))
             workspace.mkdir(parents=True, exist_ok=True)
@@ -252,7 +253,7 @@ class BuilderApp:
             script = workspace / "tools" / "build-game.sh"
             if not script.is_file():
                 raise RuntimeError(f"Le script de build est introuvable : {script}")
-            self.events.put(("progress", (4, "Sources prêtes — vérification de la ROM")))
+            self.events.put(("progress", (worker_progress, "Sources prêtes — vérification de la ROM")))
             process = subprocess.Popen(
                 ["bash", str(script), str(rom)],
                 cwd=str(workspace),
@@ -266,9 +267,10 @@ class BuilderApp:
             assert process.stdout is not None
             for line in process.stdout:
                 self.events.put(("log", line))
-                percent, status = stage_from_output(line, self.progress_value)
+                percent, status = stage_from_output(line, worker_progress)
+                worker_progress = max(worker_progress, percent)
                 if status:
-                    self.events.put(("progress", (percent, status)))
+                    self.events.put(("progress", (worker_progress, status)))
             code = process.wait()
             if code != 0:
                 raise RuntimeError(f"Le script de build s'est terminé avec le code {code}. Consultez le journal ci-dessus.")
