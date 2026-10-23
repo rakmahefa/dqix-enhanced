@@ -98,9 +98,13 @@ export CONDA_PREFIX="$ENV_DIR"
 export CONDA_DEFAULT_ENV=dqix-builder
 export PATH="$ENV_DIR/bin:$PATH"
 if [ -d "$ENV_DIR/etc/conda/activate.d" ]; then
+    # Conda activation snippets may reference environment variables before
+    # defining them; temporarily disable nounset just for their initialization.
+    set +u
     for activation_script in "$ENV_DIR"/etc/conda/activate.d/*.sh; do
         [ -f "$activation_script" ] && . "$activation_script"
     done
+    set -u
 fi
 export LD_LIBRARY_PATH="$ENV_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export PYTHONNOUSERSITE=1
