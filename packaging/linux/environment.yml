@@ -4,6 +4,7 @@ channels:
 dependencies:
   - python=3.11.11
   - pyyaml=6.0.2
+  - tk=8.6.13
   - make=4.4.1
   - gcc_linux-64=12.3.0
   - sysroot_linux-64=2.17
