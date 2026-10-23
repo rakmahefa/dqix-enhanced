@@ -1,80 +1,63 @@
 # Audit des fichiers — DQIX Enhanced
 
-Date de l’audit : 2026-10-23  
-Branche de référence : main  
-Commit analysé : bcba9c2821c2d540e26e617a20152ad7823307d0
+Date de mise à jour : 2026-10-23  
+Base fusionnée examinée : main à 1920a22f70e81872e0ebb67391b58498236a8629  
+Branche de l’évolution GUI : feat/appimage-gui-builder
 
 ## Résumé
 
-Le dépôt est une recompilation native de Dragon Quest IX pour PC. Le code C du runtime et le recompiler sont présents dans le dépôt, mais le code du jeu utilisé pour une compilation complète est extrait d’une ROM fournie séparément. La compilation Linux existe déjà dans tools/build-game.sh ; aucun workflow GitHub Actions Linux/AppImage n’était présent dans l’arborescence examinée.
+DQIX Enhanced recompile en code natif le programme d'une ROM Dragon Quest IX fournie par l'utilisateur. tools/build-game.sh extrait la ROM, produit du C à l'aide de recomp/, compile le runtime SDL et assemble un répertoire game/. Une CI sans ROM peut vérifier les sources, fabriquer l'AppImage constructeur et tester la toolchain, mais elle ne doit ni précompiler ni publier le jeu issu d'une ROM personnelle.
 
-L’AppImage ajoutée par cette branche est donc un **constructeur Linux portable** : elle embarque les sources publiques et une toolchain Linux versionnée, mais ni ROM, ni code du jeu généré, ni exécutable du jeu précompilé. Le build du jeu s’effectue sur la machine de l’utilisateur à partir de sa propre ROM.
+L'AppImage est un **constructeur Linux x86_64**, pas un binaire de jeu précompilé. Son démarrage par défaut ouvre une interface graphique pour choisir le fichier ROM, le dossier de travail et démarrer la compilation locale.
 
 ## Arborescence et rôle des composants
 
 | Chemin | Rôle | Considérations d’audit |
 |---|---|---|
-| README.md | Présentation, installation Windows, fonctionnement, contrôles et limites du projet | Décrit explicitement le modèle « ROM personnelle, build local » et avertit de ne pas partager game/ ou build/. |
-| ROADMAP.md | État des fonctions et travaux futurs | Le support Linux/installateur est identifié comme du travail restant dans la version examinée. |
-| build.mk | Compilation du code recompilé, runtime et bibliothèque dqixcore | Utilise make, un compilateur C, SDL2 ; compile aussi le code embarqué de third_party/libslirp. |
-| tools/build-game.sh | Build principal partagé : extraction ROM, recompilation ARM9/ARM7, édition de liens et assemblage du dossier game | Exige un chemin vers un fichier .nds ; écrit dans build/ et game/ et copie la ROM dans game/data/dqix.nds. |
-| tools/extract_rom.py | Extrait les parties de code de la ROM | Écrit les fichiers ARM9, ARM7 et overlays utilisés par le recompiler. |
-| recomp/build.py, recomp/arm7.py, recomp/insn.py | Recompilation des instructions ARM en C | recomp/build.py importe PyYAML ; la sortie est dérivée du contenu de la ROM et ne doit pas être publiée comme source ordinaire. |
-| runtime/ | Runtime de la console, frontend SDL, rendu, son, contrôles, réseau, sauvegarde et sessions | Le frontend SDL et le rendu OpenGL font partie de la cible Linux. |
-| third_party/libslirp/ | Pile réseau en espace utilisateur intégrée au dépôt | Compilée à partir des sources fournies ; ne pas ajouter une dépendance système libslirp inutile. Respecter sa licence BSD. |
-| config/usa/arm9/ | Symboles et relocations qui guident la recompilation | Données de référence utilisées par le build ; elles ne remplacent pas la ROM source. |
-| skins/ | Images/coordonnées pour les habillages de console | Ressources optionnelles du projet, copiées dans le dossier de jeu par le script de build. |
-| wfc/ et extras/ | Ressources optionnelles du serveur de téléchargement | Les fichiers de jeux téléchargés ne doivent pas être ajoutés par inadvertance aux artefacts publics. |
-| tests/semantics/run.py | Tests sémantiques du recompiler par comparaison avec du code compilé natif | Test réalisable en CI sans ROM, mais nécessite Clang, lld, les outils LLVM et GCC. |
-| tests/gpu3d/t3d.c | Petit banc de test du rendu 3D | Produit une image de test ; ce n’est pas un build complet du jeu. |
-| tests/verify_decode.py | Comparaison du décodeur avec LLVM sur des modules extraits | Besoin de données extraites et de config appropriées ; ne peut pas être exécuté sur la ROM absente. |
-| BUILD.bat, build-pc.bat, build-windows.sh | Chemin de build/installateur Windows ou MSYS2 | Ne sont pas le point d’entrée Linux. |
-| .gitignore | Exclut les ROMs, objets, répertoires de build, fichiers générés et dossiers de jeu | Les workflows doivent conserver ces exclusions et ne pas ajouter leurs sorties au commit. |
-| docs/TECHNICAL.md, docs/STATE.md | Architecture et état technique détaillés | Sources utiles pour déterminer les dépendances et le statut des fonctionnalités. |
+| README.md, ROADMAP.md | Présentation, contrôles et état du projet | La documentation générale reste orientée vers le build Windows ; les instructions AppImage spécialisées se trouvent dans appimage-audit.md. |
+| build.mk | Compilation des modules générés, runtime et bibliothèque dqixcore.so | Nécessite un compilateur C, Make, SDL2 et ses en-têtes. |
+| tools/build-game.sh | Pipeline de build Linux à partir d'une ROM | Écrit build/ et game/; copie la ROM fournie vers game/data/dqix.nds. |
+| tools/extract_rom.py | Extraction du code ARM9, ARM7 et overlays | Les données extraites proviennent de la ROM et restent dans le workspace local. |
+| recomp/build.py, recomp/arm7.py, recomp/insn.py | Recompilation ARM vers du C | recomp/build.py dépend de PyYAML. Le code généré depuis la ROM ne doit pas être publié. |
+| runtime/ | Console DS, rendu, son, contrôles, réseau et sessions | Le frontend SDL et le rendu OpenGL sont utilisés sous Linux. |
+| third_party/libslirp/ | Pile réseau utilisateur incluse | Compilée depuis le code du dépôt ; respecter la licence BSD de cette dépendance. |
+| config/usa/arm9/ | Symboles et relocations de référence | Ne remplace pas la ROM nécessaire au build complet. |
+| skins/, extras/, wfc/ | Habillages et données facultatives | La publication doit exclure les ressources de jeu sensibles ajoutées localement. |
+| tests/semantics/run.py | Tests sémantiques du recompiler | S'exécute sans ROM avec Clang/LLVM, GCC et PyYAML. |
+| tests/gpu3d/t3d.c, tests/verify_decode.py | Banc de test 3D et vérification du décodeur | Le second dépend de modules extraits ; ce ne sont pas des tests de lancement du jeu complet. |
+| packaging/linux/AppRun | Point d'entrée de l'AppImage | Valide le checksum de la toolchain, la décompacte une fois dans le cache utilisateur, configure l'environnement et ouvre l'interface graphique par défaut. Garde un mode CLI et --self-test. |
+| packaging/linux/gui.py | Interface de construction Tk | Sélecteurs de fichier ROM et dossier workspace, bouton Build, journal de compilation, barre de progression par étapes et bouton pour lancer le jeu construit. |
+| packaging/linux/environment.yml | Dépendances de la toolchain | Versions contraintes de Python, PyYAML, Tk/Tcl, Make, GCC, sysroot, SDL2, pkg-config, curl, conda-pack et setuptools. |
+| packaging/linux/dqix-enhanced-builder.desktop | Intégration bureau Linux | Terminal=false permet d'ouvrir la GUI sans fenêtre de terminal. |
+| packaging/linux/dqix-enhanced-builder.svg | Icône neutre du constructeur | N'utilise pas d'icône extraite d'une ROM. |
+| .github/workflows/linux-ci-appimage.yml | CI et création d'artefact | Tests sans ROM, cache Conda et appimagetool, packaging, --self-test, sommes SHA-256 et artefact. |
+| .github/workflows/release-appimage.yml | Publication manuelle | Valide le run source et ses sommes de contrôle avant de créer une Release. |
+| audit-files.md, appimage-audit.md | Documentation d'audit | Doivent rester synchronisés avec les étapes de lancement et de packaging décrites ici. |
+| .gitignore | Exclusion des ROMs, fichiers générés, objets et données locales | Ne pas neutraliser ses exclusions pour faciliter un build CI. |
 
-## Flux de build constaté
+## Flux de build Linux avec interface graphique
 
-1. tools/build-game.sh valide un argument ROM.
-2. tools/extract_rom.py écrit les données extraites dans build/extract.
-3. recomp/build.py et recomp/arm7.py génèrent le code C dans build/recomp et build/recomp7.
-4. build.mk compile ce code, le runtime SDL et third_party/libslirp, puis lie game/dqix et game/dqixcore.so.
-5. Le script compose game/data/code depuis l’extraction, copie la ROM vers game/data/dqix.nds et copie les habillages/ressources optionnels. game/play.sh démarre le jeu à partir de ce dossier.
+1. L'utilisateur lance l'AppImage ; AppRun vérifie l'archive de toolchain et l'extrait dans $XDG_CACHE_HOME/dqix-enhanced-appimage/toolchain (ou le cache utilisateur par défaut).
+2. L'interface Tk affiche un sélecteur de fichier .nds et un champ de workspace doté d'un sélecteur de dossier.
+3. Quand l'utilisateur clique sur **Construire**, le constructeur copie/met à jour les sources dans le workspace choisi. Les dossiers générés et les données locales tels que build/, game/, ROMs et sauvegardes sont préservés durant la synchronisation.
+4. L'interface exécute tools/build-game.sh en tâche de fond, affiche le journal et met à jour la barre de progression à partir des étapes que le script annonce.
+5. Après réussite, le bouton **Lancer le jeu** démarre game/play.sh dans ce workspace.
 
-Ce flux est cohérent pour un build local. Il n’est pas exécutable intégralement dans une CI publique sans une ROM fournie de façon privée. En outre, publier le dossier game/ ou un binaire dérivé de la ROM dans une Release publique pourrait redistribuer du contenu protégé. Les workflows ne font donc pas de build de jeu précompilé.
+La barre de progression exprime des **jalons de pipeline**, pas un pourcentage précis du compilateur : les étapes de recompilation et de compilation n'exposent pas actuellement une progression interne détaillée. Le journal reste visible pour diagnostiquer les échecs.
 
-## Dépendances relevées
+## Risques et règles de distribution
 
-- Python 3 ; PyYAML est importé par recomp/build.py.
-- GNU Make et un compilateur C compatible avec les options du Makefile.
-- SDL2, ses en-têtes et sdl2-config pour compiler runtime/frontend_sdl.c.
-- Outils de base POSIX/Linux : shell, cp, cmp, dd, tr, nproc et curl (le téléchargement du message DQVC est optionnel).
-- Clang, lld/LLVM et GCC pour tests/semantics/run.py.
-- Pilotes graphiques OpenGL de la machine hôte ; Enhanced demande OpenGL 3.3 selon la documentation technique.
+- Le build complet dépend d'une ROM locale : aucun workflow public ne doit recevoir ou publier cette ROM, le code extrait, game/ ni les binaires issus de cette ROM.
+- Le workspace sélectionné peut contenir une copie de la ROM, le jeu, les sauvegardes, les paramètres et les fichiers générés. Ne pas publier ou partager ce dossier.
+- L'utilisateur doit choisir un workspace dédié. Pour les dossiers non vides qui n'ont pas le marqueur du constructeur, la GUI demande confirmation avant d'écrire ou de mettre à jour les sources.
+- Tk/Tcl est inclus dans l'environnement Conda de l'AppImage ; l'affichage lui-même a toujours besoin d'une session graphique Linux fonctionnelle. Les pilotes noyau, serveur de fenêtres, audio et pilotes GPU restent fournis par l'hôte.
+- Le mode Enhanced demande un pilote OpenGL compatible, notamment OpenGL 3.3 selon docs/TECHNICAL.md.
+- Le test CI --self-test vérifie l'import Tk sans ouvrir une fenêtre, les dépendances et un petit lien SDL2. Il ne peut pas automatiser le choix interactif de fichiers ni garantir un gameplay fonctionnel sans écran graphique et ROM.
 
-Le réseau slirp est inclus dans third_party/libslirp. Le projet n’utilise pas CMake pour son chemin de build Linux documenté.
+## Vérifications après cette évolution
 
-## Écarts et risques
-
-1. Pas de CI Linux/AppImage présente à l’état initial.
-2. Les dépendances de compilation Linux n’étaient pas encapsulées par un fichier d’environnement versionné.
-3. La compilation réelle du jeu dépend de la ROM ; un job CI sans ROM peut vérifier les tests, le toolchain et le packaging, mais ne peut pas revendiquer avoir lancé le jeu.
-4. Les sorties build/, game/, dossiers d’extraction et C généré depuis la ROM sont sensibles au regard de la redistribution et doivent rester hors de l’AppImage générique et des artefacts distribués.
-5. OpenGL et les pilotes GPU ne peuvent pas être garantis par l’AppImage seul ; ils continuent à dépendre de la machine hôte.
-6. L’AppImage doit être testée sur plusieurs distributions Linux réelles. La création réussie de l’image et un test du toolchain ne remplacent pas un test manuel de gameplay avec une ROM locale.
-
-## Changements associés dans cette branche
-
-- .github/workflows/linux-ci-appimage.yml : contrôles Linux sans ROM, création et test de l’AppImage constructeur, artefact téléchargeable et cache de dépendances.
-- .github/workflows/release-appimage.yml : publication manuelle d’un artefact issu d’une exécution CI réussie et de confiance.
-- packaging/linux/environment.yml : versions contraintes pour le compilateur, Python, PyYAML, Make, SDL2 et utilitaires.
-- packaging/linux/AppRun : extraction locale de la toolchain, compilation à partir d’une ROM fournie par l’utilisateur et lancement du build local.
-- packaging/linux/dqix-enhanced-builder.desktop et .svg : métadonnées et icône générique de l’AppImage.
-- appimage-audit.md : décisions de packaging, dépendances et limites de compatibilité.
-
-## Vérifications après fusion
-
-- Vérifier que le workflow CI finit avec un artefact contenant l’AppImage et SHA256SUMS.
-- Télécharger l’artefact sur une distribution Linux propre et lancer --self-test.
-- Tester le premier build avec une ROM dumpée légalement, puis le lancement d’une seconde fois, sauvegardes et contrôles.
-- Tester l’affichage et le son sur au moins une distribution basée sur Ubuntu et une distribution différente.
-- Ne jamais ajouter une ROM, game/data/code, les fichiers générés par recomp ou un exécutable déjà compilé au dépôt ou à l’artefact générique.
+- Exécuter la CI et confirmer le smoke-test de l'AppImage mise à jour.
+- Sur un bureau Linux, ouvrir l'AppImage sans arguments et vérifier le sélecteur .nds, le sélecteur de dossier, le bouton Build, la progression, le journal et la gestion d'erreur.
+- Effectuer un build complet avec une ROM dumpée légalement ; vérifier le lancement du jeu, le son, les entrées et les sauvegardes.
+- Tester un workspace vierge, un workspace existant avec marqueur et un dossier non vide sans marqueur.
+- Contrôler que les archives d'artefact et les releases ne contiennent aucun .nds, .sav, code C généré depuis la ROM ou dossier game/.
