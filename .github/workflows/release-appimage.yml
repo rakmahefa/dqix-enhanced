@@ -93,7 +93,9 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE="$ASSETS_DIR/DQIX-Enhanced-Builder-x86_64.AppImage"
-          [ -x "$IMAGE" ] || { echo "AppImage artifact is missing or not executable" >&2; exit 1; }
+          [ -f "$IMAGE" ] || { echo "AppImage artifact is missing" >&2; exit 1; }
+          chmod +x "$IMAGE"
+          [ -x "$IMAGE" ] || { echo "AppImage could not be marked executable" >&2; exit 1; }
           [ -f "$ASSETS_DIR/SHA256SUMS" ] || { echo "SHA256SUMS is missing" >&2; exit 1; }
           [ -f "$ASSETS_DIR/build-info.txt" ] || { echo "build-info.txt is missing" >&2; exit 1; }
           (cd "$ASSETS_DIR" && sha256sum --check SHA256SUMS)
