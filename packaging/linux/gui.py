@@ -16,7 +16,6 @@ import subprocess
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from typing import Callable
 
 APP_NAME = "DQIX Enhanced — Constructeur Linux"
 WORKSPACE_MARKER = ".dqix-enhanced-appimage-workspace"
@@ -44,8 +43,8 @@ def stage_from_output(line: str, current: int) -> tuple[int, str]:
     checks = (
         ("== Checking the ROM", 5, "Vérification de la ROM"),
         ("== Extracting the game's code", 12, "Extraction du code depuis la ROM"),
-        ("== Recompiling it to C", 24, "Recompilation ARM vers C"),
-        ("extracted ARM9", 35, "Recompilation des processeurs ARM9 et ARM7"),
+        ("extracted ARM9", 22, "Extraction terminée"),
+        ("== Recompiling it to C", 28, "Recompilation ARM9/ARM7 vers C"),
         ("== Compiling", 55, "Compilation du runtime et du jeu"),
         ("== Putting the game folder together", 92, "Assemblage du dossier du jeu"),
         ("== Done.", 100, "Build terminé"),
