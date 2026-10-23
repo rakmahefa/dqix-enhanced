@@ -27,11 +27,18 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install test toolchain
+      - name: Install native test compiler
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y build-essential clang lld llvm
+          sudo apt-get install --no-install-recommends -y build-essential
           python -m pip install --disable-pip-version-check "PyYAML==6.0.2"
+
+      - name: Install LLVM/Clang for ARM semantic tests
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "19.1.7"
+          directory: ${{ runner.temp }}/llvm-19.1.7
+          env: true
 
       - name: Check Python and shell syntax
         run: |
