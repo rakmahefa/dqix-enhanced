@@ -43,7 +43,7 @@ L'AppImage est un **constructeur Linux x86_64**, pas un binaire de jeu précompi
 4. L'interface exécute tools/build-game.sh en tâche de fond, affiche le journal et met à jour la barre de progression à partir des étapes que le script annonce.
 5. Après réussite, le bouton **Lancer le jeu** démarre game/play.sh dans ce workspace.
 
-La barre de progression exprime des **jalons de pipeline**, pas un pourcentage précis du compilateur : les étapes de recompilation et de compilation n'exposent pas actuellement une progression interne détaillée. Le journal reste visible pour diagnostiquer les échecs.
+La barre de progression exprime des **jalons de pipeline**, pas un pourcentage précis du compilateur : les étapes de recompilation et de compilation n'exposent pas actuellement une progression interne détaillée. La barre s'anime durant ces étapes longues, puis revient à une progression déterminée au jalon suivant. Le journal reste visible pour diagnostiquer les échecs.
 
 ## Risques et règles de distribution
 
