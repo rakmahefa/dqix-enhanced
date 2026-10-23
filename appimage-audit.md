@@ -17,7 +17,7 @@ L'AppImage s'ouvre par défaut sur une fenêtre **DQIX Enhanced — Constructeur
 - **Fichier ROM (.nds)** : bouton de sélection qui ouvre une boîte de dialogue de fichier, filtrée sur les ROM Nintendo DS.
 - **Dossier workspace** : bouton de sélection de dossier et champ modifiable permettant de choisir l'endroit où garder les sources de travail, les résultats du build, le jeu et les sauvegardes. Le workspace peut aussi être saisi directement s'il n'existe pas encore.
 - **Construire** : prépare/synchronise les sources dans le workspace choisi et exécute tools/build-game.sh dans un worker, sans bloquer la fenêtre.
-- **Barre de progression** : avance selon les grandes étapes détectées dans la sortie du script (validation, extraction, recompilation, compilation, assemblage). Ce sont des jalons estimés : le recompiler et Make ne publient pas de pourcentage d'avancement commun.
+- **Barre de progression** : avance selon les grandes étapes détectées dans la sortie du script (validation, extraction, recompilation, compilation, assemblage). Ce sont des jalons estimés : le recompiler et Make ne publient pas de pourcentage d'avancement commun. Pendant les étapes longues de recompilation et de compilation, la barre passe temporairement en mode animé indéterminé, puis revient aux jalons déterminés.
 - **Journal du build** : affiche en direct stdout/stderr afin de voir les diagnostics de compilation.
 - **Lancer le jeu** : devient disponible après un build réussi (ou lorsqu'un jeu préexistant est trouvé dans le workspace).
 
