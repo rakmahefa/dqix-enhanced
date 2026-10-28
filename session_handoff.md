@@ -5,7 +5,7 @@
 **Branche de travail :** `plan/v32-linux-launcher-settings`  
 **Branche de base :** `main`  
 **Commit de base connu :** `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`  
-**Dernier commit confirmé avant l'ajout de cette note :** `6cc832c63dd3f89fca863464135dc04b8e320567`  
+**Dernier commit confirmé avant cette mise à jour de la note :** `d545274c965eac8a10a2e16c2368e51e7f4071eb`  
 **État fonctionnel :** plan et CI de développement ajoutés ; le launcher et le menu ne sont pas encore implémentés.
 
 ## 1. Règles impératives
@@ -23,7 +23,7 @@
 - Ce document : [session_handoff.md](https://github.com/rakmahefa/dqix-enhanced/blob/plan/v32-linux-launcher-settings/session_handoff.md)
 
 La CI temporaire est destinée aux itérations de développement. Elle est limitée à la branche de travail et peut également être lancée manuellement. Elle :
-- installe les dépendances de diagnostic SDL3/Vulkan sur Ubuntu 24.04 ;
+- installe les dépendances de diagnostic SDL3/Vulkan sur Ubuntu 24.04 (dont rsync pour le test de politique AppImage facultatif) ;
 - enregistre les versions des outils et le résultat de `vulkaninfo` ;
 - vérifie la frontière de sources Windows et le placement des nouveaux sources natifs ;
 - configure/compile/teste `third_party/extra/linux/` s'il contient un `CMakeLists.txt` ;
