@@ -16,18 +16,34 @@ $UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DQIX-
 # ---------------------------------------------------------------- checks (no window needed)
 
 # Which ROM is this? Returns @{ Ok; Warn; Text }. Any readable file can be
-# tried: only the USA version is known to work, the others get a warning.
+# tried: the USA and European versions work, the others get a warning.
+# A ROM inside a .zip works too (Find-ZipRom, Expand-ZipRom: rom-unzip.ps1).
+. (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'rom-unzip.ps1') -Load
+
 function Test-Rom([string]$Path) {
-    if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return @{ Ok = $false; Warn = $false; Text = 'Choose your ROM file (it ends in .nds).' } }
+    if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return @{ Ok = $false; Warn = $false; Text = 'Choose your ROM file (it ends in .nds, or a .zip with it inside).' } }
     $code = ''
+    $inZip = ''
     try {
-        $fs = [IO.File]::OpenRead($Path)
-        try { $buf = New-Object byte[] 16; [void]$fs.Read($buf, 0, 16); $code = [Text.Encoding]::ASCII.GetString($buf, 12, 4) -replace '[^A-Za-z0-9]', '' } finally { $fs.Close() }
+        if ($Path.EndsWith('.zip', [StringComparison]::OrdinalIgnoreCase)) {
+            $z = Find-ZipRom $Path
+            if (-not $z) { return @{ Ok = $false; Warn = $false; Text = "There is no ROM (.nds file) in this zip." } }
+            $code = $z.Code
+            $inZip = " (in the zip: $(Split-Path -Leaf $z.Name))"
+        } else {
+            $fs = [IO.File]::OpenRead($Path)
+            try { $buf = New-Object byte[] 16; [void]$fs.Read($buf, 0, 16); $code = [Text.Encoding]::ASCII.GetString($buf, 12, 4) -replace '[^A-Za-z0-9]', '' } finally { $fs.Close() }
+        }
     } catch { return @{ Ok = $false; Warn = $false; Text = "This file can't be read: $($_.Exception.Message)" } }
+    $r = Test-RomCode $code
+    $r.Text = $r.Text + $inZip
+    return $r
+}
+function Test-RomCode([string]$code) {
     switch ($code) {
         'YDQE' { return @{ Ok = $true; Warn = $false; Text = 'Dragon Quest IX (USA).' } }
-        'YDQJ' { return @{ Ok = $true; Warn = $true; Text = "Dragon Quest IX (Japan). Only the USA version is tested: this one may not build or may not run, but you can try." } }
-        'YDQP' { return @{ Ok = $true; Warn = $true; Text = "Dragon Quest IX (Europe). Only the USA version is tested: this one may not build or may not run, but you can try." } }
+        'YDQP' { return @{ Ok = $true; Warn = $false; Text = 'Dragon Quest IX (Europe). English, French, German, Italian or Spanish: choose in Game > Language.' } }
+        'YDQJ' { return @{ Ok = $true; Warn = $true; Text = "Dragon Quest IX (Japan). Only the USA and European versions are supported: this one may not build or may not run, but you can try." } }
         default { return @{ Ok = $true; Warn = $true; Text = "This doesn't look like a Dragon Quest IX ROM (game code '$code'). It will most likely not build, but you can try." } }
     }
 }
@@ -97,6 +113,15 @@ function Copy-Rom([string]$Rom, [string]$Dest) {
     New-Item -ItemType Directory -Force -Path $romDir | Out-Null
     Get-ChildItem -LiteralPath $romDir -Filter *.nds -ErrorAction SilentlyContinue | Where-Object { $_.FullName -ne $Rom } | Remove-Item -Force
     $target = Join-Path $romDir 'dqix_usa.nds'
+    if ($Rom.EndsWith('.zip', [StringComparison]::OrdinalIgnoreCase)) {
+        $tmp = Join-Path $env:TEMP ('dqix-rom-' + [Guid]::NewGuid().ToString('N'))
+        try {
+            $out = Expand-ZipRom $Rom $tmp
+            if (-not $out) { throw "There is no ROM (.nds file) in $Rom." }
+            Move-Item -LiteralPath $out -Destination $target -Force
+        } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
+        return
+    }
     if ([IO.Path]::GetFullPath($Rom) -ne [IO.Path]::GetFullPath($target)) { Copy-Item -LiteralPath $Rom -Destination $target -Force }
 }
 
@@ -233,7 +258,7 @@ function Show-Welcome {
     $title.Text = "Welcome to $AppName for PC"
     $subtitle.Text = 'This setup turns your own copy of the game into a PC game.'
     [void](New-Label ("You'll need:`n" +
-        "  - a copy (ROM, a .nds file) of your own Dragon Quest IX cartridge (the USA version is the tested one)`n" +
+        "  - a copy (ROM, a .nds file) of your own Dragon Quest IX cartridge (the USA or European version)`n" +
         "  - an internet connection, and about 4 GB of free space`n" +
         "  - 10 to 20 minutes the first time (the build tools are installed once)") 0 (S 100))
     [void](New-Label ("What happens: you choose your ROM and where to put the game, then setup downloads free build " +
@@ -245,7 +270,7 @@ function Show-Welcome {
 
 function Show-Rom {
     $title.Text = 'Your Dragon Quest IX ROM'
-    $subtitle.Text = 'Choose the .nds file made from your cartridge, or drag it into this window.'
+    $subtitle.Text = 'Choose the .nds file made from your cartridge (or a .zip with it inside), or drag it into this window.'
     [void](New-Label 'ROM file:' 0 (S 24) -Bold)
     $box = New-Object System.Windows.Forms.TextBox; $box.SetBounds(0, (S 28), (S 480), (S 26)); $box.ReadOnly = $true; $box.Text = $state.Rom
     $body.Controls.Add($box)
@@ -264,7 +289,7 @@ function Show-Rom {
     }.GetNewClosure()
     $browse.Add_Click({
         $d = New-Object System.Windows.Forms.OpenFileDialog
-        $d.Filter = 'DS ROM (*.nds)|*.nds|All files (*.*)|*.*'; $d.Title = 'Choose your Dragon Quest IX ROM'
+        $d.Filter = 'DS ROM, or a zip with one in it (*.nds;*.zip)|*.nds;*.zip|All files (*.*)|*.*'; $d.Title = 'Choose your Dragon Quest IX ROM'
         if ($d.ShowDialog($form) -eq 'OK') { & $check $d.FileName }
     }.GetNewClosure())
     $script:dropCheck = $check

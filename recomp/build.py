@@ -17,7 +17,54 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-import yaml
+try:
+    import yaml                      # optional: the files below are simple enough to read without it
+except ImportError:
+    yaml = None
+
+
+def _scalar(v):
+    v = v.strip()
+    if v in ("true", "false"):
+        return v == "true"
+    try:
+        return int(v, 0)
+    except ValueError:
+        return v
+
+
+def load_simple_yaml(path):
+    """The YAML files tools/extract_rom.py writes: top-level "key: value"
+    lines, and lists of mappings ("- key: value" then "  key: value"). PyYAML
+    is used when it is installed; this keeps the build working without it
+    (a missing yaml module stopped some Windows builds)."""
+    if yaml is not None:
+        with open(path) as f:
+            return yaml.safe_load(f)
+    root, cur_list, cur_item = {}, None, None
+    with open(path) as f:
+        for raw in f:
+            line = raw.rstrip("\n")
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            if line.startswith("- ") or line.startswith("  "):
+                if cur_list is None:
+                    raise ValueError(f"{path}: list item outside a list: {line!r}")
+                body = line[2:]
+                if line.startswith("- "):
+                    cur_item = {}
+                    cur_list.append(cur_item)
+                k, _, v = body.partition(":")
+                cur_item[k.strip()] = _scalar(v)
+                continue
+            k, _, v = line.partition(":")
+            if v.strip() == "":
+                cur_list = root[k.strip()] = []
+                cur_item = None
+            else:
+                root[k.strip()] = _scalar(v)
+                cur_list = None
+    return root
 
 sys.path.insert(0, os.path.dirname(__file__))
 from insn import (BRANCH, CALL, CALL_REG, EXC_RET, JUMP_REG, JUMPTABLE, RET, SEQ, STOP,  # noqa: E402
@@ -152,7 +199,7 @@ def load_relocs(mod, path):
 def load_modules(extract, config):
     mods = []
     rd = lambda p: open(os.path.join(extract, p), "rb").read()
-    y = lambda p: yaml.safe_load(open(os.path.join(extract, p)))
+    y = lambda p: load_simple_yaml(os.path.join(extract, p))
     main = Module("main", -1, y("arm9/arm9.yaml")["base_address"], rd("arm9/arm9.bin"))
     load_symbols(main, os.path.join(config, "symbols.txt"))
     load_relocs(main, os.path.join(config, "relocs.txt"))
@@ -571,9 +618,10 @@ def main():
     ap.add_argument("--config", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--per-file", type=int, default=400)
-    ap.add_argument("--hle", help="file listing '<module> <addr>' functions the runtime provides instead")
+    ap.add_argument("--hle", help="file listing '<module> <addr> [name]' functions the runtime provides instead (as hle_<name>, or under the generated name)")
     ap.add_argument("--interpret", help="file listing '<module> <addr>' functions to run in the interpreter (code that changes at run time)")
     ap.add_argument("--patch", help="file listing '<module> <addr> <new 32-bit ARM word>' instruction overrides (e.g. removing anti-piracy traps)")
+    ap.add_argument("--wrap", help="file listing '<module> <addr> [name]' functions recompiled as <cname>_orig: the runtime provides <cname> (or, named, wrap_<name>, which calls wrap_<name>_orig), around the game's own code")
     ap.add_argument("--tags", help="file listing '<module> <call addr> <tag>': the 3D drawn during these calls carries the tag (e.g. the stylus arrow, hidden while walking with a stick); the game's code is unchanged")
     args = ap.parse_args()
 
@@ -592,12 +640,18 @@ def main():
             line = line.split("#")[0].split()
             if len(line) == 2:
                 interp.add((line[0], int(line[1], 16)))
-    hle = set()
+    hle = {}
     if args.hle:
         for line in open(args.hle):
             line = line.split("#")[0].split()
-            if len(line) == 2:
-                hle.add((line[0], int(line[1], 16)))
+            if len(line) in (2, 3):
+                hle[(line[0], int(line[1], 16))] = line[2] if len(line) == 3 else None
+    wrap = {}                  # (module, addr) -> the runtime's name for it (wrap_<name>), or None (it provides <cname> itself)
+    if args.wrap:
+        for line in open(args.wrap):
+            line = line.split("#")[0].split()
+            if len(line) in (2, 3):
+                wrap[(line[0], int(line[1], 16))] = line[2] if len(line) == 3 else None
     os.makedirs(args.out, exist_ok=True)
 
     # Translate everything in memory first: translating can discover secondary
@@ -614,10 +668,28 @@ def main():
                 fn.interpreted = True
                 continue
             if (fn.module.name, fn.addr) in hle:
-                code[(fn.module.name, fn.addr)] = f"/* {fn.cname}: provided by the runtime (HLE) */"
+                name = hle[(fn.module.name, fn.addr)]
+                if name:      # the runtime's hle_<name>, whatever the address is in this ROM
+                    code[(fn.module.name, fn.addr)] = (f"/* {fn.name}: provided by the runtime (HLE) */\n"
+                                                       f"void hle_{name}(Cpu* c);\n"
+                                                       f"void {fn.cname}(Cpu* c) {{ hle_{name}(c); }}")
+                else:
+                    code[(fn.module.name, fn.addr)] = f"/* {fn.cname}: provided by the runtime (HLE) */"
                 rc.stats["hle_functions"] += 1
                 continue
-            code[(fn.module.name, fn.addr)] = rc.emit_func(fn)
+            body = rc.emit_func(fn)
+            if (fn.module.name, fn.addr) in wrap:     # the runtime's fn calls this one (hooks around it)
+                sig = f"void {fn.cname}(Cpu* c)"
+                assert sig in body, sig
+                body = body.replace(sig, f"void {fn.cname}_orig(Cpu* c)", 1)
+                name = wrap[(fn.module.name, fn.addr)]
+                if name:      # named: the runtime's wrap_<name>, whatever the address is in this ROM (the European one moves)
+                    body += (f"\n/* {fn.name}: watched by the runtime's wrap_{name} */\n"
+                             f"void wrap_{name}(Cpu* c);\n"
+                             f"void {fn.cname}(Cpu* c) {{ wrap_{name}(c); }}\n"
+                             f"void wrap_{name}_orig(Cpu* c) {{ {fn.cname}_orig(c); }}")
+                rc.stats["wrapped_functions"] = rc.stats.get("wrapped_functions", 0) + 1
+            code[(fn.module.name, fn.addr)] = body
         queue, rc.pending = rc.pending, []
 
     funcs = list(rc.all_funcs())
@@ -625,6 +697,8 @@ def main():
         f.write("#pragma once\n#include \"cpu.h\"\n")
         for fn in funcs:
             f.write(f"void {fn.cname}(Cpu* c);\n")
+            if (fn.module.name, fn.addr) in wrap:
+                f.write(f"void {fn.cname}_orig(Cpu* c);\n")
 
     files = []
     for m in mods:

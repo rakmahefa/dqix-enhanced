@@ -1,90 +1,51 @@
-# Audit AppImage Linux — DQIX Enhanced
+# Audit des fichiers — DQIX Enhanced
 
-Date de mise à jour : 2026-10-23  
-Cible : Linux x86_64  
-Branche d'évolution GUI : feat/appimage-gui-builder
+Date : 2026-10-28  
+Synchronisation de référence : `sackchief/dqix-enhanced@b85da5d6f8a5580f737e5f96418f4b07a8083591`  
+Ancien état du fork : `rakmahefa/dqix-enhanced@4320789d4c16880f08fa9852510e9489146ff789`  
+Spec AppImage : [spec.md](spec.md)
 
-## Décision de packaging
+## Résumé
 
-Le script tools/build-game.sh exige une ROM .nds fournie par l'utilisateur, extrait son code et place le résultat compilé dans game/. L'AppImage distribuée est donc un **constructeur Linux portable avec interface graphique**, et non le jeu précompilé.
+Le fork partait de v31 et avait ajouté un constructeur AppImage graphique ainsi qu'un workflow manuel de publication. L'upstream a depuis évolué vers v32. La synchronisation prend comme base le code upstream afin de récupérer les améliorations de jeu et de build, tout en conservant les extensions Linux spécifiques au fork. Elle ne publie aucune ROM ni aucun jeu compilé.
 
-L'AppImage embarque les sources du dépôt qui sont nécessaires à la construction et une toolchain Linux packagée. Elle ne contient aucune ROM, aucun code généré depuis une ROM, ni aucun binaire de jeu. Le build complet reste local dans le dossier workspace choisi par l'utilisateur.
+L'AppImage est un **constructeur x86_64**, pas une distribution du jeu déjà construit. L'utilisateur choisit sa propre ROM et le constructeur produit le jeu localement dans un workspace qu'il doit garder privé.
 
-## Interface utilisateur
+## Structure et responsabilités
 
-L'AppImage s'ouvre par défaut sur une fenêtre **DQIX Enhanced — Constructeur Linux**.
-
-- **Fichier ROM (.nds)** : bouton de sélection qui ouvre une boîte de dialogue de fichier, filtrée sur les ROM Nintendo DS.
-- **Dossier workspace** : bouton de sélection de dossier et champ modifiable permettant de choisir l'endroit où garder les sources de travail, les résultats du build, le jeu et les sauvegardes. Le workspace peut aussi être saisi directement s'il n'existe pas encore.
-- **Construire** : prépare/synchronise les sources dans le workspace choisi et exécute tools/build-game.sh dans un worker, sans bloquer la fenêtre.
-- **Barre de progression** : avance selon les grandes étapes détectées dans la sortie du script (validation, extraction, recompilation, compilation, assemblage). Ce sont des jalons estimés : le recompiler et Make ne publient pas de pourcentage d'avancement commun. Pendant les étapes longues de recompilation et de compilation, la barre passe temporairement en mode animé indéterminé, puis revient aux jalons déterminés.
-- **Journal du build** : affiche en direct stdout/stderr afin de voir les diagnostics de compilation.
-- **Lancer le jeu** : devient disponible après un build réussi (ou lorsqu'un jeu préexistant est trouvé dans le workspace).
-
-En cas de build en échec, la fenêtre reste ouverte, réactive le bouton Construire et signale l'erreur tout en laissant le journal consultable. Le marqueur .dqix-enhanced-appimage-workspace identifie un workspace géré par cette AppImage. Pour éviter une écriture inattendue, un workspace non vide sans ce marqueur demande confirmation avant de mettre à jour ses fichiers source.
-
-## Dépendances packagées
-
-| Dépendance | Utilité | Stratégie |
+| Chemin | Rôle | Points d'audit |
 |---|---|---|
-| Python 3.11 | UI, extraction et recompiler | Version contrainte et incluse dans la toolchain Conda. |
-| Tk/Tcl | Fenêtre, sélecteur de fichier, sélecteur de dossier, widgets et barre de progression | Runtime Tk versionné dans l'environnement. Requiert une session graphique hôte. |
-| PyYAML | Métadonnées importées par le recompiler | Version contrainte, incluse. |
-| GNU Make | Orchestration de build.mk | Version contrainte, incluse. |
-| GCC Linux x86_64 et wrappers | Compilation du C généré et runtime | Toolchain incluse, avec environnement sysroot contraint. |
-| Sysroot Linux | En-têtes et bibliothèques de compilation ciblés | Packagé avec l'environnement de compilateur. |
-| SDL2, en-têtes et sdl2-config | Fenêtre, audio, entrées et frontend | Version contrainte, incluse pour la compilation et le runtime. |
-| pkg-config | Recherche des métadonnées des bibliothèques | Inclus. |
-| curl | Téléchargement optionnel du message DQVC au build | Inclus ; l'échec du téléchargement facultatif est non fatal dans le script actuel. |
-| third_party/libslirp | Pile réseau intégrée | Compilée à partir des sources du dépôt, plutôt que dépendre d'une libslirp système. |
-| Clang, lld et LLVM | Tests du recompiler | Présents dans le job CI, non nécessaires dans l'AppImage runtime. |
-| Pilote OpenGL, serveur de fenêtre, audio et noyau | Exécution et rendu graphique | Restent dépendances de l'hôte et ne doivent pas être copiés aveuglément dans l'AppImage. |
+| `README.md`, `ROADMAP.md`, `release-notes/v32.md` | Documentation de la version upstream v32 et plan v33 | Base de référence désormais upstream ; ne pas restaurer l'ancien README/roadmap du fork. |
+| `docs/LINUX-APPIMAGE.md` | Instructions Linux importées de l'upstream | Complété par l'audit du fork et sa spec ; noter que le fork conserve aussi son workflow de release. |
+| `appimage-audit.md`, `audit-files.md`, `spec.md`, `upstream-sync.md` | Audit du fork, plan d'évolution et historique de synchronisation | À actualiser après toute modification du packaging ou du workflow. |
+| `tools/build-game.sh` | Valide la ROM, extrait le code, appelle le recompiler ARM9/ARM7, compile le runtime et assemble `game/` | Copie la ROM dans le workspace local. Jamais à exécuter dans la CI sans une ROM synthétique explicitement conçue pour le test. |
+| `tools/extract_rom.py`, `tools/region.py` | Extrait les régions CPU/overlays et adapte les adresses selon la région | v32 ajoute le support de la ROM européenne ; les deux régions doivent être testées par le propriétaire d'une ROM appropriée. |
+| `recomp/build.py`, `recomp/arm7.py`, `recomp/insn.py` | Recompilation ARM vers le code C | Le recompiler v32 a une lecture YAML de repli ; mesurer avant de supprimer PyYAML de la toolchain AppImage. |
+| `wrap.txt`, `hle.txt` et `config/usa/arm9/` | Descriptions de hooks, symboles, relocalisations et HLE | Respecter les changements amont : ne pas réintroduire des adresses USA fixes là où les wrappers/régions sont nécessaires. |
+| `runtime/` | Runtime DS, SDL2, audio, entrée, rendu et réseau | v32 modifie considérablement le frontend, le rendu, les langues et les Mods ; pas de cherry-pick isolé de l'ancien runtime. |
+| `runtime/text_hd.*`, `runtime/music.*`, `runtime/discord.*`, `runtime/gpu2d.c`, `runtime/gpu3d.c` | HD text, export/musique, Rich Presence et rendus | Ressources/outils runtime upstream ; vérifier les dépendances et notices, mais ne pas les exclure pour gagner de la taille sans preuve. |
+| `build.mk`, `BUILD.bat`, `build-windows.sh`, `recomp.bat` | Construction Windows/Unix | Le build upstream utilise désormais `wrap.txt` et les nouveaux fichiers de génération. |
+| `packaging/linux/AppRun` | Entrée AppImage | Vérifie le SHA-256 de l'archive toolchain, l'extrait dans le cache XDG, effectue `conda-unpack`, configure PATH/LD_LIBRARY_PATH et lance la GUI par défaut. |
+| `packaging/linux/gui.py` | Interface de construction Tk | Choix ROM/workspace, build worker, journal et jalons de progression. Les données de build restent dans le workspace. |
+| `packaging/linux/environment.yml` | Toolchain Conda | Versions directes contraintes, mais pas encore de lock transitif complet par builds de paquets. |
+| `packaging/linux/dqix-enhanced-builder.desktop`, `*.svg` | Intégration bureau et icône neutre | Ne doit pas dépendre de l'icône tirée de la ROM. |
+| `.github/workflows/linux-ci-appimage.yml` | Tests et fabrication de l'AppImage | Tests sans ROM, toolchain packée, checksum appimagetool, scan sommaire de contenu, AppImage et self-test. |
+| `.github/workflows/release-appimage.yml` | Publication manuelle spécifique au fork | Absent de l'upstream ; à renforcer avec préflight read-only, `dry_run=true` par défaut et droits d'écriture limités au job publish. |
+| `tests/semantics/run.py` | Tests sémantiques du recompiler | Tests sans ROM ; ils ne valident pas le build complet ou le rendu en jeu. |
+| `.gitignore` | Exclusions des résultats locaux | Ne remplace pas les filtres d'exclusion du workflow AppImage. |
 
-Les versions directes de l'environnement sont précisées dans packaging/linux/environment.yml. setup-micromamba cache l'environnement et les paquets téléchargés selon le fichier de configuration ; conda-pack crée ensuite une archive relocalisable. Au premier lancement, AppRun la décompresse dans le cache utilisateur, vérifie son SHA-256, exécute conda-unpack et initialise les scripts d'activation.
+## Invariants de distribution
 
-Le cache améliore les lancements suivants. Ce mécanisme reproduit l'environnement effectivement livré dans l'artefact ; sans lockfile complet des dépendances transitives, une résolution Conda effectuée à une date ultérieure ne garantit pas nécessairement un binaire bit-à-bit identique.
+- Le dépôt public et l'artefact CI ne contiennent pas de ROM utilisateur.
+- Le contenu du workspace après lancement est privé : la ROM copiée, `build/`, code généré, `game/`, saves et settings n'ont pas à être partagés.
+- Aucun workflow ne doit recevoir ou uploader ces fichiers.
+- Le script de packaging exclut actuellement plusieurs dossiers de build et extensions connues ; la spec demande une politique de contenu positive et un test de sentinelles, incluant `testbuild/`, dossiers de Mods et extensions audio supplémentaires.
+- Le workflow Linux crée `DQIX-Enhanced-Builder-x86_64.AppImage`, `SHA256SUMS` et `build-info.txt`. Il ne produit pas encore de SBOM CycloneDX, de manifeste exhaustif de payload, d'audit ELF complet ni de rapport de taille.
 
-## Parcours de lancement
+## Validation à faire après synchronisation
 
-1. Sans argument, AppRun prépare la toolchain puis lance packaging/linux/gui.py.
-2. L'utilisateur choisit sa ROM et son workspace, puis clique sur **Construire**.
-3. Le constructeur synchronise les sources et lance tools/build-game.sh en tâche de fond.
-4. L'interface affiche les lignes du build et avance la barre de progression sur les jalons annoncés.
-5. À la fin, l'utilisateur peut lancer le jeu compilé depuis l'interface.
-
-Le workspace par défaut est $XDG_DATA_HOME/dqix-enhanced-linux/workspace (ou ~/.local/share/dqix-enhanced-linux/workspace si XDG_DATA_HOME n'est pas défini). L'utilisateur peut choisir un autre dossier. Le workspace contient la ROM copiée, le code extrait, les sources locales, game/, les sauvegardes et les réglages : il doit rester privé.
-
-Pour les scripts ou l'automatisation, le mode CLI reste disponible : --build-only ROM.nds, --rebuild [ROM.nds], ROM.nds pour construire puis lancer, --self-test pour les vérifications et --help pour le rappel de commande.
-
-## CI, artefact et publication
-
-Le workflow .github/workflows/linux-ci-appimage.yml :
-
-1. exécute les contrôles Python/shell et les tests sémantiques sans ROM ;
-2. crée l'environnement versionné sur Ubuntu 22.04 et le packe avec conda-pack ;
-3. met en cache l'environnement et appimagetool épinglé par SHA-256 ;
-4. assemble l'AppDir contenant AppRun, le fichier desktop, l'icône générique, les sources publiques, gui.py et l'archive de toolchain ;
-5. crée l'AppImage et l'exécute avec --self-test, en mode extraction sans FUSE ;
-6. publie l'AppImage, SHA256SUMS et build-info.txt comme artefact CI.
-
-Le workflow manuel .github/workflows/release-appimage.yml récupère un artefact de run CI approuvé, vérifie ses checksums et crée une Release sous un nouveau tag. Les ROMs, sauvegardes, dossiers de jeu et fichiers générés ne doivent jamais être ajoutés à cet artefact.
-
-Le test --self-test valide les imports Python/Tk, la syntaxe de l'interface, le compilateur, Make, SDL2 et un petit programme de liaison SDL2. En environnement CI sans affichage, il n'ouvre pas de fenêtre. Le test d'intégration visuelle et le build du vrai jeu nécessitent encore un test manuel sur Linux avec une ROM personnelle.
-
-## Compatibilité et limites
-
-- L'artefact est x86_64 ; une cible AArch64 nécessitera son propre job, environnement et artefact.
-- La compilation de l'AppImage utilise Ubuntu 22.04, tandis que la CI de test du recompiler utilise Ubuntu 24.04. La glibc et certains composants de l'hôte imposent encore des limites de compatibilité.
-- Les sélecteurs Tk nécessitent une session graphique X11 ou Wayland compatible. Sans affichage, utiliser --self-test ou les modes CLI.
-- La progression du build est basée sur les étapes textuelles du script : elle n'indique pas le pourcentage exact du travail restant au sein d'une longue étape.
-- Enhanced requiert un pilote OpenGL 3.3 compatible selon docs/TECHNICAL.md.
-- Le premier build peut être long et utilise de l'espace disque local.
-- L'environnement AppImage n'inclut pas une ROM ni le jeu construit.
-
-## Contrôles avant publication
-
-- Attendre la réussite du test et du packaging AppImage dans GitHub Actions.
-- Vérifier l'exécution de --self-test, les checksums et l'absence de ROMs dans l'artefact.
-- Sur une session graphique Linux, lancer l'AppImage sans arguments et tester les deux sélecteurs, le bouton Construire, la progression et le journal.
-- Construire à partir d'une ROM locale et tester le démarrage, le son, les contrôles, le rendu et les sauvegardes.
-- Essayer un workspace vide et un workspace existant ; confirmer que les erreurs de build sont lisibles et n'arrêtent pas l'interface.
+- Vérifier que le workflow source/sémantique et le workflow AppImage passent sur la branche synchronisée.
+- Exécuter `--version`, `--help` et `--self-test` avec des répertoires HOME/XDG temporaires.
+- Vérifier le contenu de l'AppDir/AppImage extraite, ses bibliothèques ELF et les SHA-256.
+- Tester la GUI sur un bureau Linux : sélection ROM et workspace, progression, journal, erreur et reprise après échec.
+- Sur une machine possédant une ROM personnelle, réaliser un build local USA et/ou Europe puis vérifier jeu, audio, entrées, contrôles et sauvegardes. Ne pas transférer la ROM ni le workspace vers CI.

@@ -2,7 +2,7 @@ Dragon Quest IX for PC
 ======================
 
 This turns YOUR OWN Dragon Quest IX ROM (dumped from your cartridge; the
-USA version is the tested one, others can be tried) into a PC version of the game. No game files are included.
+USA and European versions work, others can be tried) into a PC version of the game. No game files are included.
 
 1. Double-click "Install Dragon Quest IX.bat". A window walks you through it:
    your ROM, where to put the game (Documents by default) and shortcuts.
@@ -10,14 +10,18 @@ USA version is the tested one, others can be tried) into a PC version of the gam
    - It needs Windows 10/11 (64-bit), ~4 GB free space and the internet once.
 2. Press "Play now" at the end. Later, use the desktop or Start menu shortcut.
 
-Without the window: put your ROM (.nds) in the "rom" folder, double-click
-BUILD.bat, then play game\dqix.exe.
+Without the window: put your ROM (.nds, or a .zip with it inside) in the "rom"
+folder, double-click BUILD.bat, then play game\dqix.exe.
+
+MSYS2 already installed somewhere unusual? Put its folder in msys2-path.txt
+next to BUILD.bat (one line, e.g. D:\tools\msys64).
 
 Controls: arrows = D-pad, X = A, Z = B, S = X, A = Y, Q/W = L/R,
-Enter = START, Right Shift = SELECT, mouse = touch screen, Tab = fast forward.
+Enter = START, Right Shift = SELECT, mouse = touch screen, Tab = fast forward (on/off).
 Gamepads work too. Every setting is in the menu bar at the top of the window.
 
-If something goes wrong, press F10 in the game: it saves a bug report in
-game\reports\ (with a box to describe what happened). Send that folder.
+If something goes wrong, press F10 in the game: it saves a bug report
+(with a box to describe what happened) and can open GitHub for you with it
+copied: press Ctrl+V in the page, then Create.
 
 Please don't share the "game" or "build" folders: they contain the game.

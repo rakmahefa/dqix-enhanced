@@ -78,17 +78,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/appimagetool
-          key: appimagetool-x86_64-95cbe7cce9717fce90c484e34052ee7c7f1d7635b33c12525b4776826a7d29b6
+          key: appimagetool-1.9.0-x86_64-46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1
 
       - name: Verify appimagetool checksum
         env:
-          APPIMAGETOOL_SHA256: 95cbe7cce9717fce90c484e34052ee7c7f1d7635b33c12525b4776826a7d29b6
+          APPIMAGETOOL_SHA256: 46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1
         run: |
           mkdir -p "$HOME/.cache/appimagetool"
           TOOL="$HOME/.cache/appimagetool/appimagetool-x86_64.AppImage"
           if [ ! -f "$TOOL" ]; then
             curl --fail --location --retry 3 \
-              https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage \
+              https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage \
               --output "$TOOL"
           fi
           printf '%s  %s\n' "$APPIMAGETOOL_SHA256" "$TOOL" | sha256sum --check -
@@ -157,7 +157,7 @@ jobs:
           echo "Target: Linux x86_64; build host: Ubuntu 22.04" >> dist/build-info.txt
           echo "Toolchain: packaging/linux/environment.yml, packed with conda-pack" >> dist/build-info.txt
           echo "ROM and prebuilt game: not included; build occurs on the user's machine" >> dist/build-info.txt
-          echo "AppImage tool commit: 854e19e951900cf141245b384d45735942521abe" >> dist/build-info.txt
+          echo "AppImage tool: appimagetool 1.9.0 (sha256 46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1)" >> dist/build-info.txt
 
       - name: Build AppImage
         shell: bash -el {0}

@@ -54,6 +54,7 @@ typedef struct {
     s32 ytop, ybot, xtop, xbot;
     u32 sortkey;
     int hidden;            /* drawn under a hidden tag (g_gx_hide): left out of the picture only */
+    int ui_moved;          /* dynamic widescreen: how far a window moves right, DS pixels (ui_shift_classify) */
 } HPoly;
 
 /* Tags (tags.txt): the recompiled code calls gx_tag_begin/end around calls
@@ -109,6 +110,7 @@ static int poly_tag(u32 tp) {
 static s32 m_proj[16], m_pos[16], m_vec[16], m_tex[16], m_clip[16];
 static s32 st_proj[16], st_pos[32][16], st_vec[32][16], st_tex[16];
 static s32 sp_proj, sp_pos, sp_tex;
+static int g_newobj_hide;   /* (see box_test) */
 static int clip_dirty = 1;
 static u32 mtx_mode;
 static u32 gxstat;                      /* bit 1 box test result, bit 15 stack error, bits 30-31 IRQ mode */
@@ -296,11 +298,52 @@ static void wide_submit(int nverts, int facing) {
             if (w > 0 && (s64)tmp_vtx[i].pos[2] * 100 < w * 98) far = 0;   /* z/w under 0.98 */
         }
         if (!left || !right || !(((tex_param >> 26) & 7) == 0 || far)) stretch = 0;
+        if (!stretch) {
+            /* ...or a flat picture over the whole screen (the poison bog's purple flash,
+             * the black card of "Some days later...", the white of a flash): every corner
+             * at or beyond the screen's corners (its left or right edge or further out,
+             * and its top or bottom edge or further), all at the same depth */
+            int l2 = 0, r2 = 0, ok = 1;
+            s64 z0 = 0, w0 = 1;
+            for (int i = 0; i < nverts && ok; i++) {
+                s64 x = tmp_vtx[i].pos[0], y = tmp_vtx[i].pos[1], z = tmp_vtx[i].pos[2], w = tmp_vtx[i].pos[3], tol = w / 256 + 1;
+                if (w <= 0) { ok = 0; break; }
+                if (x >= w - tol) r2++; else if (x <= -w + tol) l2++; else ok = 0;
+                if (y < w - tol && y > -w + tol) ok = 0;
+                if (i == 0) { z0 = z; w0 = w; }
+                else if (llabs(z * w0 - z0 * w) > (w * w0) / 64) ok = 0;   /* z/w the same within 1/64 */
+            }
+            stretch = ok && l2 && r2;
+        }
+    }
+    /* ...or a flat panel of a veil made of several (the sepia of the memory scenes,
+     * GitHub #18: four quarters, the right ones a pixel short of the edge): flat
+     * (all corners at one depth, facing the camera), at least 64 pixels each way,
+     * touching the screen's left or right edge, and close to the camera (w up to 2.0:
+     * a veil, not a sprite standing at the edge). Its corners on an edge go out to
+     * the wide picture's edge; the others stay where they are. */
+    int edge_panel = 0;
+    if (widen && side > 0 && !stretch && nverts >= 3) {
+        int ok = 1, onedge = 0; s64 w0 = tmp_vtx[0].pos[3], z0 = tmp_vtx[0].pos[2], x0 = 1 << 30, x1 = -(1 << 30), y0 = 1 << 30, y1 = -(1 << 30);
+        for (int i = 0; i < nverts && ok; i++) {
+            s64 x = tmp_vtx[i].pos[0], y = tmp_vtx[i].pos[1], w = tmp_vtx[i].pos[3], tol = w / 64 + 1;
+            if (w <= 0 || w0 > 8192 || llabs(w - w0) > w0 / 512 + 1 || llabs(tmp_vtx[i].pos[2] - z0) > (w0 >> 9) + 1) ok = 0;
+            if (x >= w - tol || x <= -w + tol) onedge = 1;
+            s64 sx = x * 128 / (w ? w : 1), sy = y * 96 / (w ? w : 1);           /* DS pixels from the middle */
+            if (sx < x0) x0 = sx; if (sx > x1) x1 = sx; if (sy < y0) y0 = sy; if (sy > y1) y1 = sy;
+        }
+        edge_panel = ok && onedge && x1 - x0 >= 64 && y1 - y0 >= 64;
     }
     Vtx cv[10];
     for (int i = 0; i < nverts; i++) {
         cv[i] = tmp_vtx[i];
-        if (widen && !stretch) cv[i].pos[0] = (s32)(((s64)cv[i].pos[0] * 256) / (256 + 2 * side));
+        if (edge_panel) {
+            s64 x = cv[i].pos[0], w = cv[i].pos[3], tol = w / 64 + 1;
+            if (x >= w - tol) cv[i].pos[0] = (s32)w;
+            else if (x <= -w + tol) cv[i].pos[0] = (s32)-w;
+            else cv[i].pos[0] = (s32)((x * 256) / (256 + 2 * side));
+        }
+        else if (widen && !stretch) cv[i].pos[0] = (s32)(((s64)cv[i].pos[0] * 256) / (256 + 2 * side));
     }
     int n = clip_polygon(cv, nverts, 0, 1);
     if (n == 0) return;
@@ -308,7 +351,7 @@ static void wide_submit(int nverts, int facing) {
     memset(p, 0, sizeof *p);
     p->attr = cur_poly_attr; p->texparam = tex_param; p->texpal = tex_pal;
     p->facing = facing;
-    p->hidden = g_gx_hide && (poly_tag(tex_param) & g_gx_hide) != 0;
+    p->hidden = (g_gx_hide && (poly_tag(tex_param) & g_gx_hide) != 0) || g_newobj_hide;
     u32 texfmt = (tex_param >> 26) & 7, polyalpha = (cur_poly_attr >> 16) & 0x1F;
     p->translucent = (texfmt == 1 || texfmt == 6) || (polyalpha > 0 && polyalpha < 31);
     if (!p->translucent) n_wopaque++;
@@ -428,7 +471,7 @@ static void submit_polygon(void) {
     memset(p, 0, sizeof *p);
     p->attr = cur_poly_attr; p->texparam = tex_param; p->texpal = tex_pal;
     p->facing = facing;
-    p->hidden = g_gx_hide && (poly_tag(tex_param) & g_gx_hide) != 0;
+    p->hidden = (g_gx_hide && (poly_tag(tex_param) & g_gx_hide) != 0) || g_newobj_hide;
     u32 texfmt = (tex_param >> 26) & 7, polyalpha = (cur_poly_attr >> 16) & 0x1F;
     p->translucent = (texfmt == 1 || texfmt == 6) || (polyalpha > 0 && polyalpha < 31);
     p->shadowmask = (cur_poly_attr & 0x3F000030) == 0x00000030;
@@ -555,6 +598,30 @@ static void calc_lighting(void) {
  * g_wide_cull set (widescreen on, not in a session: there every PC must
  * decide exactly alike) the box is tested against the wide view instead. */
 int g_wide_cull;
+/* An object the widening brings into view for the first time: the game draws
+ * it, but on that first frame some of its parts can still be where they were
+ * long ago (its joints are only worked out while it is in view: a piece of
+ * Coffinwell's railing flashed across the well). Its polygons (those sent
+ * until the next box test) are left out of the picture for that frame; the
+ * game still draws it, so the next frame has it right. "Seen" = a box of the
+ * same size passed a test in the last few frames near the same place. The
+ * hiding lasts until the game's next box test (the next object). */
+typedef struct { s16 b[6]; s32 x, y, w; uint64_t frame; } SeenBox;
+#define SEEN_MAX 1024
+static SeenBox g_seen[SEEN_MAX]; static int g_seen_next;      /* a ring of recent passes */
+static int seen_before(const s16* b, s32 x, s32 y, s32 w) {
+    s32 tol = (w < 0 ? -w : w) / 8 + 64;
+    for (int i = 0; i < SEEN_MAX; i++) {
+        const SeenBox* e = &g_seen[i];
+        if (!e->frame || e->frame >= g_frame || g_frame - e->frame > 8 || memcmp(e->b, b, sizeof e->b)) continue;
+        if (abs(e->x - x) <= tol && abs(e->y - y) <= tol && abs(e->w - w) <= tol) return 1;
+    }
+    return 0;
+}
+static void seen_add(const s16* b, s32 x, s32 y, s32 w) {
+    SeenBox* e = &g_seen[g_seen_next]; g_seen_next = (g_seen_next + 1) % SEEN_MAX;
+    memcpy(e->b, b, sizeof e->b); e->x = x; e->y = y; e->w = w; e->frame = g_frame;
+}
 void gpu3d_debug_proj(void) {
     fprintf(stderr, "proj:"); for (int i = 0; i < 16; i++) fprintf(stderr, " %08x", (u32)m_proj[i]); fprintf(stderr, "\n");
 }
@@ -574,17 +641,60 @@ static void box_test(const u32* p) {
     }
     static const int faces[6][4] = { { 0, 1, 2, 3 }, { 4, 5, 6, 7 }, { 0, 3, 4, 5 }, { 1, 2, 7, 6 }, { 0, 1, 6, 5 }, { 2, 3, 4, 7 } };
     g_box_tests++;
+    g_newobj_hide = 0;                                               /* (the previous object's polygons end here) */
+    const s16 bkey[6] = { x0, y0, z0, (s16)(x1 - x0), (s16)(y1 - y0), (s16)(z1 - z0) };
+    s32 bx = m_clip[12], by = m_clip[13], bw = m_clip[15];
+    static long long bd0 = -2, bd1; if (bd0 == -2) { const char* e = getenv("DQIX_BOXDUMP"); bd0 = -1; if (e) sscanf(e, "%lld,%lld", &bd0, &bd1); }
+    int dump = bd0 >= 0 && (long long)g_frame >= bd0 && (long long)g_frame <= bd1;
+    if (dump) {   /* DQIX_BOXDUMP=first,last: every box test then, with where its box is (x/w, y/w) and the result (tests) */
+        double mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9; int behind = 0;
+        for (int i = 0; i < 8; i++) { double w = cube[i].pos[3]; if (w <= 0) { behind++; continue; }
+            double x = cube[i].pos[0] / w, y = cube[i].pos[1] / w; if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; }
+        fprintf(stderr, "boxdump f%llu poly %u box %d,%d,%d +%d,%d,%d x %.2f..%.2f y %.2f..%.2f behind %d trans %d,%d,%d",
+                (unsigned long long)g_frame, g_wide_side > 0 ? n_wpoly : n_poly, x0, y0, z0, x1 - x0, y1 - y0, z1 - z0, mnx, mxx, mny, mxy, behind,
+                m_clip[12], m_clip[13], m_clip[15]);
+    }
     for (int f = 0; f < 6; f++) {
         for (int k = 0; k < 4; k++) face[k] = cube[faces[f][k]];
-        if (clip_polygon(face, 4, 0, 0) > 0) { gxstat |= 2; g_box_in++; return; }
+        if (clip_polygon(face, 4, 0, 0) > 0) { gxstat |= 2; g_box_in++; seen_add(bkey, bx, by, bw); if (dump) fprintf(stderr, " -> in\n"); return; }
     }
     if (g_wide_cull > 0 && viewport[0] == 0 && viewport[4] == 256) {   /* out of the DS's view: in the wide one? */
         for (int i = 0; i < 8; i++) cube[i].pos[0] = (s32)(((s64)cube[i].pos[0] * 256) / (256 + 2 * g_wide_cull));
         for (int f = 0; f < 6; f++) {
             for (int k = 0; k < 4; k++) face[k] = cube[faces[f][k]];
-            if (clip_polygon(face, 4, 0, 0) > 0) { gxstat |= 2; g_box_in++; g_box_widened++; return; }
+            if (clip_polygon(face, 4, 0, 0) > 0) {
+                gxstat |= 2; g_box_in++; g_box_widened++;
+                g_newobj_hide = !seen_before(bkey, bx, by, bw);
+                seen_add(bkey, bx, by, bw);
+                if (dump) fprintf(stderr, " -> widened%s\n", g_newobj_hide ? " (new: hidden this frame)" : "");
+                return;
+            }
         }
     }
+    {   /* Very large objects (the turnstile in Gortress prison): their beams reach far
+         * outside the box the game tests, so in the wide picture they popped into view
+         * in the middle of it. Such a box counts as in view a good way further out
+         * (three DS widths, twice the height): the object is then already there
+         * before any of it can show. */
+        int big = (x1 - x0) >= 16384 || (y1 - y0) >= 16384 || (z1 - z0) >= 16384;
+        static long long big_from = -2;                          /* DQIX_BIG_FROM=frame: only from then (tests: replays of older reports) */
+        if (big_from == -2) { const char* e = getenv("DQIX_BIG_FROM"); big_from = e ? atoll(e) : 0; }
+        if ((long long)g_frame < big_from) big = 0;
+        if (big && g_wide_cull > 0 && viewport[0] == 0 && viewport[4] == 256) {
+            for (int i = 0; i < 8; i++) { cube[i].pos[0] /= 3; cube[i].pos[1] /= 2; }   /* (x was already scaled for the wide view) */
+            for (int f = 0; f < 6; f++) {
+                for (int k = 0; k < 4; k++) face[k] = cube[faces[f][k]];
+                if (clip_polygon(face, 4, 0, 0) > 0) {
+                    gxstat |= 2; g_box_in++; g_box_widened++;
+                    g_newobj_hide = !seen_before(bkey, bx, by, bw);
+                    seen_add(bkey, bx, by, bw);
+                    if (dump) fprintf(stderr, " -> big%s\n", g_newobj_hide ? " (new: hidden this frame)" : "");
+                    return;
+                }
+            }
+        }
+    }
+    if (dump) fprintf(stderr, " -> out\n");
 }
 
 /* ---------------------------------------------------------------- commands */
@@ -1540,6 +1650,7 @@ static void render_frame(void) {
 /* ================================================================ frame flow */
 const Renderer3D* g_renderer3d;
 int g_renderer3d_verify;
+static int g_gl_pending;                 /* a new list for the GPU renderer, drawn at scanline 215 */
 static int g_render_pending;                                        /* a render is due at line 215 */
 
 static int ysort_cmp(const void* a, const void* b) {
@@ -1547,14 +1658,166 @@ static int ysort_cmp(const void* a, const void* b) {
     if (x->sortkey != y->sortkey) return x->sortkey < y->sortkey ? -1 : 1;
     return x < y ? -1 : x > y ? 1 : 0;                              /* stable: keep submission order */
 }
+/* Dynamic widescreen: the game's windows and messages (drawn by the 3D engine
+ * as flat squares at depth 4.0: letters, frames, icons) move right by the
+ * sides' width, g_ui_shift3d DS pixels, so the small screen in the top left
+ * never covers them; the field never moves. The squares are grouped into
+ * windows (overlapping or within 6 pixels); a window moves unless it is the
+ * dialogue box (wide, low: it stays in the middle) or covers the screen (a
+ * fade). In battles (g_ui_battle3d) only the battle messages at the bottom
+ * move, clear of the party's panels. The moved windows are kept (where they
+ * were) for the mouse: gpu3d_ui_unshift. */
+int g_ui_shift3d, g_ui_battle3d, g_ui_hold, g_ui_area3d, g_ui_battle_left, g_ui_scene = 768, g_ui_windows3d;   /* scene: 8x8 cells the 3D scene covers; windows3d: cells under windows */   /* battle_left: DS x the battle messages start at (right of the panels) */     /* hold: a submenu, nothing moved; area: 8x8 cells under moving windows */
+uint8_t g_ui_field[24][32];   /* 8x8 cells the 3D scene (not its windows) is drawn in */
+int g_ui_npoly;   /* polygons drawn (tests' log) */
+static int g_ui_nrect; static int g_ui_rect[32][5];   /* moved windows: x0, y0, x1, y1 where they really are, and how far */
+int gl_ui_dump_frame(void) {             /* DQIX_UICELLS=frame[,frame...]: tests, log the windows found then */
+    static char list[4000]; static int init;
+    if (!init) { init = 1; const char* e = getenv("DQIX_UICELLS"); if (e) snprintf(list, sizeof list, ",%s,", e); }
+    if (!list[0]) return 0;
+    char key[32]; snprintf(key, sizeof key, ",%llu,", (unsigned long long)g_frame);
+    return strstr(list, key) != NULL;
+}
+static int ui_flat(const HPoly* h) {
+    if (h->n < 3 || h->degenerate) return 0;
+    for (u32 k = 0; k < h->n; k++) if (h->w[k] != 16384) return 0;
+    for (u32 k = 0; k < h->n; k++) {                              /* square to the screen (the touch arrow is turned: it stays with the finger) */
+        const Vtx* a = h->v[k], *b = h->v[(k + 1) % h->n];
+        if (abs(a->hpos[0] - b->hpos[0]) > 8 && abs(a->hpos[1] - b->hpos[1]) > 8) return 0;
+    }
+    return 1;
+}
+static int ui_shift_classify(HPoly** list, u32 count, int side) {
+    static int idx[WPOLY_MAX], parent[WPOLY_MAX], box[WPOLY_MAX][4];
+    int m = 0;
+    g_ui_area3d = 0;
+    g_ui_npoly = (int)count;
+    uint8_t (*field)[32] = g_ui_field; memset(g_ui_field, 0, sizeof g_ui_field);
+    g_ui_scene = 0;
+    for (u32 i = 0; i < count; i++) {
+        HPoly* h = list[i]; h->ui_moved = 0;
+        if (!ui_flat(h)) {                                               /* the 3D scene itself: where it is drawn */
+            if (h->n < 3 || h->degenerate) continue;
+            int x0 = 1 << 30, x1 = -(1 << 30), y0 = 1 << 30, y1 = -(1 << 30);
+            for (u32 k = 0; k < h->n; k++) {
+                int x = h->v[k]->hpos[0] / 16 - side, y = h->v[k]->hpos[1] / 16;
+                if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+            }
+            if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0; if (x1 > 255) x1 = 255; if (y1 > 191) y1 = 191;
+            for (int cy = y0 >> 3; cy <= y1 >> 3 && x0 <= x1 && y0 <= y1; cy++) for (int cx = x0 >> 3; cx <= x1 >> 3; cx++) field[cy][cx] = 1;
+            continue;
+        }
+        int x0 = 1 << 30, x1 = -(1 << 30), y0 = 1 << 30, y1 = -(1 << 30);
+        for (u32 k = 0; k < h->n; k++) {
+            int x = h->v[k]->hpos[0] / 16 - side, y = h->v[k]->hpos[1] / 16;
+            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+        if (x1 - x0 >= 250 && y1 - y0 >= 150) {                      /* a fade or a card over the screen; */
+            if (((h->texparam >> 26) & 7) != 0) g_ui_area3d += 1000;     /* textured: a menu's own background (Stella's): a submenu */
+            continue;
+        }
+        if (x1 - x0 > 270) continue;                                     /* wider than the DS's screen: scenery made for the wide view (a battle's backdrop), not a window */
+        if (m == WPOLY_MAX) break;
+        idx[m] = (int)i; parent[m] = m; box[m][0] = x0; box[m][1] = y0; box[m][2] = x1; box[m][3] = y1; m++;
+    }
+    for (int cy = 0; cy < 24; cy++) for (int cx = 0; cx < 32; cx++) g_ui_scene += field[cy][cx];   /* (8x8 cells with the scene) */
+    for (int a = 0; a < m; a++) for (int b = a + 1; b < m; b++) {
+        if (box[a][0] > box[b][2] + 2 || box[b][0] > box[a][2] + 2 || box[a][1] > box[b][3] + 2 || box[b][1] > box[a][3] + 2) continue;   /* touching: one window */
+        int ra = a, rb = b; while (parent[ra] != ra) ra = parent[ra]; while (parent[rb] != rb) rb = parent[rb];
+        if (ra != rb) parent[rb] = ra;
+    }
+    static int gb[WPOLY_MAX][4];
+    for (int a = 0; a < m; a++) { gb[a][0] = gb[a][1] = 1 << 30; gb[a][2] = gb[a][3] = -(1 << 30); }
+    for (int a = 0; a < m; a++) {
+        int r = a; while (parent[r] != r) r = parent[r]; parent[a] = r;
+        if (box[a][0] < gb[r][0]) gb[r][0] = box[a][0]; if (box[a][1] < gb[r][1]) gb[r][1] = box[a][1];
+        if (box[a][2] > gb[r][2]) gb[r][2] = box[a][2]; if (box[a][3] > gb[r][3]) gb[r][3] = box[a][3];
+    }
+    static int lb[WPOLY_MAX][4];                                         /* each window's low part (from 90 down): a dialogue box */
+    for (int a = 0; a < m; a++) { lb[a][0] = lb[a][1] = 1 << 30; lb[a][2] = lb[a][3] = -(1 << 30); }
+    for (int a = 0; a < m; a++) {
+        if (box[a][1] < 90) continue;
+        int r = parent[a];
+        if (box[a][0] < lb[r][0]) lb[r][0] = box[a][0]; if (box[a][1] < lb[r][1]) lb[r][1] = box[a][1];
+        if (box[a][2] > lb[r][2]) lb[r][2] = box[a][2]; if (box[a][3] > lb[r][3]) lb[r][3] = box[a][3];
+    }
+    g_ui_nrect = 0; g_ui_windows3d = 0;
+    int any = 0;
+    for (int a = 0; a < m; a++) {
+        int r = parent[a], w = gb[r][2] - gb[r][0], hh = gb[r][3] - gb[r][1], mv;
+        int dialogue = (w >= 224 && gb[r][1] >= 96) ||                   /* wide (nearly edge to edge) and low: the dialogue box stays in the middle, */
+                       (lb[r][2] - lb[r][0] >= 224 && lb[r][1] - gb[r][1] <= 60);   /* (also with its Yes/No touching it: their window starts higher) */
+        for (int d = 0; d < m && !dialogue && w <= 100 && hh <= 56; d++) {   /* and so does a small window just above it (its Yes/No, its name tag) */
+            int q = parent[d];
+            if (q != d || gb[q][2] - gb[q][0] < 224 || gb[q][1] < 96) continue;
+            if (gb[r][3] <= gb[q][1] + 2 && gb[r][3] >= gb[q][1] - 12 && gb[r][0] >= gb[q][0] - 8 && gb[r][2] <= gb[q][2] + 8) dialogue = 1;
+        }
+        if (r == a && w >= 240 && hh >= 150) g_ui_area3d += 1000;       /* flat pictures over the whole screen (DQVC): a screen of its own */
+        int sh = g_ui_shift3d;
+        if (g_ui_battle3d) {                                             /* the battle messages (lines, or their box): clear of the panels, */
+            mv = gb[r][1] >= 96 && hh <= 80;                             /* as far as the right edge allows */
+            int need = g_ui_battle_left - gb[r][0], room = 255 + side - gb[r][2];
+            if (need > sh) sh = need;
+            if (sh > room) sh = room < g_ui_shift3d ? g_ui_shift3d : room;
+        }
+        else mv = !dialogue && w >= 40 && hh >= 12 && !(w >= 240 && hh >= 150);                      /* windows (menus, lists, the gold); not the speech bubbles, */
+                                                                        /* item icons or the draggable X Menu (they belong to the field) */
+        if (r == a) g_ui_windows3d += (w + 1) * (hh + 1) / 64;
+        {                                                                /* tests: the windows found */
+            if (r == a && gl_ui_dump_frame())
+                fprintf(stderr, "win3d f%llu: %d,%d - %d,%d dialogue %d move %d\n", (unsigned long long)g_frame, gb[r][0], gb[r][1], gb[r][2], gb[r][3], dialogue, mv); }
+        if (!mv) continue;
+        if (g_ui_hold) continue;
+        list[idx[a]]->ui_moved = sh; any = 1;
+        if (r == a && g_ui_nrect < 32) { int* q = g_ui_rect[g_ui_nrect++]; q[0] = gb[r][0]; q[1] = gb[r][1]; q[2] = gb[r][2]; q[3] = gb[r][3]; q[4] = sh; }
+    }
+    /* small pieces next to a moved window (its pointer, a scroll arrow) go with it */
+    for (int a = 0; a < m && any && !g_ui_hold && !g_ui_battle3d; a++) {
+        if (list[idx[a]]->ui_moved) continue;
+        int r = parent[a], w = gb[r][2] - gb[r][0], hh = gb[r][3] - gb[r][1];
+        if (w >= 40 && hh >= 12) continue;
+        for (int i = 0; i < g_ui_nrect; i++) {
+            const int* q = g_ui_rect[i];
+            if (gb[r][2] < q[0] - 24 || gb[r][0] > q[2] + 8 || gb[r][3] < q[1] || gb[r][1] > q[3]) continue;
+            list[idx[a]]->ui_moved = q[4]; break;
+        }
+    }
+    return any;
+}
+int gpu3d_poly_count(void) { return (int)render_n; }             /* the 3D shown: how many polygons */
+/* Is a small 2D piece (DS pixels) right next to a moved 3D window (a pointer drawn as a sprite)? */
+int gpu3d_ui_near_moved(int x0, int y0, int x1, int y1) {
+    if (!g_ui_shift3d || g_ui_hold || g_ui_battle3d) return 0;
+    for (int i = 0; i < g_ui_nrect; i++) {
+        const int* q = g_ui_rect[i];
+        if (x1 < q[0] - 24 || x0 > q[2] + 8 || y1 < q[1] || y0 > q[3]) continue;
+        return 1;
+    }
+    return 0;
+}
+/* A point on the 3D screen (DS pixels) where a moved window shows: where it really is. */
+int gpu3d_ui_unshift(int* x, int y) {
+    if (!g_ui_shift3d || g_ui_hold) return 0;
+    for (int i = 0; i < g_ui_nrect; i++) {
+        const int* q = g_ui_rect[i];
+        if (*x - q[4] >= q[0] && *x - q[4] <= q[2] && y >= q[1] && y <= q[3]) { *x -= q[4]; return 1; }
+    }
+    return 0;
+}
+
 
 /* GPU renderer: the render list as screen-space polygons with float attributes. */
 static Poly g_gl_polys[POLY_MAX];
 static const Poly* g_gl_order[POLY_MAX];
 static void gl_frame(void) {
+    {   static long long from = -2;                              /* DQIX_PRESENT_FROM=frame: no 3D drawn before it (tests: fast replays) */
+        if (from == -2) { const char* e = getenv("DQIX_PRESENT_FROM"); from = e ? atoll(e) : -1; }
+        if (from >= 0 && g_frame + 2 < (uint64_t)from) return;
+    }
     int n = 0, nop = 0;
     HPoly** list = render_list; u32 count = render_n;
     if (w_render_side > 0) { list = wrender_list; count = wrender_n; }
+    int shift_ui = w_render_side > 0 && g_ui_shift3d > 0 ? ui_shift_classify(list, count, w_render_side) : 0;
     for (u32 i = 0; i < count; i++) {
         HPoly* h = list[i];
         if (h->degenerate || h->hidden) continue;
@@ -1565,6 +1828,7 @@ static void gl_frame(void) {
             const Vtx* v = h->v[k];
             SVtx* o = &q->v[k];
             o->x = v->hpos[0] / 16.0f; o->y = v->hpos[1] / 16.0f;
+            if (shift_ui && h->ui_moved) o->x += (float)h->ui_moved;
             o->zn = h->wbuf ? (float)h->z[k] / 16777215.0f : (float)h->z[k] / 16777215.0f;
             o->iw = v->pos[3] ? 4096.0f / (float)v->pos[3] : 1e6f;
             o->r = v->fcol[0] / 16.0f; o->g = v->fcol[1] / 16.0f; o->b = v->fcol[2] / 16.0f;
@@ -1597,6 +1861,15 @@ void gpu3d_vblank(void) {
         qsort(render_list, nsort, sizeof render_list[0], ysort_cmp);
         render_n = n_poly;
         new_list = 1;
+        { static int st = -1; if (st < 0) st = getenv("DQIX_TXSTAT") != NULL;   /* HD text debugging: textures with letters, the polygon under a pixel */
+          { static int px = -2, py, pf; if (px == -2) { const char* e = getenv("DQIX_POLYAT"); px = -1; if (e) sscanf(e, "%d,%d,%d", &pf, &px, &py); }
+            if (px >= 0 && (int)g_frame >= pf - 3 && (int)g_frame <= pf) for (u32 i = 0; i < n_poly; i++) { HPoly* q = render_list[i]; s32 x0 = 9999, x1 = -9999, y0 = 9999, y1 = -9999;
+                for (u32 k = 0; k < q->n; k++) { s32 X = q->v[k]->fpos[0], Y = q->v[k]->fpos[1]; if (X < x0) x0 = X; if (X > x1) x1 = X; if (Y < y0) y0 = Y; if (Y > y1) y1 = Y; }
+                if (px >= x0 && px <= x1 && py >= y0 && py <= y1) fprintf(stderr, "POLYAT f%d poly %u tex %08x pal %08x box %d,%d-%d,%d attr %08x\n", (int)g_frame, i, q->texparam, q->texpal, x0, y0, x1, y1, q->attr);
+                  if (px >= x0 && px <= x1 && py >= y0 && py <= y1) { u32 a = (q->texparam & 0xFFFF) << 3; uint8_t* sl = g_tex_slot[(a >> 17) & 3];
+                    if (sl) { fprintf(stderr, "  vram off %06x:", (unsigned)(sl + (a & 0x1FFFF) - g_vram)); for (int k = 0; k < 32; k++) fprintf(stderr, " %02x", sl[(a & 0x1FFFF) + k]); fprintf(stderr, "\n"); } } } }
+          if (st) { int tx_tex_tagged(uint32_t), tx_tex_untagged(uint32_t); for (u32 i = 0; i < n_poly; i++) { int k = tx_tex_tagged(render_list[i]->texparam);
+              if (k) fprintf(stderr, "[f%llu] poly %u tex %08x pal %08x: %d tagged texels, %d untagged\n", (unsigned long long)g_frame, i, render_list[i]->texparam, render_list[i]->texpal, k, tx_tex_untagged(render_list[i]->texparam)); } } }
         /* the widescreen list, if the whole frame was made with it */
         /* (a frame without polygons - the black of a scene change - keeps the
          * current width: switching to 256 and back rebuilt the renderer's
@@ -1610,6 +1883,25 @@ void gpu3d_vblank(void) {
         }
         static int lg = -1; if (lg < 0) lg = getenv("DQIX_SWAPLOG") != NULL;
         if (lg) fprintf(stderr, "swap %llu\n", (unsigned long long)g_frame);
+        {   /* DQIX_POLYDUMP=first,last: every polygon of the frames made then, to polys<frame>.txt (tests) */
+            static long long pd0 = -2, pd1; if (pd0 == -2) { const char* e = getenv("DQIX_POLYDUMP"); pd0 = -1; if (e) sscanf(e, "%lld,%lld", &pd0, &pd1); }
+            if (pd0 >= 0 && (long long)g_frame >= pd0 && (long long)g_frame <= pd1) {
+                char path[64]; snprintf(path, sizeof path, "polys%llu.txt", (unsigned long long)g_frame);
+                FILE* f = fopen(path, "w");
+                if (f) {
+                    /* in the order they were sent (the box tests' log, DQIX_BOXDUMP, counts them the same way) */
+                    u32 N = w_render_side ? n_wpoly : n_poly;
+                    fprintf(f, "frame %llu side %d n %u boxes %u in %u widened %u\n", (unsigned long long)g_frame, w_render_side, N, g_box_tests, g_box_in, g_box_widened);
+                    for (u32 i = 0; i < N; i++) {
+                        HPoly* h = w_render_side ? &wcur_pram[i] : &cur_pram[i];
+                        fprintf(f, "%u t%d attr %08x tex %08x pal %04x n %u:", i, h->translucent, h->attr, h->texparam, h->texpal, h->n);
+                        for (u32 k = 0; k < h->n; k++) fprintf(f, " (%d,%d w%d)", h->v[k]->hpos[0] >> 4, h->v[k]->hpos[1] >> 4, h->w[k]);
+                        fprintf(f, "\n");
+                    }
+                    fclose(f);
+                }
+            }
+        }
     }
     r_disp = IO16_(0x060);
     r_alpharef = (r_disp & (1 << 2)) ? (IO8_(0x340) & 0x1F) : 0;
@@ -1632,15 +1924,34 @@ void gpu3d_vblank(void) {
         n_vtx = 0; n_poly = 0; n_opaque = 0;
         flush_request = 0;
     }
-    if (g_renderer3d && new_list) gl_frame();
+    /* the GPU renderer draws the new list at scanline 215 (gpu3d_render_start),
+     * like the DS, which starts drawing at 214: the textures the game changes
+     * in this vblank (a sprite's next picture) belong to this list. Drawing here,
+     * before the game's vblank work, paired new positions with old pictures for
+     * a frame (sleeping people's poses flickering as the camera turned). */
+    if (g_renderer3d && new_list) g_gl_pending = 1;
     g_render_pending = 1;
 }
 
+/* A display capture of the 3D screen (the inn's guests: each is drawn once by the 3D engine and
+ * captured into a texture) needs the picture on the CPU: with the GPU renderer the software one
+ * draws that frame too. Called when a capture of the 3D starts. */
+static int g_soft_cap;                                              /* the software picture is of the list shown */
+void gpu3d_capture_needs_3d(void) {
+    if (!g_renderer3d || g_soft_cap) return;
+    double t0 = ms_now();
+    if (!g_renderer3d_verify) render_frame();                       /* (verifying: drawn already) */
+    g_soft_cap = 1;
+    g_t3d_ms += ms_now() - t0;
+}
 /* Scanline 215: draw the frame (shown during the next frame). */
 void gpu3d_render_start(void) {
     if (!g_render_pending) return;
     g_render_pending = 0;
+    g_soft_cap = 0;
+    if (g_renderer3d && g_gl_pending) { g_gl_pending = 0; gl_frame(); }
     if (g_renderer3d && !g_renderer3d_verify) return;
+    { extern int draw_skipped(void); if (draw_skipped()) return; }  /* DQIX_PRESENT_FROM (fast replays) */
     double t0 = ms_now();
     render_frame();
     g_t3d_ms += ms_now() - t0;
@@ -1651,7 +1962,7 @@ extern u32 g_3d_line32[256];                                         /* 6-bit co
 extern int g_3d_present;
 
 void gpu3d_render_line(int line) {
-    if (!g_3d_have_frame || g_renderer3d) { g_3d_present = 0; return; }
+    if (!g_3d_have_frame || (g_renderer3d && !g_soft_cap)) { g_3d_present = 0; return; }
     g_3d_present = 1;
     const u32* raw = &cbuf[FIRSTPX + (u32)line * SW];
     u32 xpos = IO16_(0x010) & 0x1FF;                                 /* BG0HOFS scrolls the 3D layer */
