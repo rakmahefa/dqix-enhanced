@@ -1,6 +1,10 @@
 # AppImage source payload policy. Rsync filter syntax: deny private content first,
 # then allow an explicit set of runtime/build source paths; deny everything else.
 # Keep this list intentionally narrow. Never add game/build/ROM/workspace output.
+# The one committed binary data asset below is an approved font-label table.
++ /fonts/
++ /fonts/labels.bin
+- *.bin
 - /.git/***
 - /.github/***
 - /tests/***

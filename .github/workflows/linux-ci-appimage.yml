@@ -131,6 +131,10 @@ jobs:
             echo "Forbidden private build/workspace directory found in AppDir source" >&2
             exit 1
           fi
+          if find "$PACKAGE_DIR/source" -type f -iname '*.bin' ! -path "$PACKAGE_DIR/source/fonts/labels.bin" -print -quit | grep -q .; then
+            echo "Unapproved binary asset found in AppDir source" >&2
+            exit 1
+          fi
 
           echo "Project version: $VERSION" > dist/build-info.txt
           echo "Source commit: $GITHUB_SHA" >> dist/build-info.txt

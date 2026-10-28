@@ -17,11 +17,14 @@ ALLOWED = (
     "README.md",
     "build.mk",
     "runtime/legitimate-source.c",
+    "runtime/private.bin",
+    "config/rom-dump.bin",
     "config/fixture.txt",
     "tools/build-game.sh",
     "tools/extract_rom.py",
     "tools/region.py",
     "third_party/legitimate-helper.c",
+    "fonts/labels.bin",
 )
 FORBIDDEN = (
     "private.nds",
@@ -54,7 +57,7 @@ FORBIDDEN_DIRS = {
     "gen", "gen7", "mods", "music", "textures", "wfc", "release", "reports",
 }
 FORBIDDEN_SUFFIXES = {
-    ".nds", ".sav", ".dsv", ".srm", ".sra", ".o", ".exe", ".dll", ".so",
+    ".nds", ".sav", ".dsv", ".srm", ".sra", ".bin", ".o", ".exe", ".dll", ".so",
     ".pyc", ".ppm", ".bmp", ".wav",
 }
 
@@ -104,7 +107,9 @@ def main() -> int:
                 if path.is_dir() and path.name.casefold() in forbidden_dir_names:
                     failures.append(f"forbidden directory present: {relative}/")
                 elif path.is_file():
-                    if path.suffix.casefold() in FORBIDDEN_SUFFIXES:
+                    suffix = path.suffix.casefold()
+                    approved_font_table = relative == "fonts/labels.bin"
+                    if suffix in FORBIDDEN_SUFFIXES and not (suffix == ".bin" and approved_font_table):
                         failures.append(f"forbidden extension present: {relative}")
                     try:
                         if SENTINEL in path.read_text(encoding="utf-8", errors="ignore"):
