@@ -75,6 +75,38 @@ jobs:
           cache-downloads: true
           init-shell: bash
 
+      - name: Export resolved linux-64 Conda package lock snapshot
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "x86_64"
+          test -n "${CONDA_PREFIX:-}"
+          LOCK_FILE="$RUNNER_TEMP/conda-linux-64.lock"
+          micromamba list --explicit --md5 --prefix "$CONDA_PREFIX" > "$LOCK_FILE"
+          grep -Fxq '@EXPLICIT' "$LOCK_FILE"
+          PACKAGE_COUNT="$(grep -Ec '^https?://' "$LOCK_FILE")"
+          test "$PACKAGE_COUNT" -gt 0
+          if grep -E '^https?://' "$LOCK_FILE" | grep -Ev '#[0-9a-fA-F]{32}$'; then
+            echo "Explicit Conda package URL without an MD5 fragment" >&2
+            exit 1
+          fi
+          if grep -E '^https?://' "$LOCK_FILE" | grep -Ev '/(linux-64|noarch)/'; then
+            echo "Unexpected non-Linux/non-noarch package URL in lock snapshot" >&2
+            exit 1
+          fi
+          sha256sum "$LOCK_FILE" | tee "$RUNNER_TEMP/conda-linux-64.lock.sha256"
+          echo "Resolved explicit Conda packages: $PACKAGE_COUNT" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bootstrap lock snapshot (temporary)
+        uses: actions/upload-artifact@v4
+        with:
+          name: conda-linux-64-lock-bootstrap
+          path: |
+            ${{ runner.temp }}/conda-linux-64.lock
+            ${{ runner.temp }}/conda-linux-64.lock.sha256
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Pack the relocatable build toolchain
         shell: bash -el {0}
         run: |
