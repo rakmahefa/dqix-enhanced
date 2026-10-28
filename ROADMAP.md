@@ -3,23 +3,49 @@
 What's planned for DQIX Enhanced, roughly in order. Done items move to the
 bottom with the version they arrived in.
 
-## Next: Linux and Steam Deck
+## Next: v33
+
+- [ ] **An in-game menu** drawn by the game itself (Esc, or a controller
+      button): every option in a list over the game, easy with a controller.
+      The menu bar only exists on Windows, so this is what opens up Linux,
+      the Steam Deck and handhelds, and it gives controller players on
+      Windows a menu too.
+- [ ] **A first-launch choice**: "Like the DS" or "Enhanced (sharper 3D,
+      Basic Widescreen)", asked once on a new install, so new players find
+      what the project can do. Existing players keep their settings.
+- [ ] **Steering the boat with the stick** in any direction, like walking.
+- [ ] **Screenshots (F12) as you see them**: the whole window as a PNG in a
+      `screenshots` folder, named by date and time (now: the DS's two
+      screens as BMPs, numbered from 0 again every launch).
+- [ ] **Dynamic Widescreen polish**: the Zoom menu's smear (#16), a flicker
+      after leaving the attribute points menu, and whatever the play
+      testing of v32 turns up.
+- [ ] The window light in the Upover inn flickers (#19; not on a DS).
+
+## Then
+
+- [ ] **Cheats** (Mods > Cheats): Action Replay codes, then simple switches
+      like double experience or gold. Off while playing with friends.
+
+## Linux, Steam Deck and handhelds
 
 The game already runs on Linux (every automated test is a Linux build);
 what's missing is everything around it.
 
-- [ ] **An in-game menu** drawn by the program (Esc or the controller's
-      Home button), usable with mouse, keyboard or controller: every
-      setting, bug reports, updates, hosting/joining, volume and controls
-      without the Windows-only menu bar and windows. Also gives Mac a menu.
-- [ ] **Installing on Linux**: a script that checks the compiler and
-      libraries, builds the game from the cartridge file (build-game.sh)
-      and adds a desktop shortcut; the updater without `.bat` files.
+- [ ] (In v33, above.) **An in-game menu**: needed on the Steam Deck,
+      Linux, Android and handhelds like the Thor; also gives Mac a menu.
+- [ ] **Installing on Linux**: rakmahefa's AppImage builder (v32) builds
+      the game from your ROM; still to come: a desktop shortcut for the
+      game and the updater without `.bat` files.
 - [ ] **Steam Deck**: building without a compiler on SteamOS (a bundled
       toolchain for desktop mode, or build on any PC and copy over), adding
       it to Steam as a non-Steam game with a controller layout (the menu on
       a button), basic widescreen for the 16:10 screen. Until then, players
       can try the Windows build through Proton (untested).
+- [ ] **Android**: the game built on a PC (phones can't run the build
+      tools) and copied to the phone; the touchscreen as the DS's bottom
+      screen; OpenGL ES versions of the shaders.
+- [ ] **macOS**: Felix Bronnhuber's native Mac port, with a Mac tester.
 
 ## Multiplayer polish
 
@@ -63,13 +89,25 @@ the same room.
 
 ## Look and feel
 
+- [ ] **HD-2D and ray-traced lighting** (Felix Bronnhuber): depth of field,
+      bloom, colour grading, ray-traced shadows and occlusion, as Enhanced
+      options with an effects window. Shadows that follow the time of day
+      (the sun's angle from the game's clock) and moonlight at night.
+- [ ] **An HD battle HUD**: our own panels from the game's numbers (names,
+      levels, HP and MP bars) in the HD fonts.
+- [ ] **Model packs**: more detailed models for items, monsters, people and
+      the world (equipment last, it has the most combinations), following
+      the game's own skeletons and animations; a model dump tool.
+- [ ] **2D graphics packs and upscaling** (menus, the font, the HUD).
+- [ ] **Recording**: a long press of the Share button saves the last 30
+      seconds as a video.
 - [ ] **Fine-tune the DS Lite screen filter** against photos of a real DS Lite
       running DQIX (colours per backlight level, pixel grid, motion blur).
 - [ ] **Save states.**
 
 ## Reach
 
-- [ ] **The European version, with its five languages** (English, French,
+- [x] (In v32.) **The European version, with its five languages** (English, French,
       German, Italian, Spanish; players have asked for them): a map of the
       European game made with the decomp's `dsd` tool (only the USA and
       Japanese maps exist), the USA-specific fixes found in it (the leak
@@ -88,6 +126,18 @@ the same room.
 
 ## Done
 
+- [x] **v32 released as stable** (from v32-nightly1 to nightly3 and the
+      fixes after): the European version and its Language menu
+      (romusan495), a Linux AppImage builder (rakmahefa), HD text (Arthur
+      Ferreira Soares), the Mods menu (texture packs on romusan495's work,
+      xBR upscaling, music packs, song export), Dynamic Widescreen redone
+      (windows move right, 4:3 menu screens, the battle panels bottom left),
+      full-screen effects and movies in widescreen, the Alchemimicon's
+      screens swapped, the inn's guests, Discord activity.
+- [x] Installer that repairs old MSYS2s, ROMs in a zip, Controls fixed,
+      fullscreen fixes, quitting asks first, the stick's walking, smooth
+      outlines and shadows, black sides for DS-only places, Tab fast
+      forward, saves in and out, self-attaching bug reports (v32-nightly1).
 - [x] **v31 released as stable** (from v31-nightly1).
 - [x] Basic widescreen (corners, sizes, opacity on the stick clicks),
       dynamic widescreen kept as experimental, single screen and the

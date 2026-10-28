@@ -2,8 +2,8 @@
 
 **Dragon Quest IX: Sentinels of the Starry Skies, as a native PC game.**
 
-This project turns your own copy of Dragon Quest IX (the USA DS cartridge's
-ROM) into a real Windows program, built on your PC from your ROM. Nothing
+This project turns your own copy of Dragon Quest IX (the USA or European DS
+cartridge's ROM) into a real Windows program, built on your PC from your ROM. Nothing
 from the game is included here: no code, no graphics, no music. It isn't an
 emulator running the DS's code. The game's code has been recompiled into
 native PC code, with the DS's hardware rebuilt around it. So it can play
@@ -11,6 +11,36 @@ exactly like the original, and it can also do things the DS never could.
 
 **Join the community on Discord: https://discord.gg/CczgRv36NK** for help,
 news, and friends to play with.
+
+## Screenshots
+
+Left: the game as on the DS. Right: Enhanced mode with Dynamic Widescreen
+(Experimental), the 3D drawn at your monitor's resolution and wider than
+the DS's screen.
+
+<table>
+<tr><th>Like the DS</th><th>Enhanced, Dynamic Widescreen</th></tr>
+<tr>
+<td><img src="docs/images/ds-4.jpg" alt="The menu on the DS screens"></td>
+<td><img src="docs/images/enhanced-4.jpg" alt="The menu in Dynamic Widescreen"></td>
+</tr>
+<tr><td colspan="2">Exploring: the field fills the screen, the map stays in the top left, and the game's own windows move right, clear of it.</td></tr>
+<tr>
+<td><img src="docs/images/ds-3.jpg" alt="Choosing commands on the DS screens"></td>
+<td><img src="docs/images/enhanced-3.jpg" alt="Choosing commands in Dynamic Widescreen"></td>
+</tr>
+<tr><td colspan="2">Choosing commands: the party's panels stacked in the bottom left over the battle, see-through with solid lines.</td></tr>
+<tr>
+<td><img src="docs/images/ds-2.jpg" alt="An attack on the DS screens"></td>
+<td><img src="docs/images/enhanced-2.jpg" alt="An attack in Dynamic Widescreen"></td>
+</tr>
+<tr><td colspan="2">While the attacks play: each panel shrinks to the name and HP/MP, and the battle messages move clear of them.</td></tr>
+<tr>
+<td><img src="docs/images/ds-1.jpg" alt="Experience earned on the DS screens"></td>
+<td><img src="docs/images/enhanced-1.jpg" alt="Experience earned in Dynamic Widescreen"></td>
+</tr>
+<tr><td colspan="2">After the battle: the experience window big and see-through over the scene.</td></tr>
+</table>
 
 ## Features
 
@@ -36,7 +66,7 @@ news, and friends to play with.
   fullscreen if you like. In widescreen, the map can go in its own window
   so the field is clean.
 - Keyboard, mouse (as the touch screen) and gamepads, every key and button
-  changeable (Game > Controls). Hold Tab to fast forward.
+  changeable (Game > Controls). Tab turns fast forward on and off (a ▶▶▶ in the corner shows it; `fast_forward = hold` in settings.ini to hold it instead).
 - Reset without closing the game, and a volume slider.
 - The game's own icon (the one the DS menu shows), made from your ROM.
 
@@ -45,12 +75,15 @@ original)
 - **Walk in any direction with the left stick** (on at first): the stick
   steers like the DS stylus while you walk around, instead of the D-pad's 8
   directions (without the stylus's arrow on the screen).
-- **Widescreen**: the action drawn wider than the DS's screen, so you see
+- **Basic Widescreen**: the action drawn wider than the DS's screen, so you see
   more of the world left and right, with the other screen (the map, the
   battle commands) small in a corner: pick the corner, size and how
   see-through it is, also from a controller. 16:9 in a window, as wide as
-  your monitor in fullscreen. A dynamic version (experimental) slides the
-  field over to make room for menus.
+  your monitor in fullscreen.
+- **Dynamic Widescreen (Experimental)**: the field never moves; the map
+  stays top left and the game's own windows move right, clear of it, with
+  dialogue in the middle; screens of their own show 4:3; in battles the
+  party's panels sit stacked in the bottom left.
 - **Single screen**: one screen as big as it gets, switched with a trigger.
 - **Top screen in the corner**: the same, with the field as on the DS.
 - Coming: a free camera (see the roadmap).
@@ -79,8 +112,9 @@ original)
 
 ## Getting started
 
-You need your own Dragon Quest IX cartridge's ROM (`.nds`; the USA version
-is the tested one, others can be tried), Windows 10 or 11 (64-bit), about 3 GB of free space, and the internet the
+You need your own Dragon Quest IX cartridge's ROM (`.nds`; the USA or
+European version, others can be tried; the European one plays in the language
+chosen in Game > Language), Windows 10 or 11 (64-bit), about 3 GB of free space, and the internet the
 first time.
 
 1. Download the latest **stable** release from the
@@ -88,7 +122,8 @@ first time.
    (*Source code (zip)*) and unzip it. The **Nightly** release there is the
    newest work, less tested.
 2. Double-click **`Install Dragon Quest IX.bat`**. A setup window walks you
-   through it: choose your ROM (it says which version it is), where to put
+   through it: choose your ROM (the `.nds`, or a `.zip` with it inside; it
+   says which version it is), where to put
    the game (your Documents by default), and shortcuts on the desktop and in
    the Start menu. It then installs the free build tools (MSYS2) and builds
    the game: 10-20 minutes the first time. Press **Play now** at the end.
@@ -99,6 +134,12 @@ first time.
 Prefer no window? Put your ROM in the `rom` folder and double-click
 **`BUILD.bat`** instead; the game appears in the `game` folder
 (`game\dqix.exe`).
+
+**Already have MSYS2?** The installer finds it on any drive and only adds
+what's missing. If it doesn't (an unusual place), put its folder (for
+example `D:\tools\msys64`) in a file named `msys2-path.txt` next to
+`BUILD.bat`. An old MSYS2 is updated or repaired; if it can't be, the
+installer asks before installing a fresh one, and keeps the old one renamed.
 
 Your save (`dqix.sav`) and settings (`settings.ini`) live in the `game`
 folder. **Don't share the `game` or `build` folders**: they contain the game.
@@ -114,7 +155,7 @@ folder. **Don't share the `game` or `build` folders**: they contain the game.
 | touch screen | left mouse button on the bottom screen | |
 
 Every setting is in the **menu bar** at the top of the window, and
-**Game > Controls** changes any key or button. Handy keys: Tab (hold) fast
+**Game > Controls** changes any key or button. Handy keys: Tab (on/off) fast
 forward, P pause, Ctrl+R reset, - / = volume, F5 Classic / Enhanced, F2
 layout, U single screen, F9 swap the screens, K / I / O the widescreen small
 screen's corner, size and opacity, F11 fullscreen (double-click outside the
@@ -175,5 +216,6 @@ you dumped from your own cartridge.
 
 Licence: GPL-3.0-or-later (see `LICENSE`). It includes public-domain data
 from the DQIX decompilation project (`config/`), libslirp (BSD,
-`third_party/libslirp`) and stb_truetype (public domain), and translated
+`third_party/libslirp`), stb_truetype, stb_image and stb_vorbis (public
+domain), dr_flac (public domain / MIT-0), and translated
 parts of melonDS (GPL-3.0-or-later).
