@@ -40,6 +40,8 @@ def main() -> int:
     assert ".github/workflows/linux-ci-appimage.yml" in validate
     assert ".head_sha" in validate and ".workflow_run.head_sha" in validate
     assert ".digest" in validate and ".workflow_run.head_repository_id" in validate
+    assert ".workflow_run.repository_id == $repo_id" in validate
+    assert ".repository_id == $repo_id" not in validate, "Artifact repository ID is nested under workflow_run"
     assert "HTTP 404" in validate and "git check-ref-format" in validate
     assert "EXPECTED_HEAD_SHA" in validate and "EXPECTED_ARTIFACT_DIGEST" in validate
     assert "sha256sum" in verify and "--check SHA256SUMS" in verify
