@@ -90,3 +90,8 @@ Le PR #7 versionne `packaging/linux/conda-linux-64.lock`, une liste explicite Li
 ## Audit ELF, taille et SBOM — implémentation en attente de CI
 
 Le PR #7 ajoute un audit ELF x86_64 de l'AppImage et de la toolchain relocalisée, avec une allowlist explicite des dépendances hôte attendues et un échec sur les dépendances introuvables/inattendues. Trois rapports sont produits : `elf-audit.json`, `size-report.json`, et `sbom.cdx.json` (CycloneDX 1.5, 96 composants Conda verrouillés). Ils sont conservés dans l'artefact `dqix-enhanced-appimage-diagnostics`, séparé de l'artefact AppImage destiné à une éventuelle release. Validation en attente de la CI sur le HEAD qui contient ces changements.
+
+
+## Résultat de l'audit ELF initial — run #44
+
+Le run `40732766439` sur le SHA `695c737e32e08662cd34e8d67212e248ea11f7b1` a construit l'AppImage et passé le self-test, puis a échoué à l'audit ELF. Le rapport de diagnostic a été conservé dans l'artefact `12834998141`. Il indique 717 ELF examinés, zéro dépendance introuvable, mais 15 faux positifs « unexpected host » dus à la résolution incorrecte des bibliothèques du sysroot GCC de link (ex. `libGB.so`, `libJIS.so`) comme s'il s'agissait de bibliothèques runtime hors bundle. `libcrypt-2.17.so` du sysroot a aussi fait remonter `libfreebl3.so` du runner. Le script est corrigé dans le commit de suivi pour tester l'appartenance de dépendances contre toute la toolchain relocalisée et annoter les ELF du sysroot comme link-time-only, tout en continuant à échouer sur les vraies dépendances runtime non résolues ou les bibliothèques hôte runtime hors allowlist. Le prochain run doit valider cette correction avant de considérer l'audit terminé.

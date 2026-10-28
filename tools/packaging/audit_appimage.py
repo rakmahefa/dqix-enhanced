@@ -91,7 +91,7 @@ def readelf(path: Path, option: str) -> str:
     return result.stdout
 
 
-def ldd_for(path: Path, library_root: Path | None) -> dict:
+def ldd_for(path: Path, library_root: Path | None, bundle_root: Path | None) -> dict:
     dynamic = readelf(path, "-d")
     needed = NEEDED_RE.findall(dynamic)
     if not needed:
@@ -114,7 +114,9 @@ def ldd_for(path: Path, library_root: Path | None) -> dict:
     resolved: list[dict] = []
     host_dependencies: list[str] = []
     unexpected_host: list[str] = []
-    resolved_root = library_root.resolve() if library_root else None
+    # The toolchain contains both normal runtime libraries and a separate GCC sysroot.
+    # Bundle membership must be tested against the entire relocated environment, not only lib/.
+    resolved_root = bundle_root.resolve() if bundle_root else None
 
     for line in output.splitlines():
         missing_match = LD_NOT_FOUND_RE.match(line)
@@ -155,11 +157,33 @@ def ldd_for(path: Path, library_root: Path | None) -> dict:
     }
 
 
-def inspect_elf(path: Path, display_path: str, library_root: Path | None) -> dict:
+def inspect_elf(
+    path: Path,
+    display_path: str,
+    library_root: Path | None,
+    bundle_root: Path | None,
+    link_time_sysroot: bool,
+) -> dict:
     header = readelf(path, "-h")
     machine_match = re.search(r"^\s*Machine:\s*(.+)$", header, flags=re.MULTILINE)
     machine = machine_match.group(1).strip() if machine_match else "unknown"
-    dependencies = ldd_for(path, library_root)
+    if link_time_sysroot:
+        # This is the cross compiler's target sysroot, not a runtime component:
+        # its SONAMEs describe the libc ABI that output executables link against.
+        # Keep the ELF and NEEDED inventory but do not resolve those target libraries
+        # with the runner's host dynamic loader.
+        needed = NEEDED_RE.findall(readelf(path, "-d"))
+        dependencies = {
+            "needed": needed,
+            "resolved": [],
+            "host_dependencies": [],
+            "unresolved": [],
+            "unexpected_host": [],
+            "resolution_scope": "link-time-sysroot",
+        }
+    else:
+        dependencies = ldd_for(path, library_root, bundle_root)
+        dependencies["resolution_scope"] = "runtime"
     return {
         "path": display_path,
         "machine": machine,
@@ -294,8 +318,8 @@ def main() -> int:
     if not shutil_which("readelf") or not shutil_which("ldd"):
         parser.error("readelf and ldd must be available on the CI runner")
 
-    candidates: list[tuple[Path, str, Path | None]] = []
-    candidates.append((args.appimage, args.appimage.name, None))
+    candidates: list[tuple[Path, str, Path | None, Path | None, bool]] = []
+    candidates.append((args.appimage, args.appimage.name, None, None, False))
     seen: set[Path] = set()
     for path in walk_files(args.toolchain_dir):
         try:
@@ -306,15 +330,23 @@ def main() -> int:
             if real in seen:
                 continue
             seen.add(real)
-            candidates.append((path, path.relative_to(args.toolchain_dir).as_posix(), args.toolchain_dir / "lib"))
+            relative = path.relative_to(args.toolchain_dir).as_posix()
+            is_link_time_sysroot = "/sysroot/" in "/" + relative + "/"
+            candidates.append((
+                path,
+                relative,
+                args.toolchain_dir / "lib",
+                args.toolchain_dir,
+                is_link_time_sysroot,
+            ))
         except OSError:
             continue
 
     elf_rows = []
     failures: list[str] = []
-    for path, display, lib_root in candidates:
+    for path, display, lib_root, bundle_root, link_time_sysroot in candidates:
         try:
-            row = inspect_elf(path, display, lib_root)
+            row = inspect_elf(path, display, lib_root, bundle_root, link_time_sysroot)
         except RuntimeError as exc:
             failures.append(str(exc))
             continue

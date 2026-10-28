@@ -30,3 +30,8 @@ Le PR #7 ajoute un lock explicite `linux-64` et des métadonnées SHA-256. L'env
 ## Audit ELF et rapport de taille CI
 
 Le PR #7 ajoute un audit des dépendances ELF de la toolchain relocalisée, un rapport de taille par composant et un SBOM CycloneDX basé sur la lockfile Conda. Les rapports sont fournis comme artefact de diagnostic de CI séparé de l'AppImage téléchargeable. Ils ne valident pas le gameplay et n'impliquent aucune publication automatique. Les résultats ne sont considérés comme validés qu'après le run complet du commit concerné.
+
+
+## Résultat de diagnostic ELF initial
+
+L'audit CI initial du commit `695c737e32e08662cd34e8d67212e248ea11f7b1` a inspecté 717 ELF et n'a signalé aucune dépendance introuvable. Il a cependant marqué 15 faux positifs dans le sysroot de link GCC comme des dépendances runtime hors bundle. Le script est corrigé pour distinguer le sysroot de link de la toolchain runtime ; le prochain run doit confirmer cette classification avant de déclarer l'audit vert.
