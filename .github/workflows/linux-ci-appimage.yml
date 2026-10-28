@@ -168,20 +168,31 @@ jobs:
             "$GITHUB_WORKSPACE/dist/DQIX-Enhanced-Builder-x86_64.AppImage"
           chmod +x dist/DQIX-Enhanced-Builder-x86_64.AppImage
 
-      - name: Smoke-test bundled toolchain
+      - name: Smoke-test AppImage CLI and bundled toolchain
         env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
           HOME: ${{ runner.temp }}/appimage-home
           XDG_CACHE_HOME: ${{ runner.temp }}/appimage-cache
           XDG_DATA_HOME: ${{ runner.temp }}/appimage-data
         run: |
+          set -euo pipefail
           mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME"
-          ./dist/DQIX-Enhanced-Builder-x86_64.AppImage --self-test
+          IMAGE=./dist/DQIX-Enhanced-Builder-x86_64.AppImage
+          EXPECTED_VERSION="$(awk -F '"' '/DQIX_VERSION / {print $2; exit}' runtime/version.h)"
+          ACTUAL_VERSION="$("$IMAGE" --version)"
+          test "$ACTUAL_VERSION" = "$EXPECTED_VERSION"
+          printf 'AppImage --version: %s\n' "$ACTUAL_VERSION"
+          HELP_OUTPUT="$("$IMAGE" --help)"
+          printf '%s\n' "$HELP_OUTPUT" | grep -F -- "--self-test" >/dev/null
+          printf 'AppImage --help: passed\n'
+          "$IMAGE" --self-test
 
-      - name: Generate checksums
+      - name: Generate and verify checksums
         run: |
+          set -euo pipefail
           cd dist
           sha256sum DQIX-Enhanced-Builder-x86_64.AppImage build-info.txt > SHA256SUMS
+          sha256sum --check SHA256SUMS
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
