@@ -14,6 +14,7 @@ import argparse
 import os
 import re
 import sys
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -625,7 +626,9 @@ def main():
     ap.add_argument("--tags", help="file listing '<module> <call addr> <tag>': the 3D drawn during these calls carries the tag (e.g. the stylus arrow, hidden while walking with a stick); the game's code is unchanged")
     args = ap.parse_args()
 
+    load_started = time.perf_counter()
     mods = load_modules(args.extract, args.config)
+    print(f"== Timing: ARM9 load_modules wall_seconds={time.perf_counter() - load_started:.3f} modules={len(mods)}")
     if args.patch:
         apply_patches(mods, args.patch)
     rc = Recompiler(mods)
@@ -656,6 +659,7 @@ def main():
 
     # Translate everything in memory first: translating can discover secondary
     # entry points, which then need translating too.
+    translation_started = time.perf_counter()
     code = {}
     queue = list(rc.all_funcs())
     while queue:
@@ -691,7 +695,12 @@ def main():
                 rc.stats["wrapped_functions"] = rc.stats.get("wrapped_functions", 0) + 1
             code[(fn.module.name, fn.addr)] = body
         queue, rc.pending = rc.pending, []
+    print(
+        f"== Timing: ARM9 translate_functions wall_seconds={time.perf_counter() - translation_started:.3f} "
+        f"functions={len(code)} instructions={rc.stats.get('insns', 0)}"
+    )
 
+    output_started = time.perf_counter()
     funcs = list(rc.all_funcs())
     with write_if_changed(os.path.join(args.out, "funcs.h")) as f:
         f.write("#pragma once\n#include \"cpu.h\"\n")
@@ -726,7 +735,17 @@ def main():
         f.write("\n".join(rc.problems[:2000]))
     for k in sorted(rc.stats):
         print(f"{k:24s} {rc.stats[k]}")
+    output_paths = [
+        os.path.join(args.out, name)
+        for name in os.listdir(args.out)
+        if os.path.isfile(os.path.join(args.out, name))
+    ]
+    output_bytes = sum(os.path.getsize(path) for path in output_paths)
     print(f"{len(files)} C files written to {args.out}")
+    print(
+        f"== Timing: ARM9 write_outputs wall_seconds={time.perf_counter() - output_started:.3f} "
+        f"output_files={len(output_paths)} output_bytes={output_bytes}"
+    )
 
 
 if __name__ == "__main__":

@@ -51,3 +51,32 @@ L'AppImage est un **constructeur x86_64**, pas une distribution du jeu déjà co
 - Vérifier le contenu de l'AppDir/AppImage extraite, ses bibliothèques ELF et les SHA-256.
 - Tester la GUI sur un bureau Linux : sélection ROM et workspace, progression, journal, erreur et reprise après échec.
 - Sur une machine possédant une ROM personnelle, réaliser un build local USA et/ou Europe puis vérifier jeu, audio, entrées, contrôles et sauvegardes. Ne pas transférer la ROM ni le workspace vers CI.
+
+## État vérifié lors de la reprise — 2026-10-28
+
+- SHA de main : 3a84fe776dfed59421987722073d03a438a3ab56. Upstream sackchief/dqix-enhanced toujours à b85da5d6f8a5580f737e5f96418f4b07a8083591 ; comparaison : 32 commits en avance, aucun en retard.
+- CI #19 sur main : tests source réussis, empaquetage bloqué faute de desktop-file-validate. Correctif dans le PR #6 ; run #21 sur 519c14d7d2b7486de402ece21a226de67b6ba930 a passé entièrement, avec AppImage, self-test, checksums générés et artefact uploadé. Run #22 sur ba5039298f2d95c17c0d2d54113d7a45c7ac6685 a en plus vérifié --version, --help et les checksums.
+- L'instrumentation de timing est ajoutée après le SHA ba503929 ; attendre le run du SHA final pour valider les changements Python et shell.
+
+## Détails de la chaîne de build relevés dans le code
+
+- packaging/linux/gui.py utilise un thread de travail et une file d'événements afin de garder la boucle Tk réactive. shutil.copytree recopie les sources dans le workspace à chaque build ; durée et octets sont instrumentés par le PR #6.
+- tools/build-game.sh appelle successivement tools/extract_rom.py, tools/region.py, recomp/build.py ARM9, recomp/arm7.py, make -j$(nproc) puis l'assemblage game/. Le codegen Python est séquentiel ; le parallélisme explicite concerne la compilation C.
+- Les mesures à venir sont des temps muraux et volumes de fichiers/octets. Ni CPU/I/O local, ni temps de génération complète avec ROM ne sont mesurés dans cette session. Le test sans ROM ne valide pas le gameplay.
+
+## Politique de contenu AppImage
+
+La branche du PR contient une liste positive packaging/linux/appimage-filter.txt. Elle autorise explicitement les sources de build/runtime, la configuration, les polices, skins et dépendances sources requises ; tout chemin non déclaré est refusé. Les dossiers de sortie et de données privées sont exclus avant les entrées positives, et les extensions ROM/save/binaires sont exclues à tous les niveaux. Le test synthétique tests/packaging/test_appimage_payload.py vérifie les inclusions positives et les sentinelles interdites ; la CI #29 a validé le jeu de règles sur le SHA 23a7cee4605e35c8f58ca92fcb856e7d15172f6d (10 fixtures autorisées, 38 sentinelles exclues). Le dernier scan payload, build AppImage, tests CLI, checksums et artefact upload ont réussi.
+
+
+## Release workflow safety
+
+Le fichier .github/workflows/release-appimage.yml est renforcé en deux jobs : preflight read-only par défaut et publish explicitement conditionné à `dry_run=false`. Le scope `contents: write` est limité au publish job. Les scripts .github/scripts/validate-release-source.sh et verify-appimage-artifact.sh contrôlent l'origine push main/stable, le commit, l'association artefact/run/SHA, le digest du ZIP, la liste exacte des assets, SHA256SUMS et les CLI smoke tests. Une suite de tests statiques est ajoutée dans tests/packaging/test_release_workflow_safety.py ; ne considérer ce changement final validé qu'après sa CI.
+
+
+## Vérification finale des changements release — 2026-10-28
+
+- Run #30 `40727004320` (SHA `3ad7890cf5c6297a27ad2b709838146bd64efe9b`) : CI complète verte, y compris le test statique du workflow release.
+- Le workflow release de cette branche a un déclenchement manuel uniquement, dry run par défaut, un préflight read-only et un job publish seul à disposer de `contents: write`. Aucun préflight manuel réel, tag ou release n'a été exécuté/créé pendant cette session.
+- Le filtre AppImage a été validé par sentinelles synthétiques lors du run #29, puis le build/smoke/checksum/artifact ainsi que les tests statiques release ont été validés au run #30. Le run suivant sur un nouveau commit doit rester la source de vérité pour sa CI.
+- Conda lockfile versionnée, analyse ELF/SBOM et taille ventilée par composant restent des tâches explicites, non accomplies. Pas de vraie génération de jeu avec ROM ni test gameplay.

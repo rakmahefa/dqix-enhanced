@@ -106,3 +106,46 @@ La synchronisation doit intégrer les évolutions v32 : ROM européenne et choix
 ## 6. Décision d'implémentation
 
 Cette spec fixe le plan. Les éléments non cochés sont des travaux ultérieurs ; la synchronisation et la mise à jour des audits ne doivent pas être présentées comme une validation déjà passée du build v32 complet ou du gameplay Linux.
+
+## 7. Journal de vérification — 2026-10-28
+
+### CI et AppImage
+
+- Le SHA courant de main avant le PR de correction était 3a84fe776dfed59421987722073d03a438a3ab56. La comparaison avec l'upstream b85da5d6f8a5580f737e5f96418f4b07a8083591 donnait 32 commits en avance et 0 en retard ; aucun nouveau commit upstream n'était à intégrer.
+- Le run main #19 (40720090797) a reproduit « desktop-file-validate command is missing, please install it ». Le PR #6 ajoute desktop-file-utils sans retirer les autres utilitaires.
+- Le premier run complet vert après ce correctif est #21 (40721331417), sur le SHA 519c14d7d2b7486de402ece21a226de67b6ba930 : tests sans ROM, construction AppImage, --self-test, génération des checksums et upload de l'artefact. L'archive d'artefact faisait 242421192 octets et son digest ZIP était 3285b650453a92add0d2e676b1ff7ba7dc05051e8b760a65621bb9c4f9277677. Ce run ne vérifiait pas explicitement --version, --help ni les checksums par sha256sum --check.
+- Le workflow du PR #6 ajoute ces contrôles explicites ; le run #22 (40721839065) a réussi sur le SHA ba5039298f2d95c17c0d2d54113d7a45c7ac6685. Le SHA du commit est important : toute instrumentation ajoutée après lui doit avoir sa propre CI avant d'être considérée validée.
+- Le log appimagetool affiche encore « continuous build (git version 81ee1db) », mais le fichier téléchargé depuis l'URL épinglée 1.9.0 passe le SHA-256 attendu 46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1. La seule bannière ne prouve pas une incohérence du binaire ni une compromission. L'avertissement appstreamcli manquant n'a pas bloqué la construction.
+
+### Parcours du build et parallélisme (analyse du code, pas un benchmark ROM)
+
+- packaging/linux/gui.py démarre _build_worker dans threading.Thread ; le worker envoie journal/progression dans queue.Queue et Tk interroge cette file par root.after(100, ...). La copie et le sous-processus de build sont donc hors du thread UI.
+- La préparation du workspace copie les sources avec shutil.copytree à chaque demande de build. C'est un candidat de coût I/O, à confirmer par les temps, fichiers et octets consignés dans le journal.
+- tools/build-game.sh exécute en séquence l'extraction, la détection de région, recomp/build.py (ARM9), recomp/arm7.py (ARM7), make puis l'assemblage de game/. tools/extract_rom.py lit la ROM entière en mémoire et décompresse les overlays dans une boucle séquentielle.
+- Les boucles de traduction dans recomp/build.py et recomp/arm7.py sont séquentielles (for fn in queue) ; aucun pool de threads/processus de génération n'y a été constaté. En revanche, la compilation C utilise make -j"$(nproc)", donc les cibles d'objet indépendantes peuvent compiler en parallèle. -lpthread dans les options de link ne prouve pas un parallélisme de codegen.
+- L'assemblage copie en série l'extraction vers game/data/code, la ROM et les assets. Le téléchargement facultatif des données DQVC peut attendre jusqu'à 30 secondes ; sa contribution au temps global reste à mesurer.
+- packaging/linux/AppRun hache l'archive de toolchain à chaque lancement, puis ne l'extrait et ne lance conda-unpack que si le cache XDG ne passe pas la vérification. Les temps de lancement à cache froid/chaud, CPU et I/O ne sont pas mesurés ici.
+- Une instrumentation est ajoutée dans ce PR : temps muraux, nombre de fichiers et octets pour la copie du workspace, extraction, codegen ARM9/ARM7, compilation/link et assemblage. Aucun build complet avec ROM personnelle, aucune mesure CPU/I/O locale et aucun test gameplay ne sont revendiqués. Comparer ensuite un build local froid et chaud sur la même machine, le même workspace et la même ROM.
+
+
+## 8. Protection du payload AppImage — validé par CI
+
+- Ajout d'une politique rsync à liste positive : seuls les chemins source explicitement autorisés sont copiés dans l'AppDir.
+- Les exclusions de défense en profondeur refusent notamment ROM/saves, game/, build/, extract/, rom/, testbuild/, codegen temporaire, Mods, musique, textures et artefacts de compilation.
+- Ajout d'un test de fixture synthétique qui applique la véritable politique rsync à un arbre temporaire, vérifie les fichiers légitimes autorisés et recherche les sentinelles interdites.
+- Le scan final du payload et des assets est exécuté lors de l'assemblage. Ne marquer ce lot comme validé qu'après réussite de la CI sur le SHA contenant ces changements. Le test n'ouvre ni ne requiert de ROM réelle.
+
+## 9. Release sûre — préflight et garde-fous
+
+- Le workflow de publication est manuel uniquement et `dry_run=true` par défaut. Le préflight est en lecture seule et n'a pas de permission d'écriture de contenu.
+- Le préflight vérifie run CI terminé avec succès sur main/stable par push, dépôt source identique, SHA source, artefact associé au même run/SHA, digest SHA-256 de l'archive, manifeste exact, checksums internes et smoke tests CLI. Toute erreur API autre qu'un 404 explicite bloque la voie.
+- Le job publish n'existe en exécution que pour `dry_run=false`; lui seul reçoit `contents: write`. Avant publication, il revalide le run et l'artefact, puis crée un tag neuf via un POST de référence Git non forcé et crée la release avec `--verify-tag`. Aucune exécution de publication n'a été déclenchée dans cette session.
+- Les protections du workflow doivent être testées statiquement par la CI du commit final. Cela ne signifie pas que la release a été publiée ou qu'une exécution publish réelle a été testée.
+
+
+## 10. État des contrôles résiduels — 2026-10-28
+
+- Le workflow release a passé les tests statiques de sécurité dans la CI #30 (run `40727004320`, SHA `3ad7890cf5c6297a27ad2b709838146bd64efe9b`) : déclenchement manuel seulement, `dry_run=true` par défaut, préflight en lecture seule, et permission `contents: write` limitée au job publish. Aucun vrai `workflow_dispatch` de préflight n'a été exécuté dans cette session et aucune release/tag n'a été créée.
+- Le filtrage positif du payload a été exécuté avec des fixtures synthétiques et le smoke test AppImage a passé en CI #29 (run `40725797382`, SHA `23a7cee4605e35c8f58ca92fcb856e7d15172f6d`). Ces résultats valident la portée des chemins/extensions testés, pas une analyse complète sémantique de chaque octet embarqué.
+- Une lockfile Conda transitif consommée par le build n'a pas été créée/validée dans cette session. Une analyse exhaustive des dépendances ELF, un SBOM complet et un rapport de taille par composant restent à faire ; ils ne sont pas cochés comme terminés.
+- Aucun build complet avec ROM, benchmark local cache froid/chaud, mesure CPU/I/O locale ou test gameplay n'a été exécuté. L'instrumentation ajoutée donne des durées murales et volumes de fichiers/octets dès qu'un propriétaire lance un build local.
