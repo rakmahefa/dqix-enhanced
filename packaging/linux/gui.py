@@ -348,7 +348,7 @@ class BuilderApp:
                     messagebox.showinfo(
                         "Build complete",
                         f"The game was built successfully.\n\nGame directory:\n{self.workspace_path / 'game'}\n\n"
-                        "Use "Launch game" to start.",
+                        'Use "Launch game" to start.',
                         parent=self.root,
                     )
                 elif kind == "failure":
