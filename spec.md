@@ -54,7 +54,7 @@ La synchronisation doit intégrer les évolutions v32 : ROM européenne et choix
 
 ### P1 — Reproductibilité du build
 
-- [ ] Remplacer l'environnement Conda seulement partiellement verrouillé par un lock de plateforme x86_64 Linux incluant les versions, builds et dépendances transitives, généré par une procédure documentée.
+- [x] Remplacer l'environnement Conda seulement partiellement verrouillé par un lock explicite de plateforme Linux x86_64 incluant les URLs exactes des 96 paquets résolus et leurs builds. La lockfile est versionnée et le workflow l'utilise ; la validation de bout en bout est encore en attente de la CI de ce SHA.
 - [ ] Épingler les actions GitHub par SHA complet et conserver les sommes de contrôle des outils téléchargés. Le workflow actuel épingle déjà appimagetool 1.9.0 par SHA-256.
 - [ ] Écrire les métadonnées de build : version du projet, SHA exact des sources, cible et runner, version/hash du lock, version et SHA d'appimagetool, hash de l'archive toolchain.
 - [ ] Garder l'artefact de toolchain exact qui a réussi la CI ; ne pas résoudre une nouvelle fois les dépendances au moment de la publication.
@@ -149,3 +149,11 @@ Cette spec fixe le plan. Les éléments non cochés sont des travaux ultérieurs
 - Le filtrage positif du payload a été exécuté avec des fixtures synthétiques et le smoke test AppImage a passé en CI #29 (run `40725797382`, SHA `23a7cee4605e35c8f58ca92fcb856e7d15172f6d`). Ces résultats valident la portée des chemins/extensions testés, pas une analyse complète sémantique de chaque octet embarqué.
 - Une lockfile Conda transitif consommée par le build n'a pas été créée/validée dans cette session. Une analyse exhaustive des dépendances ELF, un SBOM complet et un rapport de taille par composant restent à faire ; ils ne sont pas cochés comme terminés.
 - Aucun build complet avec ROM, benchmark local cache froid/chaud, mesure CPU/I/O locale ou test gameplay n'a été exécuté. L'instrumentation ajoutée donne des durées murales et volumes de fichiers/octets dès qu'un propriétaire lance un build local.
+
+
+## 12. Lock Conda explicite — branch PR #7, validation CI en attente
+
+- Lock: `packaging/linux/conda-linux-64.lock`, exporté du solve effectif du runner Linux x86_64 au run `40730463353`.
+- Contenu contrôlé : 96 URLs de paquets, uniquement `linux-64`/`noarch`, chacune avec fragment MD5. SHA-256 attendu du fichier : `5aeec2066f1d9fcfbf729de3ea6531559c8b9b0a31065a610059fb18793bae96`.
+- La CI est modifiée pour vérifier SHA-256, installer depuis la lockfile explicite, comparer l'ensemble des URLs installées à la liste versionnée et tester que `environment.yml` correspond au SHA annoncé par les métadonnées.
+- Ne considérer la lockfile comme validée dans la chaîne AppImage qu'après réussite de toute la CI sur un SHA qui inclut simultanément le lock, son test et le workflow qui le consomme.

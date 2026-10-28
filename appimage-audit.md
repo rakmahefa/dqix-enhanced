@@ -81,3 +81,8 @@ Le workflow release est réorganisé en préflight read-only et job publish dist
 La CI #30 (run `40727004320`, SHA `3ad7890cf5c6297a27ad2b709838146bd64efe9b`) passe avec les tests statiques du workflow de release et le build AppImage complet. La CI #29 (run `40725797382`, SHA `23a7cee4605e35c8f58ca92fcb856e7d15172f6d`) a validé le filtre positif, 10 fixtures conservées et 38 sentinelles exclues. Les contrôles release ont donc une validation statique ; le vrai préflight read-only en workflow_dispatch n'a pas été déclenché, et aucun tag/release n'a été créé.
 
 Restent ouverts : lockfile Conda transitif versionnée et effectivement consommée par la construction, analyse des dépendances ELF, SBOM et rapport de taille par composants, et benchmarks locaux avec ROM appartenant à l'utilisateur. Ne pas interpréter les timings instrumentés comme des résultats de benchmark tant qu'aucun build ROM local n'a été chronométré.
+
+
+## Conda lock explicite — validation CI en attente
+
+Le PR #7 versionne `packaging/linux/conda-linux-64.lock`, une liste explicite Linux x86_64 issue du solve du runner (96 paquets, builds fixés, URLs `linux-64`/`noarch` avec fragments MD5, SHA-256 `5aeec2066f1d9fcfbf729de3ea6531559c8b9b0a31065a610059fb18793bae96`). Le workflow est modifié pour installer depuis cette liste, contrôler le checksum et comparer la liste installée à celle commise. Le résultat final doit confirmer cette CI avant de déclarer le lock effectif et reproductible.

@@ -20,3 +20,8 @@ La CI de packaging utilise une liste positive pour le payload de l'AppImage, ave
 Les logs instrumentés séparent copie du workspace, extraction, détection de région, codegen ARM9/ARM7, compilation/link et assemblage, avec des temps muraux et des volumes de fichiers/octet. Il faut exécuter ces mesures sur une ROM possédée localement avant d'optimiser la chaîne. À ce jour aucun benchmark local complet, aucune mesure CPU/I/O ni aucun test gameplay n'est revendiqué.
 
 La CI génère l'AppImage du constructeur sans ROM et teste les options CLI, les checksums, le manifeste de payload et des sentinelles synthétiques. Le workflow de release est manuel, read-only par défaut ; le préflight réel n'a pas encore été exécuté en session. Le lock Conda transitif utilisé par le build, le SBOM et l'analyse ELF détaillée restent ouverts.
+
+
+## Lock Conda de la toolchain Linux
+
+Le PR #7 ajoute un lock explicite `linux-64` et des métadonnées SHA-256. L'environnement CI/AppImage est modifié pour utiliser ce lock plutôt que résoudre à nouveau les versions dans `environment.yml`; la CI contrôle que les URLs et builds installés correspondent à la liste commise. La lockfile vient d'un solve de CI réel, mais il ne faut considérer l'intégration validée qu'après réussite du run complet sur le commit qui consomme le lock.

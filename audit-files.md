@@ -80,3 +80,8 @@ Le fichier .github/workflows/release-appimage.yml est renforcé en deux jobs : p
 - Le workflow release de cette branche a un déclenchement manuel uniquement, dry run par défaut, un préflight read-only et un job publish seul à disposer de `contents: write`. Aucun préflight manuel réel, tag ou release n'a été exécuté/créé pendant cette session.
 - Le filtre AppImage a été validé par sentinelles synthétiques lors du run #29, puis le build/smoke/checksum/artifact ainsi que les tests statiques release ont été validés au run #30. Le run suivant sur un nouveau commit doit rester la source de vérité pour sa CI.
 - Conda lockfile versionnée, analyse ELF/SBOM et taille ventilée par composant restent des tâches explicites, non accomplies. Pas de vraie génération de jeu avec ROM ni test gameplay.
+
+
+## Conda lock explicite — validation CI en attente
+
+Le PR #7 versionne `packaging/linux/conda-linux-64.lock`, une liste explicite Linux x86_64 issue du solve du runner (96 paquets, builds fixés, URLs `linux-64`/`noarch` avec fragments MD5, SHA-256 `5aeec2066f1d9fcfbf729de3ea6531559c8b9b0a31065a610059fb18793bae96`). Le workflow est modifié pour installer depuis cette liste, contrôler le checksum et comparer la liste installée à celle commise. Le résultat final doit confirmer cette CI avant de déclarer le lock effectif et reproductible.

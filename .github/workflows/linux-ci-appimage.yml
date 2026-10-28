@@ -42,6 +42,9 @@ jobs:
       - name: Verify release workflow safety defaults
         run: python tests/packaging/test_release_workflow_safety.py
 
+      - name: Verify locked Conda environment specification
+        run: python tests/packaging/test_conda_lock.py
+
       - name: Check Python and shell syntax
         run: |
           python -m compileall -q recomp tools tests
@@ -66,46 +69,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y desktop-file-utils libfuse2 rsync squashfs-tools
 
+      - name: Verify committed Conda lock checksum
+        run: sha256sum --check packaging/linux/conda-linux-64.lock.sha256
+
       - name: Set up pinned build environment (cached)
         uses: mamba-org/setup-micromamba@v3
         with:
-          environment-file: packaging/linux/environment.yml
-          create-args: --strict-channel-priority
+          environment-file: packaging/linux/conda-linux-64.lock
+          environment-name: dqix-builder
           cache-environment: true
           cache-downloads: true
           init-shell: bash
 
-      - name: Export resolved linux-64 Conda package lock snapshot
+      - name: Verify installed environment matches committed lock
         shell: bash -el {0}
         run: |
           set -euo pipefail
-          test "$(uname -m)" = "x86_64"
-          test -n "${CONDA_PREFIX:-}"
-          LOCK_FILE="$RUNNER_TEMP/conda-linux-64.lock"
-          micromamba env export --name dqix-builder --explicit > "$LOCK_FILE"
-          grep -Fxq '@EXPLICIT' "$LOCK_FILE"
-          PACKAGE_COUNT="$(grep -Ec '^https?://' "$LOCK_FILE")"
-          test "$PACKAGE_COUNT" -gt 0
-          if grep -E '^https?://' "$LOCK_FILE" | grep -Ev '#[0-9a-fA-F]{32}$'; then
-            echo "Explicit Conda package URL without an MD5 fragment" >&2
-            exit 1
-          fi
-          if grep -E '^https?://' "$LOCK_FILE" | grep -Ev '/(linux-64|noarch)/'; then
-            echo "Unexpected non-Linux/non-noarch package URL in lock snapshot" >&2
-            exit 1
-          fi
-          sha256sum "$LOCK_FILE" | tee "$RUNNER_TEMP/conda-linux-64.lock.sha256"
-          echo "Resolved explicit Conda packages: $PACKAGE_COUNT" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload bootstrap lock snapshot (temporary)
-        uses: actions/upload-artifact@v4
-        with:
-          name: conda-linux-64-lock-bootstrap
-          path: |
-            ${{ runner.temp }}/conda-linux-64.lock
-            ${{ runner.temp }}/conda-linux-64.lock.sha256
-          if-no-files-found: error
-          retention-days: 1
+          micromamba env export --name dqix-builder --explicit > "$RUNNER_TEMP/resolved-conda-linux-64.lock"
+          diff -u \
+            <(grep -E '^https?://' packaging/linux/conda-linux-64.lock | LC_ALL=C sort) \
+            <(grep -E '^https?://' "$RUNNER_TEMP/resolved-conda-linux-64.lock" | LC_ALL=C sort)
 
       - name: Pack the relocatable build toolchain
         shell: bash -el {0}
@@ -179,7 +162,11 @@ jobs:
           echo "Project version: $VERSION" > dist/build-info.txt
           echo "Source commit: $GITHUB_SHA" >> dist/build-info.txt
           echo "Target: Linux x86_64; build host: Ubuntu 22.04" >> dist/build-info.txt
-          echo "Toolchain: packaging/linux/environment.yml, packed with conda-pack" >> dist/build-info.txt
+          echo "Toolchain: packaging/linux/conda-linux-64.lock, packed with conda-pack" >> dist/build-info.txt
+          LOCK_SHA256="$(sha256sum packaging/linux/conda-linux-64.lock | awk '{print $1}')"
+          TOOLCHAIN_SHA256="$(sha256sum "$PACKAGE_DIR/toolchain.tar.gz" | awk '{print $1}')"
+          echo "Conda lock SHA-256: $LOCK_SHA256" >> dist/build-info.txt
+          echo "Toolchain archive SHA-256: $TOOLCHAIN_SHA256" >> dist/build-info.txt
           echo "ROM and prebuilt game: not included; build occurs on the user's machine" >> dist/build-info.txt
           echo "AppImage tool: appimagetool 1.9.0 (sha256 46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1)" >> dist/build-info.txt
 
