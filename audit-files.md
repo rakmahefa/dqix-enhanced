@@ -66,4 +66,9 @@ L'AppImage est un **constructeur x86_64**, pas une distribution du jeu déjà co
 
 ## Politique de contenu AppImage
 
-La branche du PR contient une liste positive packaging/linux/appimage-filter.txt. Elle autorise explicitement les sources de build/runtime, la configuration, les polices, skins et dépendances sources requises ; tout chemin non déclaré est refusé. Les dossiers de sortie et de données privées sont exclus avant les entrées positives, et les extensions ROM/save/binaires sont exclues à tous les niveaux. Le test synthétique tests/packaging/test_appimage_payload.py vérifie les inclusions positives et les sentinelles interdites ; attendre la CI du SHA final avant de considérer la règle entièrement validée.
+La branche du PR contient une liste positive packaging/linux/appimage-filter.txt. Elle autorise explicitement les sources de build/runtime, la configuration, les polices, skins et dépendances sources requises ; tout chemin non déclaré est refusé. Les dossiers de sortie et de données privées sont exclus avant les entrées positives, et les extensions ROM/save/binaires sont exclues à tous les niveaux. Le test synthétique tests/packaging/test_appimage_payload.py vérifie les inclusions positives et les sentinelles interdites ; la CI #29 a validé le jeu de règles sur le SHA 23a7cee4605e35c8f58ca92fcb856e7d15172f6d (10 fixtures autorisées, 38 sentinelles exclues). Le dernier scan payload, build AppImage, tests CLI, checksums et artefact upload ont réussi.
+
+
+## Release workflow safety
+
+Le fichier .github/workflows/release-appimage.yml est renforcé en deux jobs : preflight read-only par défaut et publish explicitement conditionné à `dry_run=false`. Le scope `contents: write` est limité au publish job. Les scripts .github/scripts/validate-release-source.sh et verify-appimage-artifact.sh contrôlent l'origine push main/stable, le commit, l'association artefact/run/SHA, le digest du ZIP, la liste exacte des assets, SHA256SUMS et les CLI smoke tests. Une suite de tests statiques est ajoutée dans tests/packaging/test_release_workflow_safety.py ; ne considérer ce changement final validé qu'après sa CI.

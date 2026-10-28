@@ -34,6 +34,14 @@ jobs:
           clang --version
           python -m pip install --disable-pip-version-check "PyYAML==6.0.2"
 
+      - name: Verify release workflow shell syntax
+        run: |
+          set -euo pipefail
+          for script in .github/scripts/*.sh; do bash -n "$script"; done
+
+      - name: Verify release workflow safety defaults
+        run: python tests/packaging/test_release_workflow_safety.py
+
       - name: Check Python and shell syntax
         run: |
           python -m compileall -q recomp tools tests

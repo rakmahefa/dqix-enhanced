@@ -65,6 +65,12 @@ L'AppImage est un **constructeur x86_64**, pas une distribution du jeu déjà co
 - L'assemblage inclut une copie de l'extraction vers game/data/code et une requête DQVC facultative avec un timeout de 30 secondes. Sa contribution reste à mesurer.
 - Aucun build avec ROM personnelle, benchmark froid/chaud, mesure CPU/I/O locale ou test gameplay n'a été réalisé dans cette session.
 
-## Filtrage positif du payload — lot en cours
+## Filtrage positif du payload — vérifié par CI #29
 
 Le workflow est modifié pour utiliser packaging/linux/appimage-filter.txt, une liste positive avec exclusions de défense en profondeur, et tests/packaging/test_appimage_payload.py exécute le filtre réel contre des sentinelles synthétiques. Un scan de contenu du payload et des assets refuse les extensions privées connues ainsi que les dossiers de build privés. La réussite de ce lot reste soumise à la CI du nouveau SHA.
+
+La CI #29 (`40725797382`, SHA `23a7cee4605e35c8f58ca92fcb856e7d15172f6d`) a passé le test synthétique de la politique : 10 fixtures autorisées conservées, 38 sentinelles privées exclues. Le scan défensif du payload, la génération AppImage, `--version v32`, `--help`, `--self-test`, `sha256sum --check` et l'upload d'artefact ont tous réussi. Artefact ID `12832952308`, ZIP 242372040 octets, digest `sha256:dc09d1f3275db1264bd81a250ec9f965426a5ce4648ffba8de7cff1d82ec4ea8`. La validation s'applique au SHA de cette CI, avant les modifications du workflow release.
+
+## Release sûre — changement en cours
+
+Le workflow release est réorganisé en préflight read-only et job publish distinct. Le dry-run est vrai par défaut. Le préflight compare la provenance du run et de l'artefact puis vérifie le ZIP et les assets ; seul le job explicitement déclenché avec dry-run faux a la permission `contents: write`. Le tag neuf est créé sans force-update et la release utilise `--verify-tag`. La CI doit confirmer les contrôles statiques avant de traiter ce lot comme terminé.

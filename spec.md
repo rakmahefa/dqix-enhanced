@@ -128,9 +128,16 @@ Cette spec fixe le plan. Les éléments non cochés sont des travaux ultérieurs
 - Une instrumentation est ajoutée dans ce PR : temps muraux, nombre de fichiers et octets pour la copie du workspace, extraction, codegen ARM9/ARM7, compilation/link et assemblage. Aucun build complet avec ROM personnelle, aucune mesure CPU/I/O locale et aucun test gameplay ne sont revendiqués. Comparer ensuite un build local froid et chaud sur la même machine, le même workspace et la même ROM.
 
 
-## 8. Protection du payload AppImage — lot en cours
+## 8. Protection du payload AppImage — validé par CI
 
 - Ajout d'une politique rsync à liste positive : seuls les chemins source explicitement autorisés sont copiés dans l'AppDir.
 - Les exclusions de défense en profondeur refusent notamment ROM/saves, game/, build/, extract/, rom/, testbuild/, codegen temporaire, Mods, musique, textures et artefacts de compilation.
 - Ajout d'un test de fixture synthétique qui applique la véritable politique rsync à un arbre temporaire, vérifie les fichiers légitimes autorisés et recherche les sentinelles interdites.
 - Le scan final du payload et des assets est exécuté lors de l'assemblage. Ne marquer ce lot comme validé qu'après réussite de la CI sur le SHA contenant ces changements. Le test n'ouvre ni ne requiert de ROM réelle.
+
+## 9. Release sûre — préflight et garde-fous
+
+- Le workflow de publication est manuel uniquement et `dry_run=true` par défaut. Le préflight est en lecture seule et n'a pas de permission d'écriture de contenu.
+- Le préflight vérifie run CI terminé avec succès sur main/stable par push, dépôt source identique, SHA source, artefact associé au même run/SHA, digest SHA-256 de l'archive, manifeste exact, checksums internes et smoke tests CLI. Toute erreur API autre qu'un 404 explicite bloque la voie.
+- Le job publish n'existe en exécution que pour `dry_run=false`; lui seul reçoit `contents: write`. Avant publication, il revalide le run et l'artefact, puis crée un tag neuf via un POST de référence Git non forcé et crée la release avec `--verify-tag`. Aucune exécution de publication n'a été déclenchée dans cette session.
+- Les protections du workflow doivent être testées statiquement par la CI du commit final. Cela ne signifie pas que la release a été publiée ou qu'une exécution publish réelle a été testée.
