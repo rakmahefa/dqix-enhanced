@@ -82,7 +82,7 @@ jobs:
           test "$(uname -m)" = "x86_64"
           test -n "${CONDA_PREFIX:-}"
           LOCK_FILE="$RUNNER_TEMP/conda-linux-64.lock"
-          micromamba list --explicit --md5 --prefix "$CONDA_PREFIX" > "$LOCK_FILE"
+          micromamba env export --name dqix-builder --explicit > "$LOCK_FILE"
           grep -Fxq '@EXPLICIT' "$LOCK_FILE"
           PACKAGE_COUNT="$(grep -Ec '^https?://' "$LOCK_FILE")"
           test "$PACKAGE_COUNT" -gt 0
