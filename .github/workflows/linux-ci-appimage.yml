@@ -75,6 +75,157 @@ jobs:
           cache-downloads: true
           init-shell: bash
 
+      - name: Export resolved Linux x86_64 Conda package lock snapshot
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "x86_64"
+          test -n "${CONDA_PREFIX:-}"
+          micromamba list --explicit --md5 --prefix "$CONDA_PREFIX" > "$RUNNER_TEMP/conda-linux-64.lock"
+          grep -Fxq '@EXPLICIT' "$RUNNER_TEMP/conda-linux-64.lock"
+          grep -Fxq '# platform: linux-64' "$RUNNER_TEMP/conda-linux-64.lock"
+          PACKAGE_COUNT="$(grep -Ec '^https?://' "$RUNNER_TEMP/conda-linux-64.lock")"
+          test "$PACKAGE_COUNT" -gt 0
+          if grep -E '^https?://' "$RUNNER_TEMP/conda-linux-64.lock" | grep -Ev '#[0-9a-fA-F]{32}      - name: Pack the relocatable build toolchain
+        shell: bash -el {0}
+        run: |
+          test -n "$CONDA_PREFIX"
+          conda-pack -p "$CONDA_PREFIX" --format tar.gz -o "$RUNNER_TEMP/toolchain.tar.gz"
+          tar -tzf "$RUNNER_TEMP/toolchain.tar.gz" >/dev/null
+
+      - name: Restore or download pinned appimagetool
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/appimagetool
+          key: appimagetool-1.9.0-x86_64-46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1
+
+      - name: Verify appimagetool checksum
+        env:
+          APPIMAGETOOL_SHA256: 46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1
+        run: |
+          mkdir -p "$HOME/.cache/appimagetool"
+          TOOL="$HOME/.cache/appimagetool/appimagetool-x86_64.AppImage"
+          if [ ! -f "$TOOL" ]; then
+            curl --fail --location --retry 3 \
+              https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage \
+              --output "$TOOL"
+          fi
+          printf '%s  %s\n' "$APPIMAGETOOL_SHA256" "$TOOL" | sha256sum --check -
+          chmod +x "$TOOL"
+          echo "APPIMAGETOOL=$TOOL" >> "$GITHUB_ENV"
+
+      - name: Assemble AppDir (no ROM or generated game)
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          APPDIR="$RUNNER_TEMP/DQIX-Enhanced.AppDir"
+          PACKAGE_DIR="$APPDIR/usr/share/dqix-enhanced"
+          rm -rf "$APPDIR" dist
+          mkdir -p "$PACKAGE_DIR/source" \
+            "$APPDIR/usr/share/icons/hicolor/scalable/apps" dist
+
+          rsync -a \
+            --filter="merge $GITHUB_WORKSPACE/packaging/linux/appimage-filter.txt" \
+            ./ "$PACKAGE_DIR/source/"
+
+          cp packaging/linux/AppRun "$APPDIR/AppRun"
+          chmod 0755 "$APPDIR/AppRun"
+          cp packaging/linux/dqix-enhanced-builder.desktop "$APPDIR/dqix-enhanced-builder.desktop"
+          cp packaging/linux/dqix-enhanced-builder.svg "$APPDIR/dqix-enhanced-builder.svg"
+          cp packaging/linux/dqix-enhanced-builder.svg \
+            "$APPDIR/usr/share/icons/hicolor/scalable/apps/dqix-enhanced-builder.svg"
+          cp "$RUNNER_TEMP/toolchain.tar.gz" "$PACKAGE_DIR/toolchain.tar.gz"
+
+          VERSION="$(awk -F '"' '/DQIX_VERSION / {print $2; exit}' runtime/version.h)"
+          test -n "$VERSION"
+          printf '%s\n' "$VERSION" > "$PACKAGE_DIR/APP_VERSION"
+          sha256sum "$PACKAGE_DIR/toolchain.tar.gz" | awk '{print $1}' > "$PACKAGE_DIR/toolchain.sha256"
+
+          # Exclusions are defense in depth in addition to the allowlist.
+          if find "$APPDIR" -type f \( -iname '*.nds' -o -iname '*.sav' -o -iname '*.dsv' -o -iname '*.srm' -o -iname '*.sra' -o -iname '*.o' -o -iname '*.exe' -o -iname '*.dll' -o -iname '*.so' -o -iname '*.ppm' -o -iname '*.bmp' -o -iname '*.wav' -o -iname '*.pyc' \) -print -quit | grep -q .; then
+            echo "Forbidden ROM/save/build binary or private asset found in AppDir" >&2
+            exit 1
+          fi
+          if find "$PACKAGE_DIR/source" -type d \( -iname game -o -iname build -o -iname extract -o -iname rom -o -iname testbuild -o -iname test-build -o -iname obj -o -iname gen -o -iname gen7 -o -iname Mods -o -iname mods -o -iname music -o -iname textures -o -iname wfc -o -iname release -o -iname reports \) -print -quit | grep -q .; then
+            echo "Forbidden private build/workspace directory found in AppDir source" >&2
+            exit 1
+          fi
+          if find "$PACKAGE_DIR/source" -type f -iname '*.bin' ! -path "$PACKAGE_DIR/source/fonts/labels.bin" -print -quit | grep -q .; then
+            echo "Unapproved binary asset found in AppDir source" >&2
+            exit 1
+          fi
+
+          echo "Project version: $VERSION" > dist/build-info.txt
+          echo "Source commit: $GITHUB_SHA" >> dist/build-info.txt
+          echo "Target: Linux x86_64; build host: Ubuntu 22.04" >> dist/build-info.txt
+          echo "Toolchain: packaging/linux/environment.yml, packed with conda-pack" >> dist/build-info.txt
+          echo "ROM and prebuilt game: not included; build occurs on the user's machine" >> dist/build-info.txt
+          echo "AppImage tool: appimagetool 1.9.0 (sha256 46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1)" >> dist/build-info.txt
+
+      - name: Test AppImage payload policy with synthetic sentinels
+        run: python tests/packaging/test_appimage_payload.py
+
+      - name: Build AppImage
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 \
+            "$APPIMAGETOOL" "$RUNNER_TEMP/DQIX-Enhanced.AppDir" \
+            "$GITHUB_WORKSPACE/dist/DQIX-Enhanced-Builder-x86_64.AppImage"
+          chmod +x dist/DQIX-Enhanced-Builder-x86_64.AppImage
+
+      - name: Smoke-test AppImage CLI and bundled toolchain
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          HOME: ${{ runner.temp }}/appimage-home
+          XDG_CACHE_HOME: ${{ runner.temp }}/appimage-cache
+          XDG_DATA_HOME: ${{ runner.temp }}/appimage-data
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME"
+          IMAGE=./dist/DQIX-Enhanced-Builder-x86_64.AppImage
+          EXPECTED_VERSION="$(awk -F '"' '/DQIX_VERSION / {print $2; exit}' runtime/version.h)"
+          ACTUAL_VERSION="$("$IMAGE" --version)"
+          test "$ACTUAL_VERSION" = "$EXPECTED_VERSION"
+          printf 'AppImage --version: %s\n' "$ACTUAL_VERSION"
+          HELP_OUTPUT="$("$IMAGE" --help)"
+          printf '%s\n' "$HELP_OUTPUT" | grep -F -- "--self-test" >/dev/null
+          printf 'AppImage --help: passed\n'
+          "$IMAGE" --self-test
+
+      - name: Generate and verify checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum DQIX-Enhanced-Builder-x86_64.AppImage build-info.txt > SHA256SUMS
+          sha256sum --check SHA256SUMS
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dqix-enhanced-appimage
+          path: |
+            dist/DQIX-Enhanced-Builder-x86_64.AppImage
+            dist/SHA256SUMS
+            dist/build-info.txt
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload resolved Conda lock snapshot for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: conda-linux-64-lock-snapshot
+          path: ${{ runner.temp }}/conda-linux-64.lock
+          if-no-files-found: error
+          retention-days: 1
+
+; then
+            echo "One or more explicit Conda package URLs lack an MD5 pin" >&2
+            exit 1
+          fi
+          echo "Resolved Linux x86_64 Conda package count: $PACKAGE_COUNT" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Pack the relocatable build toolchain
         shell: bash -el {0}
         run: |
