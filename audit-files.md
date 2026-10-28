@@ -63,3 +63,7 @@ L'AppImage est un **constructeur x86_64**, pas une distribution du jeu déjà co
 - packaging/linux/gui.py utilise un thread de travail et une file d'événements afin de garder la boucle Tk réactive. shutil.copytree recopie les sources dans le workspace à chaque build ; durée et octets sont instrumentés par le PR #6.
 - tools/build-game.sh appelle successivement tools/extract_rom.py, tools/region.py, recomp/build.py ARM9, recomp/arm7.py, make -j$(nproc) puis l'assemblage game/. Le codegen Python est séquentiel ; le parallélisme explicite concerne la compilation C.
 - Les mesures à venir sont des temps muraux et volumes de fichiers/octets. Ni CPU/I/O local, ni temps de génération complète avec ROM ne sont mesurés dans cette session. Le test sans ROM ne valide pas le gameplay.
+
+## Politique de contenu AppImage
+
+La branche du PR contient une liste positive packaging/linux/appimage-filter.txt. Elle autorise explicitement les sources de build/runtime, la configuration, les polices, skins et dépendances sources requises ; tout chemin non déclaré est refusé. Les dossiers de sortie et de données privées sont exclus avant les entrées positives, et les extensions ROM/save/binaires sont exclues à tous les niveaux. Le test synthétique tests/packaging/test_appimage_payload.py vérifie les inclusions positives et les sentinelles interdites ; attendre la CI du SHA final avant de considérer la règle entièrement validée.

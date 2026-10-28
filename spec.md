@@ -126,3 +126,11 @@ Cette spec fixe le plan. Les éléments non cochés sont des travaux ultérieurs
 - L'assemblage copie en série l'extraction vers game/data/code, la ROM et les assets. Le téléchargement facultatif des données DQVC peut attendre jusqu'à 30 secondes ; sa contribution au temps global reste à mesurer.
 - packaging/linux/AppRun hache l'archive de toolchain à chaque lancement, puis ne l'extrait et ne lance conda-unpack que si le cache XDG ne passe pas la vérification. Les temps de lancement à cache froid/chaud, CPU et I/O ne sont pas mesurés ici.
 - Une instrumentation est ajoutée dans ce PR : temps muraux, nombre de fichiers et octets pour la copie du workspace, extraction, codegen ARM9/ARM7, compilation/link et assemblage. Aucun build complet avec ROM personnelle, aucune mesure CPU/I/O locale et aucun test gameplay ne sont revendiqués. Comparer ensuite un build local froid et chaud sur la même machine, le même workspace et la même ROM.
+
+
+## 8. Protection du payload AppImage — lot en cours
+
+- Ajout d'une politique rsync à liste positive : seuls les chemins source explicitement autorisés sont copiés dans l'AppDir.
+- Les exclusions de défense en profondeur refusent notamment ROM/saves, game/, build/, extract/, rom/, testbuild/, codegen temporaire, Mods, musique, textures et artefacts de compilation.
+- Ajout d'un test de fixture synthétique qui applique la véritable politique rsync à un arbre temporaire, vérifie les fichiers légitimes autorisés et recherche les sentinelles interdites.
+- Le scan final du payload et des assets est exécuté lors de l'assemblage. Ne marquer ce lot comme validé qu'après réussite de la CI sur le SHA contenant ces changements. Le test n'ouvre ni ne requiert de ROM réelle.

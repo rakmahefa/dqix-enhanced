@@ -64,3 +64,7 @@ L'AppImage est un **constructeur x86_64**, pas une distribution du jeu déjà co
 - Extraction, détection de région, génération ARM9, génération ARM7, compilation et assemblage sont exécutés en séquence par le script shell. Le recompiler parcourt les fonctions séquentiellement ; le parallélisme explicite est make -j$(nproc) pendant la compilation C.
 - L'assemblage inclut une copie de l'extraction vers game/data/code et une requête DQVC facultative avec un timeout de 30 secondes. Sa contribution reste à mesurer.
 - Aucun build avec ROM personnelle, benchmark froid/chaud, mesure CPU/I/O locale ou test gameplay n'a été réalisé dans cette session.
+
+## Filtrage positif du payload — lot en cours
+
+Le workflow est modifié pour utiliser packaging/linux/appimage-filter.txt, une liste positive avec exclusions de défense en profondeur, et tests/packaging/test_appimage_payload.py exécute le filtre réel contre des sentinelles synthétiques. Un scan de contenu du payload et des assets refuse les extensions privées connues ainsi que les dossiers de build privés. La réussite de ce lot reste soumise à la CI du nouveau SHA.
