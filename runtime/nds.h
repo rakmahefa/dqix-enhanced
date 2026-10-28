@@ -252,7 +252,7 @@ void wfc_poll(void);
 int wfc_input(const uint8_t* frame, int len);               /* the Wi-Fi settings area (reports) */
 void net_enable(int on);
 void net_seal(int on);                       /* sessions: only the built-in server, in game time */
-typedef struct { int online; char dns[32]; uint8_t mac[6]; int mac_set; int builtin; } WirelessConfig;   /* builtin: wfc.c answers */
+typedef struct { int online; char dns[64]; uint8_t mac[6]; int mac_set; int builtin; } WirelessConfig;   /* builtin: wfc.c answers */
 extern WirelessConfig g_wireless;                  /* set by the frontend before boot */
 /* the DS's language (firmware user settings): 1 English, 2 French, 3 German, 4 Italian,
  * 5 Spanish. The European version plays in it; the USA version is always in English. */
