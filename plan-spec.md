@@ -158,6 +158,19 @@ Toute adaptation nécessaire au chargement ou à la sauvegarde doit être implé
 
 ## 6. Plan d'exécution par phases
 
+### CI de développement temporaire — diagnostics, essais et logs
+
+Le développement a besoin d'un environnement reproductible pour exécuter de petits scripts, tester les prototypes, inspecter les dépendances et conserver les logs d'erreur. Pour éviter de reconstruire toute l'AppImage à chaque itération, une **CI temporaire dédiée au développement** sera ajoutée dans `.github/workflows/linux-dev-sandbox.yml`.
+
+- Déclenchement automatique limité à la branche `plan/v32-linux-launcher-settings` et aux changements pertinents pour le développement Linux (workflow lui-même, `third_party/extra/linux/`, packaging Linux, scripts et tests). Elle sera aussi lançable manuellement via `workflow_dispatch`.
+- Environnement initial : Ubuntu 24.04, compilateur C/C++, CMake/Ninja, pkg-config, SDL3, Vulkan SDK headers/loader, pilotes Vulkan Mesa et `vulkaninfo`. Le job journalise les versions, le système, les dépendances résolues et l'inventaire des fichiers modifiés.
+- À chaque run, collecter les sorties de détection Vulkan, les sorties CMake/build/tests et les diagnostics. Publier les logs comme artefact même si un test échoue (`if: always()`), avec une rétention limitée, afin de pouvoir diagnostiquer une erreur sans avoir à la reproduire localement.
+- Quand `third_party/extra/linux/CMakeLists.txt` existe, configurer, compiler et lancer CTest. Avant l'existence du prototype, le job reste un run de diagnostic et le signale explicitement ; l'option manuelle `require_linux_prototype` permettra de rendre l'absence du prototype bloquante dès que P0 doit être validé.
+- Le résultat de `vulkaninfo` est enregistré. L'absence de device accessible devient un avertissement dans le profil normal, pas un succès de test Vulkan ; l'option `require_vulkan_device` permet de rendre un device obligatoire lorsque le run sert de validation Vulkan.
+- Les tests généraux du dépôt peuvent être lancés explicitement avec `run_project_tests`. Par défaut, la CI de développement ne lance pas la construction AppImage complète et n'exécute pas toute la suite générale : elle privilégie un feedback ciblé et rapide.
+- Cette CI est **temporaire** et dédiée aux essais ; réévaluer son utilité après P0/P4, puis supprimer ou fusionner ses contrôles utiles dans la CI permanente. Les fichiers sources Linux ajoutés restent sous `third_party/extra/linux/` ; le fichier workflow est de la configuration CI et fait exception à cette règle de placement.
+- La CI actuelle `linux-ci-appimage.yml` reste inchangée. Elle cible actuellement `main`/ `stable` et la commande manuelle. Les pushes sur la branche de développement utilisent la CI temporaire sans déclencher l'AppImage complète. Une validation complète reste nécessaire avant une intégration finale lorsque les changements touchent le build ou le packaging ; ne pas utiliser une option de skip pour présenter comme validé un changement qui ne l'a pas été.
+
 ### P0 — Audit des frontières Windows/Linux et preuve technique
 
 1. Établir la liste des sources réellement compilées par la cible Windows et la cible Linux ; enregistrer ce manifeste comme référence pour vérifier le diff de chaque PR.
@@ -205,7 +218,7 @@ Toute adaptation nécessaire au chargement ou à la sauvegarde doit être implé
 1. Tests unitaires de parsing, plages invalides, fichier absent/non inscriptible, migration, cwd et état demandé/effectif.
 2. Tests d'actions avec événements clavier synthétiques : F5, Escape, annulation de capture et remapping.
 3. Test UI sans ROM : démarrage SDL3/Vulkan, navigation, changements de page, échec de création de device géré proprement.
-4. CI Linux : dépendances Vulkan/Mesa et environnement headless approprié ; si une machine CI n'offre pas de device Vulkan réel, marquer le test rendu comme non exécuté et ne pas le compter comme succès. Tester également les scénarios sans GPU via un résultat explicite.
+4. Utiliser la CI temporaire de développement pour les essais ciblés et conserver ses logs en artefact. CI Linux : dépendances Vulkan/Mesa et environnement headless approprié ; si une machine CI n'offre pas de device Vulkan réel, marquer le test rendu comme non exécuté et ne pas le compter comme succès. Tester également les scénarios sans GPU via un résultat explicite.
 5. Vérifier AppImage : dépendances dynamiques, lancement avec cache froid/chaud, logs et aucun asset de jeu dans l'artefact.
 6. Maintenir une matrice de compilation prouvant que la cible Windows reste inchangée et compile toujours avec son outillage existant. Le diff ne doit inclure aucune source Windows ni modification de configuration partagée ayant un effet sur Windows.
 7. Mettre à jour `docs/LINUX-APPIMAGE.md` et README avec touches, chemins, dépendances Vulkan, logs, limites connues et dépannage.
@@ -224,7 +237,7 @@ Toute adaptation nécessaire au chargement ou à la sauvegarde doit être implé
 - [ ] `settings.ini` et `controls.ini` sont résolus indépendamment du cwd, et le chemin utilisé est visible.
 - [ ] Les changements à redémarrage requis le signalent ; les changements appliqués à chaud confirment leur résultat effectif.
 - [ ] Chaque commande du menu Windows a un équivalent Linux ou est explicitement marquée non applicable avec une raison.
-- [ ] CI vérifie settings, actions, compilation/link Linux, test UI et traitement des erreurs Vulkan sans nécessiter de ROM.
+- [ ] La CI temporaire de développement produit des logs/diagnostics en artefact même sur échec, et peut rendre le prototype et un device Vulkan obligatoires lorsque nécessaire.\n- [ ] La CI vérifie settings, actions, compilation/link Linux, test UI et traitement des erreurs Vulkan sans nécessiter de ROM.
 - [ ] L'AppImage ne contient aucune ROM, sauvegarde ni asset de jeu.
 - [ ] La comparaison de branche montre que les sources et la configuration Windows sont inchangées ; le chemin upstream Windows reste propre.
 
