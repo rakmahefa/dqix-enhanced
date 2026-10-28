@@ -35,3 +35,10 @@ Le PR #7 ajoute un audit des dépendances ELF de la toolchain relocalisée, un r
 ## Résultat de diagnostic ELF initial
 
 L'audit CI initial du commit `695c737e32e08662cd34e8d67212e248ea11f7b1` a inspecté 717 ELF et n'a signalé aucune dépendance introuvable. Il a cependant marqué 15 faux positifs dans le sysroot de link GCC comme des dépendances runtime hors bundle. Le script est corrigé pour distinguer le sysroot de link de la toolchain runtime ; le prochain run doit confirmer cette classification avant de déclarer l'audit vert.
+
+
+## Résultats mesurés de CI
+
+Le run #45 (`40733305358`) a validé l'audit ELF, le rapport de taille et le SBOM : 717 ELF contrôlés, aucune dépendance manquante ni dépendance hôte runtime inattendue, 96 composants Conda au SBOM. Taille du bundle CI : AppImage 242383352 octets, archive toolchain 249665432 octets, AppDir 263478781 octets et toolchain relocalisée 1251667787 octets.
+
+Le commit de suivi étend le scan ELF à l'AppDir lui-même et teste les caches froid/chaud, le rejet d'une archive toolchain corrompue et la conservation du workspace après une erreur de build. Ces extensions ne sont pas encore déclarées validées.

@@ -41,38 +41,38 @@ La synchronisation doit intégrer les évolutions v32 : ROM européenne et choix
 - [x] Synchroniser le code source depuis l'upstream sans perdre les fichiers AppImage propres au fork.
 - [x] Conserver `.github/workflows/release-appimage.yml`, les audits du fork et cette spec.
 - [x] Actualiser l'audit d'arborescence et l'audit AppImage.
-- [ ] Faire passer la CI après synchronisation et vérifier la compatibilité de tous les changements v32 dans le constructeur Linux.
-- [ ] Garder les prochains changements de performance/sécurité sur une branche dédiée et en PR.
+- [x] Faire passer la CI après synchronisation et vérifier la compatibilité v32 du constructeur Linux (post-merge #35 et runs PR #7 #45 verts ; aucun gameplay ROM n'est revendiqué).
+- [x] Garder les changements de performance/sécurité sur une branche dédiée et en PR (branche `build/conda-lock-elf-audit`, PR #7 ouverte, non fusionnée).
 
 ### P0 — Protection du contenu utilisateur
 
-- [ ] Faire de l'assemblage AppDir une liste explicite de contenu autorisé, avec une liste d'exclusion en défense en profondeur.
-- [ ] Exclure explicitement les répertoires et données locales possibles : `testbuild/`, `music/`, `textures/`, `game/`, `build/`, `extract/`, `rom/`, `reports/`, objets, bibliothèques et fichiers ROM/sauvegarde. Réviser les motifs lorsque le projet ajoute de nouveaux types de médias.
-- [ ] Vérifier les fichiers réellement placés sous `AppDir/usr/share/dqix-enhanced/source`, puis échouer si une ROM, une sauvegarde ou un binaire/code généré est détecté.
-- [ ] Ajouter un test de politique de contenu qui utilise des fichiers sentinelles synthétiques et vérifie qu'ils ne sont pas inclus.
+- [x] Faire de l'assemblage AppDir une liste positive de contenu autorisé, avec exclusions de défense en profondeur (validé en CI #29/#45).
+- [x] Exclure explicitement les répertoires et données locales possibles : `testbuild/`, `music/`, `textures/`, `game/`, `build/`, `extract/`, `rom/`, `reports/`, objets, bibliothèques et fichiers ROM/sauvegarde (38 sentinelles synthétiques exclues dans le run #29).
+- [x] Vérifier le payload AppDir et échouer sur les extensions/dossiers privés identifiés (CI #29/#45). Le commit en cours élargit encore l'inspection ELF aux fichiers directement sous AppDir.
+- [x] Ajouter un test de politique de contenu à sentinelles synthétiques (CI #29/#45 : 10 fixtures autorisées et 38 sentinelles exclues).
 - [ ] Protéger la synchronisation du workspace : ne jamais supprimer les sorties de build, le dossier `game/`, les ROMs ni les sauvegardes ; supprimer seulement les fichiers source gérés devenus obsolètes à l'aide d'un manifeste appartenant au constructeur.
 
 ### P1 — Reproductibilité du build
 
 - [x] Remplacer l'environnement Conda seulement partiellement verrouillé par un lock explicite de plateforme Linux x86_64 incluant les URLs exactes des 96 paquets résolus et leurs builds. La lockfile est versionnée et le workflow l'utilise ; la validation de bout en bout est encore en attente de la CI de ce SHA.
 - [ ] Épingler les actions GitHub par SHA complet et conserver les sommes de contrôle des outils téléchargés. Le workflow actuel épingle déjà appimagetool 1.9.0 par SHA-256.
-- [ ] Écrire les métadonnées de build : version du projet, SHA exact des sources, cible et runner, version/hash du lock, version et SHA d'appimagetool, hash de l'archive toolchain.
-- [ ] Garder l'artefact de toolchain exact qui a réussi la CI ; ne pas résoudre une nouvelle fois les dépendances au moment de la publication.
+- [x] Écrire les métadonnées de build : version du projet, SHA source, cible/runner, SHA du lock, version/SHA appimagetool et SHA archive toolchain (vérifié dans le build CI #45).
+- [x] Garder l'artefact AppImage exact produit par la CI ; la publication vérifie la provenance de l'artefact du run sélectionné au lieu de résoudre à nouveau les dépendances.
 
 ### P1 — Hardening de la publication
 
-- [ ] Ajouter un input `dry_run` à `release-appimage.yml`, par défaut `true`.
-- [ ] Séparer un préflight strictement en lecture seule du job de publication ; `contents: write` uniquement dans le job conditionnel déclenché par `dry_run=false`.
-- [ ] Contrôler le nom et le chemin du workflow source, l'événement, le dépôt source, la branche autorisée, le SHA exact, la conclusion réussie et la cohérence de l'artefact téléchargé.
-- [ ] Valider les sommes, les noms exacts des assets, leur taille et l'absence de ROM/sauvegarde avant toute création de tag/release.
-- [ ] Ne jamais écraser un tag ou une release existante.
+- [x] Ajouter un input `dry_run` à `release-appimage.yml`, par défaut `true` (validation statique CI #45 ; aucun dispatch de publication exécuté).
+- [x] Séparer le préflight en lecture seule du job de publication ; `contents: write` uniquement dans le job conditionnel à `dry_run=false` (validation statique CI #45).
+- [x] Contrôler workflow source, événement, dépôt, branche, SHA, conclusion, provenance et digest de l'artefact (validation statique CI #45 ; aucun vrai préflight dispatché).
+- [x] Valider les checksums, le manifeste exact des assets, le digest ZIP, le commit source et les smoke tests CLI avant publication (statique CI #45 ; aucun tag/release créé).
+- [x] Refuser un tag/release existant et créer un nouveau tag sans force-update ; aucun tag/release n'a été publié.
 
 ### P1 — Audit ELF et chaîne de dépendances
 
 - [ ] Extraire l'AppImage en CI et analyser chaque exécutable/bibliothèque ELF du payload. (Implémenté dans le PR #7 ; en attente du résultat CI.)
 - [ ] Échouer sur toute dépendance non résolue et toute dépendance hôte inattendue ; maintenir une allowlist courte et expliquée pour les composants qui doivent venir de l'hôte (glibc, serveur de fenêtres, audio, OpenGL/Vulkan et pilotes). (Implémenté, résultat CI en attente.)
 - [ ] Vérifier spécifiquement que les exécutables du toolchain et le programme de smoke test SDL se résolvent dans l'environnement empaqueté.
-- [ ] Générer un rapport JSON d'audit ELF conservé comme artefact. (Implémenté, résultat CI en attente.)
+- [x] Générer un rapport JSON d'audit ELF conservé comme artefact de diagnostic CI (#45). (Implémenté, résultat CI en attente.)
 - [ ] Ne pas tenter d'embarquer les pilotes graphiques du noyau ni la pile graphique de la machine.
 
 ### P1 — Tests fiables sans ROM
@@ -86,11 +86,11 @@ La synchronisation doit intégrer les évolutions v32 : ROM européenne et choix
 
 ### P2 — Performance et taille, seulement après une baseline
 
-- [ ] Mesurer durée et taille de résolution Conda, empaquetage de toolchain, construction AppImage, premier lancement et lancement avec cache chaud.
-- [ ] Publier un rapport de taille (AppImage, archive de toolchain, AppDir et plus gros fichiers).
+- [x] Mesurer en CI la durée de résolution/environnement verrouillé, empaquetage toolchain et construction AppImage. Mesures cold/warm de démarrage ajoutées dans le commit de suivi ; leur résultat est en attente.
+- [x] Publier un rapport JSON de taille AppImage/toolchain/AppDir/fichiers les plus volumineux (artefact de diagnostic CI #45).
 - [ ] Évaluer si PyYAML est nécessaire dans la toolchain packagée : le recompiler upstream sait lire certains fichiers sans ce module, mais le self-test actuel le demande explicitement. Ne le retirer qu'après adaptation du test et preuve que les deux régions de ROM passent.
 - [ ] Comparer le temps de compression et la taille avant de changer le format/les niveaux de compression.
-- [ ] Garder les caches micromamba, téléchargements de paquets, appimagetool et toolchain par SHA ; éviter les caches mutables non validés.
+- [x] Utiliser un lock Conda explicite vérifié, un cache appimagetool par SHA-256 et un marqueur SHA-256 pour l'archive toolchain (CI #45).
 - [ ] Optimiser la copie des sources et les recompilations locales seulement après avoir défini les règles d'invalidation et mesuré un build de référence.
 
 ## 5. Critères de fin (Definition of Done)
@@ -147,25 +147,25 @@ Cette spec fixe le plan. Les éléments non cochés sont des travaux ultérieurs
 
 - Le workflow release a passé les tests statiques de sécurité dans la CI #30 (run `40727004320`, SHA `3ad7890cf5c6297a27ad2b709838146bd64efe9b`) : déclenchement manuel seulement, `dry_run=true` par défaut, préflight en lecture seule, et permission `contents: write` limitée au job publish. Aucun vrai `workflow_dispatch` de préflight n'a été exécuté dans cette session et aucune release/tag n'a été créée.
 - Le filtrage positif du payload a été exécuté avec des fixtures synthétiques et le smoke test AppImage a passé en CI #29 (run `40725797382`, SHA `23a7cee4605e35c8f58ca92fcb856e7d15172f6d`). Ces résultats valident la portée des chemins/extensions testés, pas une analyse complète sémantique de chaque octet embarqué.
-- Une lockfile Conda transitif consommée par le build n'a pas été créée/validée dans cette session. Une analyse exhaustive des dépendances ELF, un SBOM complet et un rapport de taille par composant restent à faire ; ils ne sont pas cochés comme terminés.
+- La lockfile Conda explicite est consommée et vérifiée par la CI #54 ; l'audit ELF, le rapport de taille et le SBOM CycloneDX ont ensuite passé ensemble dans le run #45. Le benchmark local de génération ROM, la validation de gameplay et l'essai GUI sous bureau Linux ne sont pas exécutés.
 - Aucun build complet avec ROM, benchmark local cache froid/chaud, mesure CPU/I/O locale ou test gameplay n'a été exécuté. L'instrumentation ajoutée donne des durées murales et volumes de fichiers/octets dès qu'un propriétaire lance un build local.
 
 
-## 12. Lock Conda explicite — branch PR #7, validation CI en attente
+## 12. Lock Conda explicite — validée par CI #54
 
 - Lock: `packaging/linux/conda-linux-64.lock`, exporté du solve effectif du runner Linux x86_64 au run `40730463353`.
 - Contenu contrôlé : 96 URLs de paquets, uniquement `linux-64`/`noarch`, chacune avec fragment MD5. SHA-256 attendu du fichier : `5aeec2066f1d9fcfbf729de3ea6531559c8b9b0a31065a610059fb18793bae96`.
 - La CI est modifiée pour vérifier SHA-256, installer depuis la lockfile explicite, comparer l'ensemble des URLs installées à la liste versionnée et tester que `environment.yml` correspond au SHA annoncé par les métadonnées.
-- Ne considérer la lockfile comme validée dans la chaîne AppImage qu'après réussite de toute la CI sur un SHA qui inclut simultanément le lock, son test et le workflow qui le consomme.
+- Run #54 (`40732085626`, SHA `54afb520bc1a4beceb1aecefd77e5456e1d4350a`) a réussi les deux jobs : test statique du lock, checksum, installation depuis le lock, comparaison des URLs installées et construction/smoke-test AppImage. Le run #45 répète ces contrôles sur un commit ultérieur.
 
 
-## 13. Rapport de dépendances, taille et SBOM — PR #7 en vérification
+## 13. Rapport de dépendances, taille et SBOM — validé par CI #45
 
 Le nouveau script `tools/packaging/audit_appimage.py` analyse les ELF x86_64 du runtime AppImage et de la toolchain relocalisée, exécute `ldd` avec le chemin de bibliothèques Conda, échoue si une dépendance est introuvable ou si une bibliothèque hôte ne figure pas dans l'allowlist documentée, puis écrit `elf-audit.json`. Il écrit aussi le rapport de taille (AppImage, archive toolchain, AppDir, toolchain relocalisée et fichiers les plus volumineux) et un SBOM CycloneDX 1.5 basé sur les 96 composants Conda de la lockfile.
 
-Les rapports sont uploadés dans un artefact CI de diagnostic séparé afin que le workflow de release, qui valide une liste stricte de trois fichiers, reste inchangé. Les reports/checksums de diagnostic sont uploadés même si l'audit ELF échoue, pour conserver les éléments à corriger. Ne coche pas les critères ELF/SBOM avant le succès du run complet sur le SHA qui inclut le script et son invocation.
+Le run #45 (`40733305358`, SHA `81144d0ecf163fbdbf0106d8bd996cc258aa682c`) a réussi l'audit : 717 ELF, zéro dépendance introuvable, zéro dépendance runtime hôte non autorisée, 408 ELF runtime et 309 ELF de sysroot link-time uniquement. Le rapport de taille enregistre AppImage 242383352 octets, archive toolchain 249665432 octets, AppDir 263478781 octets et toolchain relocalisée 1251667787 octets ; le SBOM CycloneDX 1.5 contient 96 composants Conda. Rapports et checksums : artefact diagnostics ID `12835458535`, digest ZIP `sha256:7dbe02e267c69dde17c0b45d5d27d8765f5c5ff3f357cde3c4c26163c0399e03`. Un commit de suivi élargit le scan aux ELF directement sous AppDir et ajoute des tests cold/warm, archive corrompue et workspace non destructif ; ces extensions attendent leur propre résultat CI.
 
 
 ## Résultat de l'audit ELF initial — run #44
 
-Le run `40732766439` sur le SHA `695c737e32e08662cd34e8d67212e248ea11f7b1` a construit l'AppImage et passé le self-test, puis a échoué à l'audit ELF. Le rapport de diagnostic a été conservé dans l'artefact `12834998141`. Il indique 717 ELF examinés, zéro dépendance introuvable, mais 15 faux positifs « unexpected host » dus à la résolution incorrecte des bibliothèques du sysroot GCC de link (ex. `libGB.so`, `libJIS.so`) comme s'il s'agissait de bibliothèques runtime hors bundle. `libcrypt-2.17.so` du sysroot a aussi fait remonter `libfreebl3.so` du runner. Le script est corrigé dans le commit de suivi pour tester l'appartenance de dépendances contre toute la toolchain relocalisée et annoter les ELF du sysroot comme link-time-only, tout en continuant à échouer sur les vraies dépendances runtime non résolues ou les bibliothèques hôte runtime hors allowlist. Le prochain run doit valider cette correction avant de considérer l'audit terminé.
+Le run `40732766439` sur le SHA `695c737e32e08662cd34e8d67212e248ea11f7b1` a construit l'AppImage et passé le self-test, puis a échoué à l'audit ELF. Le rapport de diagnostic a été conservé dans l'artefact `12834998141`. Il indique 717 ELF examinés, zéro dépendance introuvable, mais 15 faux positifs « unexpected host » dus à la résolution incorrecte des bibliothèques du sysroot GCC de link (ex. `libGB.so`, `libJIS.so`) comme s'il s'agissait de bibliothèques runtime hors bundle. `libcrypt-2.17.so` du sysroot a aussi fait remonter `libfreebl3.so` du runner. Le script a été corrigé puis validé dans le run #45 : 717 ELF, zéro dépendance runtime introuvable/inattendue. Les 309 ELF du sysroot sont inventoriés comme link-time-only ; les 408 ELF runtime restent soumis à l'analyse de résolution et à l'allowlist hôte.

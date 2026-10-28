@@ -320,7 +320,31 @@ def main() -> int:
 
     candidates: list[tuple[Path, str, Path | None, Path | None, bool]] = []
     candidates.append((args.appimage, args.appimage.name, None, None, False))
-    seen: set[Path] = set()
+    seen: set[Path] = {args.appimage.resolve()}
+
+    # Scan the actual AppDir separately from the relocated Conda tree. This catches
+    # ELF payloads hidden under source paths or given unusual file extensions.
+    for path in walk_files(args.appdir):
+        try:
+            with path.open("rb") as stream:
+                if stream.read(4) != b"\x7fELF":
+                    continue
+            real = path.resolve()
+            if real in seen:
+                continue
+            seen.add(real)
+            candidates.append((
+                path,
+                f"AppDir/{path.relative_to(args.appdir).as_posix()}",
+                None,
+                args.appdir,
+                False,
+            ))
+        except OSError:
+            continue
+
+    # Then scan every ELF in the extracted and relocated Conda toolchain, including
+    # the compiler's link-time sysroot (reported separately, not host-loader tested).
     for path in walk_files(args.toolchain_dir):
         try:
             with path.open("rb") as stream:
