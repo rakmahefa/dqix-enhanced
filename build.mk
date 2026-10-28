@@ -41,7 +41,7 @@ RTOBJ = $(patsubst runtime/%.c,$(OBJ)/rt/%.o,$(RT))
 # resource the build makes from the ROM (tools/rom_icon.py)
 RES ?=
 $(OUT): $(GENOBJ) $(GEN7OBJ) $(RTOBJ) $(SLIRPOBJ) $(OBJ)/rt/exe_main.o $(RES)
-	$(CC) -o $@ $^ $(SDL_LIBS) -lm $(NET_LIBS) $(POSIX_LIBS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(SDL_LIBS) -lm $(NET_LIBS) $(LDFLAGS) $(POSIX_LIBS)
 
 # The game as a library (CORE=dqixcore.dll / dqixcore.so): in a session the
 # other players' DSes run from copies of it on one thread (hosting.c). Same
@@ -54,7 +54,7 @@ CORE_LDFLAGS ?= -Wl,-Bsymbolic -lpthread
 endif
 core: $(CORE)
 $(CORE): $(GENOBJ) $(GEN7OBJ) $(CORE_RTOBJ) $(SLIRPOBJ)
-	$(CC) -shared -o $@ $^ -lm $(NET_LIBS) $(POSIX_LIBS) $(CORE_LDFLAGS)
+	$(CC) -shared -o $@ $^ -lm $(NET_LIBS) $(CORE_LDFLAGS) $(POSIX_LIBS)
 
 $(OBJ)/slirp/%.o: third_party/libslirp/%.c
 	@mkdir -p $(dir $@)
