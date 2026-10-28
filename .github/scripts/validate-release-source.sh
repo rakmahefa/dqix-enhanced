@@ -34,7 +34,8 @@ RUN_REPOSITORY="$(jq -r '.head_repository.full_name // empty' <<< "$RUN_JSON")"
 TARGET_REPOSITORY="$(jq -r '.repository.full_name // empty' <<< "$RUN_JSON")"
 
 [ "$WORKFLOW_NAME" = "Linux CI + AppImage" ] || { echo "Source run uses the wrong workflow" >&2; exit 1; }
-[ "$WORKFLOW_ID" = "393623857" ] || { echo "Source workflow ID does not match the repository CI workflow" >&2; exit 1; }
+EXPECTED_WORKFLOW_ID="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/linux-ci-appimage.yml" --jq '.id')"
+[ "$WORKFLOW_ID" = "$EXPECTED_WORKFLOW_ID" ] || { echo "Source workflow ID does not match the repository CI workflow" >&2; exit 1; }
 [ "$WORKFLOW_PATH" = ".github/workflows/linux-ci-appimage.yml" ] || { echo "Source workflow path does not match" >&2; exit 1; }
 [ "$RUN_STATUS" = "completed" ] && [ "$RUN_CONCLUSION" = "success" ] || {
   echo "Source workflow run has not completed successfully" >&2
