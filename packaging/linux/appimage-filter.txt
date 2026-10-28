@@ -81,5 +81,8 @@
 + /tools/build-game.sh
 + /tools/extract_rom.py
 + /tools/region.py
++ /packaging/
++ /packaging/linux/
++ /packaging/linux/gui.py
 + /release-notes/***
 - *

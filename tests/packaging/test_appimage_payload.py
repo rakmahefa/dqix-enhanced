@@ -23,6 +23,7 @@ ALLOWED = (
     "tools/region.py",
     "third_party/legitimate-helper.c",
     "fonts/labels.bin",
+    "packaging/linux/gui.py",
 )
 FORBIDDEN = (
     "private.nds",
