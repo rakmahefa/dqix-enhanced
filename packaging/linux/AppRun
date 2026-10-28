@@ -152,6 +152,12 @@ print("GUI source syntax: OK")
 int main(void) { return SDL_Init(0); }
 C
     "$CC" "${sdl_cflags[@]}" "$smoke_dir/sdl-smoke.c" "${sdl_libs[@]}" -o "$smoke_dir/sdl-smoke"
+    SDL_LDD_OUTPUT="$(ldd "$smoke_dir/sdl-smoke")"
+    printf '%s\n' "$SDL_LDD_OUTPUT"
+    if grep -F "not found" <<< "$SDL_LDD_OUTPUT"; then
+        die "the SDL smoke executable has unresolved dynamic dependencies"
+    fi
+    "$smoke_dir/sdl-smoke"
     printf 'AppImage builder self-test passed.\n'
     exit 0
 fi

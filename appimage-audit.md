@@ -81,3 +81,27 @@ Le workflow release est réorganisé en préflight read-only et job publish dist
 La CI #30 (run `40727004320`, SHA `3ad7890cf5c6297a27ad2b709838146bd64efe9b`) passe avec les tests statiques du workflow de release et le build AppImage complet. La CI #29 (run `40725797382`, SHA `23a7cee4605e35c8f58ca92fcb856e7d15172f6d`) a validé le filtre positif, 10 fixtures conservées et 38 sentinelles exclues. Les contrôles release ont donc une validation statique ; le vrai préflight read-only en workflow_dispatch n'a pas été déclenché, et aucun tag/release n'a été créé.
 
 Restent ouverts : lockfile Conda transitif versionnée et effectivement consommée par la construction, analyse des dépendances ELF, SBOM et rapport de taille par composants, et benchmarks locaux avec ROM appartenant à l'utilisateur. Ne pas interpréter les timings instrumentés comme des résultats de benchmark tant qu'aucun build ROM local n'a été chronométré.
+
+
+## Conda lock explicite — validation CI en attente
+
+Le PR #7 versionne `packaging/linux/conda-linux-64.lock`, une liste explicite Linux x86_64 issue du solve du runner (96 paquets, builds fixés, URLs `linux-64`/`noarch` avec fragments MD5, SHA-256 `5aeec2066f1d9fcfbf729de3ea6531559c8b9b0a31065a610059fb18793bae96`). Le workflow est modifié pour installer depuis cette liste, contrôler le checksum et comparer la liste installée à celle commise. Le résultat final doit confirmer cette CI avant de déclarer le lock effectif et reproductible.
+
+
+## Audit ELF, taille et SBOM — implémentation en attente de CI
+
+Le PR #7 ajoute un audit ELF x86_64 de l'AppImage et de la toolchain relocalisée, avec une allowlist explicite des dépendances hôte attendues et un échec sur les dépendances introuvables/inattendues. Trois rapports sont produits : `elf-audit.json`, `size-report.json`, et `sbom.cdx.json` (CycloneDX 1.5, 96 composants Conda verrouillés). Ils sont conservés dans l'artefact `dqix-enhanced-appimage-diagnostics`, séparé de l'artefact AppImage destiné à une éventuelle release. Validation en attente de la CI sur le HEAD qui contient ces changements.
+
+
+## Résultat de l'audit ELF initial — run #44
+
+Le run `40732766439` sur le SHA `695c737e32e08662cd34e8d67212e248ea11f7b1` a construit l'AppImage et passé le self-test, puis a échoué à l'audit ELF. Le rapport de diagnostic a été conservé dans l'artefact `12834998141`. Il indique 717 ELF examinés, zéro dépendance introuvable, mais 15 faux positifs « unexpected host » dus à la résolution incorrecte des bibliothèques du sysroot GCC de link (ex. `libGB.so`, `libJIS.so`) comme s'il s'agissait de bibliothèques runtime hors bundle. `libcrypt-2.17.so` du sysroot a aussi fait remonter `libfreebl3.so` du runner. Le script est corrigé dans le commit de suivi pour tester l'appartenance de dépendances contre toute la toolchain relocalisée et annoter les ELF du sysroot comme link-time-only, tout en continuant à échouer sur les vraies dépendances runtime non résolues ou les bibliothèques hôte runtime hors allowlist. Le prochain run doit valider cette correction avant de considérer l'audit terminé.
+
+
+## État vérifié — CI #54 et #45
+
+- Run #54 (`40732085626`, SHA `54afb520bc1a4beceb1aecefd77e5456e1d4350a`) : lock Conda explicite consommé, checksum validé, liste des paquets installés égale au lock, AppImage et smoke tests verts.
+- Run #45 (`40733305358`, SHA `81144d0ecf163fbdbf0106d8bd996cc258aa682c`) : CI complète verte. Audit de 717 ELF, zéro dépendance manquante, zéro dépendance runtime hôte inattendue; 408 ELF runtime et 309 ELF de sysroot link-time only.
+- Mesures CI du run #45 : AppImage 242383352 octets ; archive toolchain 249665432 octets ; AppDir 263478781 octets ; toolchain relocalisée 1251667787 octets ; SBOM CycloneDX 1.5 de 96 composants Conda.
+- Artefact diagnostics `12835458535`, digest ZIP `sha256:7dbe02e267c69dde17c0b45d5d27d8765f5c5ff3f357cde3c4c26163c0399e03`. Artefact AppImage `12836351722`, digest ZIP `sha256:0f9e8cb931c139724eeb31fbf2314145d9df8490b90db77d5ae5246f9a64723e`.
+- Un commit de suivi ajoute le scan ELF direct de l'AppDir, les pins des actions par SHA complet et des smoke tests cold/warm, corruption du toolchain et préservation du workspace. Ces derniers sont soumis à la CI du nouveau HEAD.

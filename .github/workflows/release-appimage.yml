@@ -41,7 +41,7 @@ jobs:
       artifact_digest: ${{ steps.source.outputs.artifact_digest }}
     steps:
       - name: Check out read-only verification helpers
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.ref }}
           persist-credentials: false
@@ -85,7 +85,7 @@ jobs:
       contents: write
     steps:
       - name: Check out read-only verification helpers
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.ref }}
           persist-credentials: false

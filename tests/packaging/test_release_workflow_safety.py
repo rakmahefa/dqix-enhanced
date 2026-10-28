@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import yaml
 
@@ -10,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "release-appimage.yml"
 VALIDATE_SCRIPT = ROOT / ".github" / "scripts" / "validate-release-source.sh"
 VERIFY_SCRIPT = ROOT / ".github" / "scripts" / "verify-appimage-artifact.sh"
+CI_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "linux-ci-appimage.yml"
 
 
 def main() -> int:
@@ -40,6 +42,8 @@ def main() -> int:
     assert ".github/workflows/linux-ci-appimage.yml" in validate
     assert ".head_sha" in validate and ".workflow_run.head_sha" in validate
     assert ".digest" in validate and ".workflow_run.head_repository_id" in validate
+    assert ".workflow_run.repository_id == $repo_id" in validate
+    assert "| select(.repository_id == $repo_id)" not in validate, "Artifact repository ID must be read from workflow_run"
     assert "HTTP 404" in validate and "git check-ref-format" in validate
     assert "EXPECTED_HEAD_SHA" in validate and "EXPECTED_ARTIFACT_DIGEST" in validate
     assert "sha256sum" in verify and "--check SHA256SUMS" in verify
@@ -48,6 +52,19 @@ def main() -> int:
     release_steps = "\n".join(str(step.get("run", "")) for step in publish["steps"])
     assert "git/refs" in release_steps and "POST" in release_steps
     assert "--verify-tag" in release_steps
+    for workflow_path in (WORKFLOW_PATH, CI_WORKFLOW_PATH):
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        for line in workflow_text.splitlines():
+            match = re.match(r"^\s*uses:\s*([^#\s]+)", line)
+            if not match:
+                continue
+            reference = match.group(1)
+            if reference.startswith("./"):
+                continue
+            action_name, separator, revision = reference.rpartition("@")
+            assert separator and re.fullmatch(r"[0-9a-f]{40}", revision), (
+                f"{workflow_path.relative_to(ROOT)} has an unpinned external action: {reference}"
+            )
     print("Release workflow safety tests passed: manual-only trigger, dry-run default, read-only preflight and publish-only write permission.")
     return 0
 

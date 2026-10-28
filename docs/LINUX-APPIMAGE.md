@@ -20,3 +20,25 @@ La CI de packaging utilise une liste positive pour le payload de l'AppImage, ave
 Les logs instrumentés séparent copie du workspace, extraction, détection de région, codegen ARM9/ARM7, compilation/link et assemblage, avec des temps muraux et des volumes de fichiers/octet. Il faut exécuter ces mesures sur une ROM possédée localement avant d'optimiser la chaîne. À ce jour aucun benchmark local complet, aucune mesure CPU/I/O ni aucun test gameplay n'est revendiqué.
 
 La CI génère l'AppImage du constructeur sans ROM et teste les options CLI, les checksums, le manifeste de payload et des sentinelles synthétiques. Le workflow de release est manuel, read-only par défaut ; le préflight réel n'a pas encore été exécuté en session. Le lock Conda transitif utilisé par le build, le SBOM et l'analyse ELF détaillée restent ouverts.
+
+
+## Lock Conda de la toolchain Linux
+
+Le PR #7 ajoute un lock explicite `linux-64` et des métadonnées SHA-256. L'environnement CI/AppImage est modifié pour utiliser ce lock plutôt que résoudre à nouveau les versions dans `environment.yml`; la CI contrôle que les URLs et builds installés correspondent à la liste commise. La lockfile vient d'un solve de CI réel, mais il ne faut considérer l'intégration validée qu'après réussite du run complet sur le commit qui consomme le lock.
+
+
+## Audit ELF et rapport de taille CI
+
+Le PR #7 ajoute un audit des dépendances ELF de la toolchain relocalisée, un rapport de taille par composant et un SBOM CycloneDX basé sur la lockfile Conda. Les rapports sont fournis comme artefact de diagnostic de CI séparé de l'AppImage téléchargeable. Ils ne valident pas le gameplay et n'impliquent aucune publication automatique. Les résultats ne sont considérés comme validés qu'après le run complet du commit concerné.
+
+
+## Résultat de diagnostic ELF initial
+
+L'audit CI initial du commit `695c737e32e08662cd34e8d67212e248ea11f7b1` a inspecté 717 ELF et n'a signalé aucune dépendance introuvable. Il a cependant marqué 15 faux positifs dans le sysroot de link GCC comme des dépendances runtime hors bundle. Le script est corrigé pour distinguer le sysroot de link de la toolchain runtime ; le prochain run doit confirmer cette classification avant de déclarer l'audit vert.
+
+
+## Résultats mesurés de CI
+
+Le run #45 (`40733305358`) a validé l'audit ELF, le rapport de taille et le SBOM : 717 ELF contrôlés, aucune dépendance manquante ni dépendance hôte runtime inattendue, 96 composants Conda au SBOM. Taille du bundle CI : AppImage 242383352 octets, archive toolchain 249665432 octets, AppDir 263478781 octets et toolchain relocalisée 1251667787 octets.
+
+Le commit de suivi étend le scan ELF à l'AppDir lui-même et teste les caches froid/chaud, le rejet d'une archive toolchain corrompue et la conservation du workspace après une erreur de build. Ces extensions ne sont pas encore déclarées validées.
