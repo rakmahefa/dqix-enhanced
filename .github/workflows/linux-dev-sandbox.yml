@@ -1,0 +1,234 @@
+name: Linux development diagnostics (temporary)
+
+# Temporary developer CI for the SDL3 + Dear ImGui + Vulkan prototype.
+# It deliberately avoids packaging the full AppImage on every iteration.
+on:
+  push:
+    branches:
+      - plan/v32-linux-launcher-settings
+    paths:
+      - '.github/workflows/linux-dev-sandbox.yml'
+      - 'third_party/extra/linux/**'
+      - 'packaging/linux/**'
+      - 'tools/**'
+      - 'tests/**'
+      - '.github/scripts/**'
+  workflow_dispatch:
+    inputs:
+      require_linux_prototype:
+        description: Fail unless third_party/extra/linux/CMakeLists.txt exists and builds
+        type: boolean
+        required: true
+        default: false
+      require_vulkan_device:
+        description: Fail unless vulkaninfo detects an accessible Vulkan device
+        type: boolean
+        required: true
+        default: false
+      run_project_tests:
+        description: Also run the existing general source and semantic checks (slower)
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-dev-sandbox-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnostics:
+    name: Linux prototype, Vulkan diagnostics, and logs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      REQUIRE_LINUX_PROTOTYPE: ${{ inputs.require_linux_prototype || false }}
+      REQUIRE_VULKAN_DEVICE: ${{ inputs.require_vulkan_device || false }}
+      RUN_PROJECT_TESTS: ${{ inputs.run_project_tests || false }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Prepare diagnostic directory
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/dqix-linux-dev-logs"
+          echo "DEV_LOG_DIR=$RUNNER_TEMP/dqix-linux-dev-logs" >> "$GITHUB_ENV"
+          {
+            echo "Workflow: $GITHUB_WORKFLOW"
+            echo "Event: $GITHUB_EVENT_NAME"
+            echo "Ref: $GITHUB_REF"
+            echo "Commit: $GITHUB_SHA"
+            echo "Run ID: $GITHUB_RUN_ID"
+            date --utc --iso-8601=seconds
+          } > "$RUNNER_TEMP/dqix-linux-dev-logs/run-context.txt"
+
+      - name: Install Linux UI and diagnostics toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '$ sudo apt-get update'
+            sudo apt-get update
+            echo '$ sudo apt-get install --no-install-recommends ...'
+            sudo apt-get install --no-install-recommends -y \
+              build-essential clang lld cmake ninja-build pkg-config \
+              libsdl3-dev libvulkan-dev libvulkan1 mesa-vulkan-drivers vulkan-tools \
+              xvfb python3 python3-pip
+          } 2>&1 | tee "$DEV_LOG_DIR/install-toolchain.log"
+
+      - name: Record platform, compiler, SDL3 and Vulkan details
+        shell: bash
+        run: |
+          set +e
+          {
+            echo '=== OS release ==='
+            cat /etc/os-release
+            echo
+            echo '=== Kernel and architecture ==='
+            uname -a
+            dpkg --print-architecture
+            echo
+            echo '=== CPU and disk ==='
+            lscpu
+            df -h
+            echo
+            echo '=== Compiler / build tools ==='
+            cc --version
+            c++ --version
+            clang --version
+            cmake --version
+            ninja --version
+            pkg-config --version
+            echo
+            echo '=== Installed packages ==='
+            dpkg-query -W -f='${binary:Package} ${Version}\n' \
+              'libsdl3*' 'libvulkan*' 'mesa-vulkan-drivers' 'vulkan-tools' 2>&1
+            echo
+            echo '=== SDL3 pkg-config ==='
+            pkg-config --modversion sdl3
+            pkg-config --cflags --libs sdl3
+            echo
+            echo '=== Vulkan pkg-config ==='
+            pkg-config --modversion vulkan
+            pkg-config --cflags --libs vulkan
+          } > "$DEV_LOG_DIR/platform-and-dependencies.txt" 2>&1
+          cat "$DEV_LOG_DIR/platform-and-dependencies.txt"
+
+      - name: Record diff and enforce Linux-source placement
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git diff --name-status origin/main...HEAD | tee "$DEV_LOG_DIR/changed-files.txt"
+          git diff --name-only origin/main...HEAD > "$DEV_LOG_DIR/changed-paths.txt"
+
+          # Existing runtime C/C++ sources can be shared with Windows: keep them untouched.
+          if grep -E '^runtime/.*\.(c|cc|cpp|cxx|h|hh|hpp|m|mm)$' "$DEV_LOG_DIR/changed-paths.txt"; then
+            echo "::error::Runtime sources changed outside the Linux-only extension point; preserve Windows sources." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
+            exit 1
+          fi
+
+          # Newly added native source files must live under third_party/extra/linux/.
+          git diff --diff-filter=A --name-only origin/main...HEAD > "$DEV_LOG_DIR/added-paths.txt"
+          if grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|m|mm|glsl|vert|frag|comp)$' "$DEV_LOG_DIR/added-paths.txt" \
+              | grep -v '^third_party/extra/linux/'; then
+            echo "::error::New native Linux sources must be placed under third_party/extra/linux/." | tee "$DEV_LOG_DIR/source-placement-check.txt"
+            exit 1
+          fi
+          echo "Source-boundary and placement checks passed." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
+
+      - name: Probe Vulkan availability (diagnostic, not an implicit pass)
+        id: vulkan
+        shell: bash
+        run: |
+          set +e
+          vulkaninfo --summary > "$DEV_LOG_DIR/vulkaninfo-summary.txt" 2>&1
+          status=$?
+          if [ "$status" -eq 0 ] && grep -Eq 'deviceName|deviceType' "$DEV_LOG_DIR/vulkaninfo-summary.txt"; then
+            echo "device_status=available" >> "$GITHUB_OUTPUT"
+            echo "Vulkan device reported by vulkaninfo." | tee "$DEV_LOG_DIR/vulkan-status.txt"
+          else
+            echo "device_status=unavailable" >> "$GITHUB_OUTPUT"
+            echo "Vulkan device unavailable or not detected; see vulkaninfo-summary.txt." | tee "$DEV_LOG_DIR/vulkan-status.txt"
+            if [ "$REQUIRE_VULKAN_DEVICE" = "true" ]; then
+              echo "::error::A Vulkan device was required for this run but was not detected."
+              exit 1
+            fi
+            echo "::warning::No Vulkan device was validated in this run; this is not a Vulkan-rendering test."
+          fi
+
+      - name: Configure, build, and test Linux prototype when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_DIR="third_party/extra/linux"
+          BUILD_DIR="$RUNNER_TEMP/dqix-linux-dev-build"
+          if [ ! -f "$PROJECT_DIR/CMakeLists.txt" ]; then
+            echo "No $PROJECT_DIR/CMakeLists.txt yet; this run provides environment diagnostics only." | tee "$DEV_LOG_DIR/prototype-build.txt"
+            if [ "$REQUIRE_LINUX_PROTOTYPE" = "true" ]; then
+              echo "::error::A Linux prototype was required, but its CMakeLists.txt does not exist."
+              exit 1
+            fi
+            exit 0
+          fi
+
+          cmake -S "$PROJECT_DIR" -B "$BUILD_DIR" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            2>&1 | tee "$DEV_LOG_DIR/cmake-configure.log"
+          cmake --build "$BUILD_DIR" --verbose \
+            2>&1 | tee "$DEV_LOG_DIR/cmake-build.log"
+          ctest --test-dir "$BUILD_DIR" --output-on-failure \
+            2>&1 | tee "$DEV_LOG_DIR/ctest.log"
+          cp "$BUILD_DIR/compile_commands.json" "$DEV_LOG_DIR/compile_commands.json" 2>/dev/null || true
+
+      - name: Select Python for optional project checks
+        if: env.RUN_PROJECT_TESTS == 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Run optional source, packaging, and semantic tests
+        if: env.RUN_PROJECT_TESTS == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "PyYAML==6.0.2"
+          {
+            for script in .github/scripts/*.sh; do bash -n "$script"; done
+            python tests/packaging/test_release_workflow_safety.py
+            python tests/packaging/test_conda_lock.py
+            python tests/packaging/test_appimage_payload.py
+            python -m compileall -q recomp tools tests
+            bash -n packaging/linux/AppRun
+            for script in tools/build-game.sh tools/where.sh build-windows.sh; do sh -n "$script"; done
+            python tests/semantics/run.py 2000
+          } 2>&1 | tee "$DEV_LOG_DIR/project-tests.log"
+
+      - name: Write run summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Linux development diagnostics (temporary)"
+            echo
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Vulkan device status: ${{ steps.vulkan.outputs.device_status || 'not-run' }}"
+            echo "- Required prototype: $REQUIRE_LINUX_PROTOTYPE"
+            echo "- Required Vulkan device: $REQUIRE_VULKAN_DEVICE"
+            echo "- Existing project tests requested: $RUN_PROJECT_TESTS"
+            echo
+            echo "Diagnostic logs are attached as an artifact, including on failure."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload diagnostics and build logs (also on failure)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-dev-diagnostics
+          path: ${{ runner.temp }}/dqix-linux-dev-logs/
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
