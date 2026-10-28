@@ -67,7 +67,6 @@ ARTIFACT_JSON="$(jq -ce \
   --argjson repo_id "$REPOSITORY_ID" \
   '[.artifacts[]
     | select(.name == $name and .expired == false)
-    | select(.repository_id == $repo_id)
     | select(.workflow_run.id == $run_id)
     | select(.workflow_run.repository_id == $repo_id)
     | select(.workflow_run.head_repository_id == $repo_id)
