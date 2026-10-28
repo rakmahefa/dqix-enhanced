@@ -18,7 +18,7 @@ import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-APP_NAME = "DQIX Enhanced — Constructeur Linux"
+APP_NAME = "DQIX Enhanced — Linux Builder"
 WORKSPACE_MARKER = ".dqix-enhanced-appimage-workspace"
 IGNORE_NAMES = {
     ".git", "__pycache__", "build", "game", "extract", "obj", "gen", "gen7",
@@ -42,13 +42,13 @@ def source_ignore(directory: str, names: list[str]) -> set[str]:
 def stage_from_output(line: str, current: int) -> tuple[int, str]:
     """Convert build-script stage messages into approximate, monotonic progress."""
     checks = (
-        ("== Checking the ROM", 5, "Vérification de la ROM"),
-        ("== Extracting the game's code", 12, "Extraction du code depuis la ROM"),
-        ("extracted ARM9", 22, "Extraction terminée"),
-        ("== Recompiling it to C", 28, "Recompilation ARM9/ARM7 vers C"),
-        ("== Compiling", 55, "Compilation du runtime et du jeu"),
-        ("== Putting the game folder together", 92, "Assemblage du dossier du jeu"),
-        ("== Done.", 100, "Build terminé"),
+        ("== Checking the ROM", 5, "Verifying ROM"),
+        ("== Extracting the game's code", 12, "Extracting game code from ROM"),
+        ("extracted ARM9", 22, "Extraction complete"),
+        ("== Recompiling it to C", 28, "Recompiling ARM9/ARM7 to C"),
+        ("== Compiling", 55, "Compiling runtime and game"),
+        ("== Putting the game folder together", 92, "Assembling game folder"),
+        ("== Done.", 100, "Build complete"),
     )
     for token, percent, status in checks:
         if token in line:
@@ -78,8 +78,8 @@ class BuilderApp:
         ttk.Label(outer, text="DQIX Enhanced", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             outer,
-            text="Construisez votre version Linux à partir de votre propre ROM. "
-                 "La ROM et le jeu compilé restent sur votre ordinateur.",
+            text="Build your Linux version from your own ROM. "
+                 "The ROM and compiled game stay on your computer.",
             wraplength=790,
         ).pack(anchor="w", pady=(4, 18))
 
@@ -87,44 +87,44 @@ class BuilderApp:
         form.pack(fill="x")
         form.columnconfigure(1, weight=1)
 
-        ttk.Label(form, text="Fichier ROM (.nds)").grid(row=0, column=0, sticky="w", padx=(0, 12), pady=7)
+        ttk.Label(form, text="ROM file (.nds)").grid(row=0, column=0, sticky="w", padx=(0, 12), pady=7)
         self.rom_var = tk.StringVar()
         existing_rom = self.default_workspace / "game" / "data" / "dqix.nds"
         if existing_rom.is_file():
             self.rom_var.set(str(existing_rom))
         self.rom_entry = ttk.Entry(form, textvariable=self.rom_var)
         self.rom_entry.grid(row=0, column=1, sticky="ew", pady=7)
-        self.rom_browse = ttk.Button(form, text="Parcourir…", command=self._choose_rom)
+        self.rom_browse = ttk.Button(form, text="Browse…", command=self._choose_rom)
         self.rom_browse.grid(row=0, column=2, sticky="ew", padx=(10, 0), pady=7)
 
-        ttk.Label(form, text="Dossier workspace").grid(row=1, column=0, sticky="w", padx=(0, 12), pady=7)
+        ttk.Label(form, text="Workspace folder").grid(row=1, column=0, sticky="w", padx=(0, 12), pady=7)
         self.workspace_var = tk.StringVar(value=str(self.default_workspace))
         self.workspace_entry = ttk.Entry(form, textvariable=self.workspace_var)
         self.workspace_entry.grid(row=1, column=1, sticky="ew", pady=7)
-        self.workspace_browse = ttk.Button(form, text="Choisir…", command=self._choose_workspace)
+        self.workspace_browse = ttk.Button(form, text="Choose…", command=self._choose_workspace)
         self.workspace_browse.grid(row=1, column=2, sticky="ew", padx=(10, 0), pady=7)
 
         ttk.Label(
             outer,
-            text="Le workspace contient les sources copiées, les fichiers de build, le jeu et les sauvegardes. "
-                 "Ne le publiez pas et ne le partagez pas.",
+            text="The workspace contains copied source files, build files, the game, and save files. "
+                 "Do not publish or share it.",
             wraplength=790,
             style="Hint.TLabel",
         ).pack(anchor="w", pady=(3, 15))
 
         actions = ttk.Frame(outer)
         actions.pack(fill="x", pady=(0, 12))
-        self.build_button = ttk.Button(actions, text="Construire", command=self._start_build, style="Accent.TButton")
+        self.build_button = ttk.Button(actions, text="Build", command=self._start_build, style="Accent.TButton")
         self.build_button.pack(side="left")
-        self.launch_button = ttk.Button(actions, text="Lancer le jeu", command=self._launch_game, state="disabled")
+        self.launch_button = ttk.Button(actions, text="Launch game", command=self._launch_game, state="disabled")
         self.launch_button.pack(side="left", padx=(10, 0))
-        self.progress_text = tk.StringVar(value="Prêt — choisissez une ROM et un workspace.")
+        self.progress_text = tk.StringVar(value="Ready — choose a ROM and a workspace.")
         ttk.Label(actions, textvariable=self.progress_text).pack(side="right", anchor="e")
 
         self.progress = ttk.Progressbar(outer, mode="determinate", maximum=100, value=0)
         self.progress.pack(fill="x", pady=(0, 12))
 
-        ttk.Label(outer, text="Journal du build").pack(anchor="w")
+        ttk.Label(outer, text="Build log").pack(anchor="w")
         log_frame = ttk.Frame(outer)
         log_frame.pack(fill="both", expand=True, pady=(5, 0))
         self.log = tk.Text(
@@ -139,13 +139,13 @@ class BuilderApp:
 
         footer = ttk.Frame(outer)
         footer.pack(fill="x", pady=(10, 0))
-        ttk.Label(footer, text=f"Version source : {version}", style="Hint.TLabel").pack(side="left")
-        ttk.Label(footer, text="Linux x86_64 · Toolchain incluse", style="Hint.TLabel").pack(side="right")
+        ttk.Label(footer, text=f"Source version: {version}", style="Hint.TLabel").pack(side="left")
+        ttk.Label(footer, text="Linux x86_64 · Bundled toolchain", style="Hint.TLabel").pack(side="right")
 
         self.root.after(100, self._poll_events)
         if existing_rom.is_file() and (self.default_workspace / "game" / "play.sh").is_file():
             self.launch_button.configure(state="normal")
-            self.progress_text.set("Un build local existe déjà. Vous pouvez le relancer ou reconstruire.")
+            self.progress_text.set("A local build already exists. You can launch it or rebuild.")
 
     def _configure_style(self) -> None:
         style = ttk.Style(self.root)
@@ -160,7 +160,7 @@ class BuilderApp:
     def _choose_rom(self) -> None:
         filename = filedialog.askopenfilename(
             parent=self.root,
-            title="Sélectionner votre ROM Dragon Quest IX",
+            title="Select your Dragon Quest IX ROM",
             filetypes=(("ROM Nintendo DS (*.nds)", "*.nds"), ("Tous les fichiers", "*")),
         )
         if filename:
@@ -173,7 +173,7 @@ class BuilderApp:
             initial = Path.home()
         directory = filedialog.askdirectory(
             parent=self.root,
-            title="Choisir le dossier où créer le workspace",
+            title="Choose the folder for the workspace",
             initialdir=str(initial),
             mustexist=True,
         )
@@ -192,37 +192,37 @@ class BuilderApp:
         rom_text = self.rom_var.get().strip()
         workspace_text = self.workspace_var.get().strip()
         if not rom_text:
-            messagebox.showerror("ROM requise", "Sélectionnez d'abord votre fichier ROM .nds.", parent=self.root)
+            messagebox.showerror("ROM required", "Please select your .nds ROM file first.", parent=self.root)
             return
         rom = Path(rom_text).expanduser()
         if not rom.is_file():
-            messagebox.showerror("ROM introuvable", f"Le fichier indiqué n'existe pas :\n{rom}", parent=self.root)
+            messagebox.showerror("ROM not found", f"The specified file does not exist:\n{rom}", parent=self.root)
             return
         if rom.suffix.lower() != ".nds":
-            messagebox.showerror("Format invalide", "Le fichier sélectionné doit avoir l'extension .nds.", parent=self.root)
+            messagebox.showerror("Invalid format", "The selected file must have the .nds extension.", parent=self.root)
             return
         if not workspace_text:
-            messagebox.showerror("Workspace requis", "Choisissez un dossier workspace.", parent=self.root)
+            messagebox.showerror("Workspace required", "Choose a workspace folder.", parent=self.root)
             return
         workspace = Path(workspace_text).expanduser().resolve()
         if (workspace == Path.home() or workspace == Path("/") or workspace == self.source
                 or workspace in self.source.parents or self.source in workspace.parents):
             messagebox.showerror(
-                "Dossier non autorisé",
-                "Choisissez un dossier dédié au workspace, et non votre dossier personnel, la racine ou les sources de l'AppImage.",
+                "Directory not allowed",
+                "Choose a dedicated workspace directory, not your home directory, the filesystem root, or the AppImage source directory.",
                 parent=self.root,
             )
             return
         if workspace.exists() and not workspace.is_dir():
-            messagebox.showerror("Dossier invalide", "Le workspace doit être un dossier.", parent=self.root)
+            messagebox.showerror("Invalid directory", "The workspace path must be a directory.", parent=self.root)
             return
         marker = workspace / WORKSPACE_MARKER
         if workspace.exists() and any(workspace.iterdir()) and not marker.is_file():
             proceed = messagebox.askyesno(
-                "Dossier non vide",
-                "Ce dossier contient déjà des fichiers et n'a pas été initialisé par le constructeur. "
-                "Les fichiers source portant le même nom pourront être remplacés ; les dossiers build/ et game/ "
-                "seront préservés. Continuer ?",
+                "Directory not empty",
+                "This directory already contains files and was not initialized by the builder. "
+                "Source files with matching names may be overwritten; the build/ and game/ directories "
+                "will be preserved. Continue?",
                 parent=self.root,
             )
             if not proceed:
@@ -233,19 +233,19 @@ class BuilderApp:
         self.progress.configure(mode="determinate", value=0)
         self.progress_value = 1
         self.progress.configure(value=self.progress_value)
-        self.progress_text.set("Préparation du workspace…")
+        self.progress_text.set("Preparing workspace…")
         self.build_button.configure(state="disabled")
         self.launch_button.configure(state="disabled")
         self.rom_browse.configure(state="disabled")
         self.workspace_browse.configure(state="disabled")
-        self._append_log(f"\n\n=== Build démarré ===\nROM : {rom}\nWorkspace : {workspace}\n")
+        self._append_log(f"\n\n=== Build started ===\nROM: {rom}\nWorkspace: {workspace}\n")
         self.worker = threading.Thread(target=self._build_worker, args=(rom.resolve(), workspace), daemon=True)
         self.worker.start()
 
     def _build_worker(self, rom: Path, workspace: Path) -> None:
         worker_progress = 4
         try:
-            self.events.put(("status", "Préparation des sources dans le workspace"))
+            self.events.put(("status", "Preparing source files in workspace"))
             copy_metrics = {"files": 0, "bytes": 0}
 
             def copy_with_metrics(source: str, destination: str) -> str:
@@ -281,8 +281,8 @@ class BuilderApp:
             )
             script = workspace / "tools" / "build-game.sh"
             if not script.is_file():
-                raise RuntimeError(f"Le script de build est introuvable : {script}")
-            self.events.put(("progress", (worker_progress, "Sources prêtes — vérification de la ROM")))
+                raise RuntimeError(f"Build script not found: {script}")
+            self.events.put(("progress", (worker_progress, "Sources ready — verifying ROM")))
             process_started = time.perf_counter()
             process = subprocess.Popen(
                 ["bash", str(script), str(rom)],
@@ -308,8 +308,8 @@ class BuilderApp:
                 f"[timing] build_game_script wall_seconds={process_seconds:.3f} exit_code={code}\n",
             ))
             if code != 0:
-                raise RuntimeError(f"Le script de build s'est terminé avec le code {code}. Consultez le journal ci-dessus.")
-            self.events.put(("progress", (100, "Build terminé")))
+                raise RuntimeError(f"The build script exited with code {code}. See the log above.")
+            self.events.put(("progress", (100, "Build complete")))
             self.events.put(("success", workspace))
         except Exception as exc:  # surface failures inside the GUI instead of closing it
             self.events.put(("failure", str(exc)))
@@ -326,7 +326,7 @@ class BuilderApp:
                     value, status = payload  # type: ignore[misc]
                     self.progress_value = max(self.progress_value, int(value))
                     status = str(status)
-                    if status in ("Recompilation ARM9/ARM7 vers C", "Compilation du runtime et du jeu"):
+                    if status in ("Recompiling ARM9/ARM7 to C", "Compiling runtime and game"):
                         if self.progress.cget("mode") != "indeterminate":
                             self.progress.stop()
                             self.progress.configure(mode="indeterminate")
@@ -344,11 +344,11 @@ class BuilderApp:
                     self.rom_browse.configure(state="normal")
                     self.workspace_browse.configure(state="normal")
                     self.launch_button.configure(state="normal")
-                    self._append_log("\n=== Build réussi ===\n")
+                    self._append_log("\n=== Build succeeded ===\n")
                     messagebox.showinfo(
-                        "Build terminé",
-                        f"Le jeu a été construit avec succès.\n\nDossier du jeu :\n{self.workspace_path / 'game'}\n\n"
-                        "Utilisez « Lancer le jeu » pour démarrer.",
+                        "Build complete",
+                        f"The game was built successfully.\n\nGame directory:\n{self.workspace_path / 'game'}\n\n"
+                        "Use "Launch game" to start.",
                         parent=self.root,
                     )
                 elif kind == "failure":
@@ -359,9 +359,9 @@ class BuilderApp:
                     self.build_button.configure(state="normal")
                     self.rom_browse.configure(state="normal")
                     self.workspace_browse.configure(state="normal")
-                    self._append_log(f"\n=== ÉCHEC ===\n{payload}\n")
-                    self.progress_text.set("Build en échec — consultez le journal.")
-                    messagebox.showerror("Échec du build", str(payload), parent=self.root)
+                    self._append_log(f"\n=== BUILD FAILED ===\n{payload}\n")
+                    self.progress_text.set("Build failed — see the log.")
+                    messagebox.showerror("Build failed", str(payload), parent=self.root)
         except queue.Empty:
             pass
         self.root.after(100, self._poll_events)
@@ -370,7 +370,7 @@ class BuilderApp:
         workspace = Path(self.workspace_var.get()).expanduser().resolve()
         play_script = workspace / "game" / "play.sh"
         if not play_script.is_file():
-            messagebox.showerror("Jeu introuvable", "Aucun jeu compilé n'a été trouvé dans ce workspace.", parent=self.root)
+            messagebox.showerror("Game not found", "No compiled game was found in this workspace.", parent=self.root)
             return
         try:
             subprocess.Popen(
@@ -382,15 +382,15 @@ class BuilderApp:
                 start_new_session=True,
             )
         except OSError as exc:
-            messagebox.showerror("Impossible de lancer le jeu", str(exc), parent=self.root)
+            messagebox.showerror("Unable to launch game", str(exc), parent=self.root)
 
 
 def main() -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Interface graphique du constructeur Linux DQIX Enhanced")
-    parser.add_argument("--source", required=True, help="racine source embarquée dans l'AppImage")
-    parser.add_argument("--default-workspace", required=True, help="workspace initial proposé à l'utilisateur")
+    parser = argparse.ArgumentParser(description="DQIX Enhanced Linux builder GUI")
+    parser.add_argument("--source", required=True, help="source root bundled in the AppImage")
+    parser.add_argument("--default-workspace", required=True, help="initial workspace suggested to the user")
     parser.add_argument("--version", default="unknown")
     args = parser.parse_args()
 
