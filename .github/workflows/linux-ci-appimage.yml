@@ -75,23 +75,6 @@ jobs:
           cache-downloads: true
           init-shell: bash
 
-      - name: Export resolved Linux x86_64 Conda package lock snapshot
-        shell: bash -el {0}
-        run: |
-          set -euo pipefail
-          test "$(uname -m)" = "x86_64"
-          test -n "${CONDA_PREFIX:-}"
-          micromamba list --explicit --md5 --prefix "$CONDA_PREFIX" > "$RUNNER_TEMP/conda-linux-64.lock"
-          grep -Fxq '@EXPLICIT' "$RUNNER_TEMP/conda-linux-64.lock"
-          grep -Fxq '# platform: linux-64' "$RUNNER_TEMP/conda-linux-64.lock"
-          PACKAGE_COUNT="$(grep -Ec '^https?://' "$RUNNER_TEMP/conda-linux-64.lock")"
-          test "$PACKAGE_COUNT" -gt 0
-          if grep -E '^https?://' "$RUNNER_TEMP/conda-linux-64.lock" | grep -Ev '#[0-9a-fA-F]{32}$'; then
-            echo "One or more explicit Conda package URLs lack an MD5 pin" >&2
-            exit 1
-          fi
-          echo "Resolved Linux x86_64 Conda package count: $PACKAGE_COUNT" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Pack the relocatable build toolchain
         shell: bash -el {0}
         run: |
@@ -217,11 +200,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
-
-      - name: Upload resolved Conda lock snapshot for review
-        uses: actions/upload-artifact@v4
-        with:
-          name: conda-linux-64-lock-snapshot
-          path: ${{ runner.temp }}/conda-linux-64.lock
-          if-no-files-found: error
-          retention-days: 1

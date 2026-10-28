@@ -13,3 +13,10 @@ Le constructeur consigne des lignes [timing] : copie des sources dans le workspa
 Pour diagnostiquer une durée locale, comparer des exécutions sur la même machine, avec le même workspace et la même ROM dont vous avez les droits d'utilisation : premier lancement à cache froid puis relancement avec le cache chaud. Ne partagez ni ROM, ni sauvegardes, ni workspace. Les tests CI sans ROM ne mesurent pas la génération complète et ne valident pas le gameplay.
 
 La CI de packaging utilise une liste positive pour le payload de l'AppImage, avec exclusions des dossiers privés et tests de sentinelles synthétiques. En cas de modification de la liste, vérifier la CI et son SHA de commit. Le workflow de publication est un déclenchement manuel avec préflight read-only par défaut ; aucun tag ni release n'est créé par la CI de build.
+
+
+## État du diagnostic et de la supply chain
+
+Les logs instrumentés séparent copie du workspace, extraction, détection de région, codegen ARM9/ARM7, compilation/link et assemblage, avec des temps muraux et des volumes de fichiers/octet. Il faut exécuter ces mesures sur une ROM possédée localement avant d'optimiser la chaîne. À ce jour aucun benchmark local complet, aucune mesure CPU/I/O ni aucun test gameplay n'est revendiqué.
+
+La CI génère l'AppImage du constructeur sans ROM et teste les options CLI, les checksums, le manifeste de payload et des sentinelles synthétiques. Le workflow de release est manuel, read-only par défaut ; le préflight réel n'a pas encore été exécuté en session. Le lock Conda transitif utilisé par le build, le SBOM et l'analyse ELF détaillée restent ouverts.

@@ -141,3 +141,11 @@ Cette spec fixe le plan. Les éléments non cochés sont des travaux ultérieurs
 - Le préflight vérifie run CI terminé avec succès sur main/stable par push, dépôt source identique, SHA source, artefact associé au même run/SHA, digest SHA-256 de l'archive, manifeste exact, checksums internes et smoke tests CLI. Toute erreur API autre qu'un 404 explicite bloque la voie.
 - Le job publish n'existe en exécution que pour `dry_run=false`; lui seul reçoit `contents: write`. Avant publication, il revalide le run et l'artefact, puis crée un tag neuf via un POST de référence Git non forcé et crée la release avec `--verify-tag`. Aucune exécution de publication n'a été déclenchée dans cette session.
 - Les protections du workflow doivent être testées statiquement par la CI du commit final. Cela ne signifie pas que la release a été publiée ou qu'une exécution publish réelle a été testée.
+
+
+## 10. État des contrôles résiduels — 2026-10-28
+
+- Le workflow release a passé les tests statiques de sécurité dans la CI #30 (run `40727004320`, SHA `3ad7890cf5c6297a27ad2b709838146bd64efe9b`) : déclenchement manuel seulement, `dry_run=true` par défaut, préflight en lecture seule, et permission `contents: write` limitée au job publish. Aucun vrai `workflow_dispatch` de préflight n'a été exécuté dans cette session et aucune release/tag n'a été créée.
+- Le filtrage positif du payload a été exécuté avec des fixtures synthétiques et le smoke test AppImage a passé en CI #29 (run `40725797382`, SHA `23a7cee4605e35c8f58ca92fcb856e7d15172f6d`). Ces résultats valident la portée des chemins/extensions testés, pas une analyse complète sémantique de chaque octet embarqué.
+- Une lockfile Conda transitif consommée par le build n'a pas été créée/validée dans cette session. Une analyse exhaustive des dépendances ELF, un SBOM complet et un rapport de taille par composant restent à faire ; ils ne sont pas cochés comme terminés.
+- Aucun build complet avec ROM, benchmark local cache froid/chaud, mesure CPU/I/O locale ou test gameplay n'a été exécuté. L'instrumentation ajoutée donne des durées murales et volumes de fichiers/octets dès qu'un propriétaire lance un build local.

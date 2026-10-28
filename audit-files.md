@@ -72,3 +72,11 @@ La branche du PR contient une liste positive packaging/linux/appimage-filter.txt
 ## Release workflow safety
 
 Le fichier .github/workflows/release-appimage.yml est renforcé en deux jobs : preflight read-only par défaut et publish explicitement conditionné à `dry_run=false`. Le scope `contents: write` est limité au publish job. Les scripts .github/scripts/validate-release-source.sh et verify-appimage-artifact.sh contrôlent l'origine push main/stable, le commit, l'association artefact/run/SHA, le digest du ZIP, la liste exacte des assets, SHA256SUMS et les CLI smoke tests. Une suite de tests statiques est ajoutée dans tests/packaging/test_release_workflow_safety.py ; ne considérer ce changement final validé qu'après sa CI.
+
+
+## Vérification finale des changements release — 2026-10-28
+
+- Run #30 `40727004320` (SHA `3ad7890cf5c6297a27ad2b709838146bd64efe9b`) : CI complète verte, y compris le test statique du workflow release.
+- Le workflow release de cette branche a un déclenchement manuel uniquement, dry run par défaut, un préflight read-only et un job publish seul à disposer de `contents: write`. Aucun préflight manuel réel, tag ou release n'a été exécuté/créé pendant cette session.
+- Le filtre AppImage a été validé par sentinelles synthétiques lors du run #29, puis le build/smoke/checksum/artifact ainsi que les tests statiques release ont été validés au run #30. Le run suivant sur un nouveau commit doit rester la source de vérité pour sa CI.
+- Conda lockfile versionnée, analyse ELF/SBOM et taille ventilée par composant restent des tâches explicites, non accomplies. Pas de vraie génération de jeu avec ROM ni test gameplay.

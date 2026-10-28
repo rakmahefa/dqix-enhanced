@@ -74,3 +74,10 @@ La CI #29 (`40725797382`, SHA `23a7cee4605e35c8f58ca92fcb856e7d15172f6d`) a pass
 ## Release sûre — changement en cours
 
 Le workflow release est réorganisé en préflight read-only et job publish distinct. Le dry-run est vrai par défaut. Le préflight compare la provenance du run et de l'artefact puis vérifie le ZIP et les assets ; seul le job explicitement déclenché avec dry-run faux a la permission `contents: write`. Le tag neuf est créé sans force-update et la release utilise `--verify-tag`. La CI doit confirmer les contrôles statiques avant de traiter ce lot comme terminé.
+
+
+## Bilan de cette reprise — 2026-10-28
+
+La CI #30 (run `40727004320`, SHA `3ad7890cf5c6297a27ad2b709838146bd64efe9b`) passe avec les tests statiques du workflow de release et le build AppImage complet. La CI #29 (run `40725797382`, SHA `23a7cee4605e35c8f58ca92fcb856e7d15172f6d`) a validé le filtre positif, 10 fixtures conservées et 38 sentinelles exclues. Les contrôles release ont donc une validation statique ; le vrai préflight read-only en workflow_dispatch n'a pas été déclenché, et aucun tag/release n'a été créé.
+
+Restent ouverts : lockfile Conda transitif versionnée et effectivement consommée par la construction, analyse des dépendances ELF, SBOM et rapport de taille par composants, et benchmarks locaux avec ROM appartenant à l'utilisateur. Ne pas interpréter les timings instrumentés comme des résultats de benchmark tant qu'aucun build ROM local n'a été chronométré.
