@@ -26,7 +26,7 @@ SLIRPOBJ = $(patsubst third_party/libslirp/%.c,$(OBJ)/slirp/%.o,$(SLIRP_SRC))
 SLIRP_INC = -Ithird_party/libslirp/src -Ithird_party/libslirp/glib
 ifeq ($(OS),Windows_NT)
 NET_LIBS = -lws2_32 -liphlpapi -lgdi32 -lwinhttp -lcomdlg32
-POSIX_LIBS ?=
+POSIX_LIBS =
 else
 # The Linux runtime uses pthreads, POSIX timers/shared memory and dlopen.
 POSIX_LIBS ?= -pthread -lrt -ldl
@@ -50,7 +50,7 @@ CORE_RTOBJ = $(patsubst runtime/%.c,$(OBJ)/rt/%.o,$(filter-out runtime/frontend_
 ifeq ($(OS),Windows_NT)
 CORE_LDFLAGS ?= -static-libgcc
 else
-CORE_LDFLAGS ?= -Wl,-Bsymbolic -lpthread
+CORE_LDFLAGS ?= -Wl,-Bsymbolic
 endif
 core: $(CORE)
 $(CORE): $(GENOBJ) $(GEN7OBJ) $(CORE_RTOBJ) $(SLIRPOBJ)
