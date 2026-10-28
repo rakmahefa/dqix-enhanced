@@ -81,7 +81,7 @@ typedef struct {
     char hint[1000];
     char players[4][96];
     int n_players;
-    char status[300];
+    char status[320];
 } SessionWindow;
 int session_window_open(SDL_Window* win);          /* 1 if it is showing */
 void session_window_update(const SessionWindow* w);
