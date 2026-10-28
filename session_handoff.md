@@ -5,8 +5,8 @@
 **Branche de travail :** `plan/v32-linux-launcher-settings`  
 **Branche de base :** `main`  
 **Commit de base connu :** `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`  
-**Dernier commit confirmé avant cette mise à jour de la note :** `d545274c965eac8a10a2e16c2368e51e7f4071eb`  
-**État fonctionnel :** plan et CI de développement ajoutés ; le launcher et le menu ne sont pas encore implémentés.
+**Dernier commit confirmé avant cette mise à jour de la note :** `b715b28fd37d8e3b99718c2c9a357cdd79a1c8ab`  
+**État fonctionnel :** plan, CI temporaire et probe autonome SDL3/Vulkan/Dear ImGui ajoutés ; compilation et test de fumée restent à vérifier. Le vrai launcher, le bridge runtime et le menu in-game ne sont pas implémentés.
 
 ## 1. Règles impératives
 
@@ -32,6 +32,8 @@ La CI temporaire est destinée aux itérations de développement. Elle est limit
 
 Valeurs par défaut du lancement manuel : les exigences strictes et les tests généraux sont désactivés, pour permettre un run de diagnostic au tout début. Quand le prototype existe, activer `require_linux_prototype`; pour une validation d'exécution Vulkan, activer aussi `require_vulkan_device`. Si l'hôte CI n'expose pas de device, un avertissement/diagnostic n'est pas une preuve de rendu Vulkan.
 
+Le probe P0 est défini dans `third_party/extra/linux/CMakeLists.txt`. Il compile l'exemple officiel `example_sdl3_vulkan` de Dear ImGui v1.93.0 épinglé au commit `c1aaac65e896a45f81f47a4d68f9959e0f86c859`, sans copier/modifier de source upstream dans le dépôt. `tests/smoke-ui.sh` le lance sous Xvfb pendant 6 secondes ; si aucun device Vulkan n'est disponible, le test est marqué comme ignoré par défaut (et non réussi). Ce probe ne teste pas le runtime DQIX.
+
 La CI existante [linux-ci-appimage.yml](https://github.com/rakmahefa/dqix-enhanced/blob/main/.github/workflows/linux-ci-appimage.yml) n'a pas été modifiée. Elle vise `main`/`stable` et le lancement manuel ; elle construit l'AppImage et exécute les tests généraux. Ne pas imposer cette construction lourde à chaque petite expérience. Avant une PR finale qui affecte le build, les dépendances ou le packaging, exécuter la validation complète pertinente et ne pas déclarer un test passé s'il n'a pas été exécuté.
 
 ## 3. Constats techniques de l'audit précédent
@@ -45,15 +47,13 @@ La CI existante [linux-ci-appimage.yml](https://github.com/rakmahefa/dqix-enhanc
 
 ## 4. Prochaine tâche recommandée
 
-Commencer par **P0 — prouver les frontières d'intégration**, pas par écrire toute l'interface :
+Continuer **P0 — prouver les frontières d'intégration** avant de construire les pages du launcher :
 
-1. Ouvrir la CI temporaire et vérifier le run de branche ; télécharger l'artefact de logs. Si le workflow n'a pas été exécuté automatiquement, lancer manuellement `Linux development diagnostics (temporary)` sur `plan/v32-linux-launcher-settings`.
-2. Examiner `platform-and-dependencies.txt`, `vulkaninfo-summary.txt`, `changed-files.txt`, `source-boundary-check.txt` et le résultat du probe Vulkan.
-3. Cartographier les APIs existantes et l'ordre de vie du runtime : création fenêtre/contextes SDL2, dispatch clavier, pause/tick, settings, fermeture. Ne toucher à aucune source Windows pendant cette exploration.
-4. Construire un prototype minimal exclusivement sous `third_party/extra/linux/` pour confirmer SDL3 + Vulkan + Dear ImGui avec la toolchain cible. Ajouter un `CMakeLists.txt` quand ce prototype est prêt ; les prochains runs de CI tenteront alors automatiquement la compilation et CTest.
-5. Tester explicitement la faisabilité du menu in-game Escape, de la capture d'événements, de la pause/reprise et du fullscreen. Un launcher SDL3 autonome ne peut pas se dessiner automatiquement dans une fenêtre SDL2/OpenGL d'un autre processus ; Wayland ne fournit pas de hook clavier global générique. Il faut prouver le point d'intégration exact.
-6. Si l'overlay exige de modifier un fichier partagé avec Windows, consigner le blocage et décider d'une adaptation/entrée Linux isolée avant P1/P2/P3. Ne pas prétendre que le menu Escape est faisable avant cette preuve.
-7. Après P0, traiter la persistance des paramètres et les logs ; puis le launcher pré-Play ; ensuite seulement le menu in-game et la parité v32.
+1. Après la mise à jour de la branche de travail, vérifier que `Linux development diagnostics (temporary)` a réellement tourné. L'API GitHub consultée dans cette session ne renvoie pas de statut/check-run pour le commit de handoff ; ne pas en déduire que la CI est verte. Si le push ne déclenche rien, lancer le workflow manuellement depuis GitHub Actions.
+2. Examiner l'artefact `linux-dev-diagnostics` : `platform-and-dependencies.txt`, `vulkaninfo-summary.txt`, `changed-files.txt`, `source-boundary-check.txt`, `prototype-build.txt`, `cmake-build.log` et `ctest.log`. Le build et le test restent **non vérifiés** jusqu'à l'observation de ces logs.
+3. Cartographier l'ordre de vie du runtime : fenêtre/contexte SDL2, dispatch clavier, tick/pause, settings et fermeture. `runtime/frontend_sdl.c` détient actuellement la boucle SDL2, les fenêtres et le rendu ; le code de commandes appelle les actions du même processus. Une UI SDL3 indépendante ne suffit donc pas, en elle-même, à fournir un overlay intégré ni à suspendre le jeu.
+4. Prouver un point d'extension Linux isolé. Escape, capture d'événements, pause/reprise et fullscreen ne doivent pas être annoncés comme faisables avant qu'une liaison vers le runtime soit démontrée. Ne pas modifier les sources Windows partagées pour rendre ce raccordement plus simple.
+5. Si aucun point d'extension conforme n'existe, consigner le blocage et proposer une séparation du frontend/runtime Linux dédiée avant P1/P2/P3. Ensuite seulement, poursuivre la persistance des settings et logs, le launcher pré-Play, puis la parité v32.
 
 ## 5. Critères de validation à ne pas oublier
 
