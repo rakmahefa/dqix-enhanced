@@ -51,3 +51,15 @@ L'AppImage est un **constructeur x86_64**, pas une distribution du jeu déjà co
 - Vérifier le contenu de l'AppDir/AppImage extraite, ses bibliothèques ELF et les SHA-256.
 - Tester la GUI sur un bureau Linux : sélection ROM et workspace, progression, journal, erreur et reprise après échec.
 - Sur une machine possédant une ROM personnelle, réaliser un build local USA et/ou Europe puis vérifier jeu, audio, entrées, contrôles et sauvegardes. Ne pas transférer la ROM ni le workspace vers CI.
+
+## État vérifié lors de la reprise — 2026-10-28
+
+- SHA de main : 3a84fe776dfed59421987722073d03a438a3ab56. Upstream sackchief/dqix-enhanced toujours à b85da5d6f8a5580f737e5f96418f4b07a8083591 ; comparaison : 32 commits en avance, aucun en retard.
+- CI #19 sur main : tests source réussis, empaquetage bloqué faute de desktop-file-validate. Correctif dans le PR #6 ; run #21 sur 519c14d7d2b7486de402ece21a226de67b6ba930 a passé entièrement, avec AppImage, self-test, checksums générés et artefact uploadé. Run #22 sur ba5039298f2d95c17c0d2d54113d7a45c7ac6685 a en plus vérifié --version, --help et les checksums.
+- L'instrumentation de timing est ajoutée après le SHA ba503929 ; attendre le run du SHA final pour valider les changements Python et shell.
+
+## Détails de la chaîne de build relevés dans le code
+
+- packaging/linux/gui.py utilise un thread de travail et une file d'événements afin de garder la boucle Tk réactive. shutil.copytree recopie les sources dans le workspace à chaque build ; durée et octets sont instrumentés par le PR #6.
+- tools/build-game.sh appelle successivement tools/extract_rom.py, tools/region.py, recomp/build.py ARM9, recomp/arm7.py, make -j$(nproc) puis l'assemblage game/. Le codegen Python est séquentiel ; le parallélisme explicite concerne la compilation C.
+- Les mesures à venir sont des temps muraux et volumes de fichiers/octets. Ni CPU/I/O local, ni temps de génération complète avec ROM ne sont mesurés dans cette session. Le test sans ROM ne valide pas le gameplay.

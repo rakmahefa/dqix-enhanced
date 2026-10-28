@@ -14,6 +14,7 @@ import queue
 import shutil
 import subprocess
 import threading
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -245,8 +246,34 @@ class BuilderApp:
         worker_progress = 4
         try:
             self.events.put(("status", "Préparation des sources dans le workspace"))
-            workspace.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(self.source, workspace, dirs_exist_ok=True, ignore=source_ignore)
+            copy_metrics = {"files": 0, "bytes": 0}
+
+            def copy_with_metrics(source: str, destination: str) -> str:
+                copied = shutil.copy2(source, destination)
+                copy_metrics["files"] += 1
+                try:
+                    copy_metrics["bytes"] += os.path.getsize(destination)
+                except OSError:
+                    pass
+                return copied
+
+            copy_started = time.perf_counter()
+            try:
+                workspace.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(
+                    self.source,
+                    workspace,
+                    dirs_exist_ok=True,
+                    ignore=source_ignore,
+                    copy_function=copy_with_metrics,
+                )
+            finally:
+                copy_seconds = time.perf_counter() - copy_started
+                self.events.put((
+                    "log",
+                    f"[timing] workspace_source_copy wall_seconds={copy_seconds:.3f} "
+                    f"copied_files={copy_metrics['files']} copied_bytes={copy_metrics['bytes']}\n",
+                ))
             (workspace / WORKSPACE_MARKER).write_text(
                 "Managed by DQIX Enhanced AppImage builder.\n"
                 "Contains local build output and may contain a copy of a user-supplied ROM.\n",
@@ -256,6 +283,7 @@ class BuilderApp:
             if not script.is_file():
                 raise RuntimeError(f"Le script de build est introuvable : {script}")
             self.events.put(("progress", (worker_progress, "Sources prêtes — vérification de la ROM")))
+            process_started = time.perf_counter()
             process = subprocess.Popen(
                 ["bash", str(script), str(rom)],
                 cwd=str(workspace),
@@ -274,6 +302,11 @@ class BuilderApp:
                 if status:
                     self.events.put(("progress", (worker_progress, status)))
             code = process.wait()
+            process_seconds = time.perf_counter() - process_started
+            self.events.put((
+                "log",
+                f"[timing] build_game_script wall_seconds={process_seconds:.3f} exit_code={code}\n",
+            ))
             if code != 0:
                 raise RuntimeError(f"Le script de build s'est terminé avec le code {code}. Consultez le journal ci-dessus.")
             self.events.put(("progress", (100, "Build terminé")))

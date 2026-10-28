@@ -1,4 +1,4 @@
-# Audit des fichiers — DQIX Enhanced
+# Audit du packaging Linux/AppImage — DQIX Enhanced
 
 Date : 2026-10-28  
 Synchronisation de référence : `sackchief/dqix-enhanced@b85da5d6f8a5580f737e5f96418f4b07a8083591`  
@@ -49,3 +49,18 @@ L'AppImage est un **constructeur x86_64**, pas une distribution du jeu déjà co
 - Vérifier le contenu de l'AppDir/AppImage extraite, ses bibliothèques ELF et les SHA-256.
 - Tester la GUI sur un bureau Linux : sélection ROM et workspace, progression, journal, erreur et reprise après échec.
 - Sur une machine possédant une ROM personnelle, réaliser un build local USA et/ou Europe puis vérifier jeu, audio, entrées, contrôles et sauvegardes. Ne pas transférer la ROM ni le workspace vers CI.
+
+## Vérification CI et AppImage — 2026-10-28
+
+- main était sur le merge #4, SHA 3a84fe776dfed59421987722073d03a438a3ab56. Le run main #19 a réussi les tests source mais échoué à Build AppImage car desktop-file-validate n'était pas installé.
+- Le PR #6 ajoute desktop-file-utils tout en gardant libfuse2, rsync et squashfs-tools. Le run #21 a construit l'AppImage, passé le self-test, généré SHA256SUMS et uploadé l'artefact. Le run #22 (SHA ba5039298f2d95c17c0d2d54113d7a45c7ac6685) a aussi validé --version, --help et sha256sum --check.
+- La sortie appimagetool reste « continuous build (git version 81ee1db) » ; le hash du fichier téléchargé correspond toutefois au SHA-256 épinglé dans le workflow. Ne pas traiter la seule chaîne de version comme preuve d'un artefact altéré.
+- Le log appimagetool rapporte un filesystem squashfs de 230.29 MiB. Le ZIP d'artefact CI fait 242421192 octets. Il ne s'agit pas encore d'un rapport détaillé par composant, et aucun manifeste exhaustif de payload, SBOM ou audit ELF complet n'est démontré.
+
+## Chemin de build et parallélisme
+
+- La GUI crée un thread Python threading.Thread pour le worker. Celui-ci copie source vers le workspace, lit la sortie du script de build via un pipe, puis remonte les événements à Tk avec une file et root.after(100, ...).
+- copytree recopie les sources dans le workspace à chaque construction ; le nouveau journal donne sa durée et le nombre/volume des fichiers copiés. C'est un candidat de coût, pas une conclusion sans résultats locaux.
+- Extraction, détection de région, génération ARM9, génération ARM7, compilation et assemblage sont exécutés en séquence par le script shell. Le recompiler parcourt les fonctions séquentiellement ; le parallélisme explicite est make -j$(nproc) pendant la compilation C.
+- L'assemblage inclut une copie de l'extraction vers game/data/code et une requête DQVC facultative avec un timeout de 30 secondes. Sa contribution reste à mesurer.
+- Aucun build avec ROM personnelle, benchmark froid/chaud, mesure CPU/I/O locale ou test gameplay n'a été réalisé dans cette session.

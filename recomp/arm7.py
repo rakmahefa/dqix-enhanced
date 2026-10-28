@@ -21,6 +21,7 @@ import argparse
 import os
 import struct
 import sys
+import time
 from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -191,7 +192,9 @@ def main():
     ap.add_argument("--seeds", help="extra '<addr> arm|thumb' entries, one per line")
     args = ap.parse_args()
 
+    load_started = time.perf_counter()
     mods = load_arm7(args.extract)
+    print(f"== Timing: ARM7 load_modules wall_seconds={time.perf_counter() - load_started:.3f} modules={len(mods)}")
     for m in mods:
         print(f"{m.name}: {m.base:08x}-{m.end:08x} ({len(m.data)} bytes)")
     seeds = [(0x02380000, False)]
@@ -201,7 +204,9 @@ def main():
             if len(p) == 2:
                 seeds.append((int(p[0], 16), p[1] == "thumb"))
     disc = Discoverer(mods)
+    discovery_started = time.perf_counter()
     disc.run(seeds)
+    print(f"== Timing: ARM7 discover_functions wall_seconds={time.perf_counter() - discovery_started:.3f} functions={sum(len(m.funcs) for m in mods)}")
 
     hle = set()
     if args.hle:
@@ -211,6 +216,7 @@ def main():
                 hle.add((p[0], int(p[1], 16)))
 
     rc = Recompiler(mods)
+    translation_started = time.perf_counter()
     code = {}
     queue = list(rc.all_funcs())
     while queue:
@@ -222,7 +228,12 @@ def main():
                 continue
             code[key] = rc.emit_func(fn)
         queue, rc.pending = rc.pending, []
+    print(
+        f"== Timing: ARM7 translate_functions wall_seconds={time.perf_counter() - translation_started:.3f} "
+        f"functions={len(code)} instructions={rc.stats.get('insns', 0)}"
+    )
 
+    output_started = time.perf_counter()
     os.makedirs(args.out, exist_ok=True)
     funcs = list(rc.all_funcs())
     with write_if_changed(os.path.join(args.out, "funcs7.h")) as f:
@@ -248,7 +259,17 @@ def main():
         f.write("\n".join(rc.problems))
     for k in sorted(rc.stats):
         print(f"{k:26s} {rc.stats[k]}")
+    output_paths = [
+        os.path.join(args.out, name)
+        for name in os.listdir(args.out)
+        if os.path.isfile(os.path.join(args.out, name))
+    ]
+    output_bytes = sum(os.path.getsize(path) for path in output_paths)
     print(f"{nfiles} C files written to {args.out}")
+    print(
+        f"== Timing: ARM7 write_outputs wall_seconds={time.perf_counter() - output_started:.3f} "
+        f"output_files={len(output_paths)} output_bytes={output_bytes}"
+    )
 
 
 if __name__ == "__main__":
