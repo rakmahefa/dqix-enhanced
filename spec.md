@@ -69,10 +69,10 @@ La synchronisation doit intégrer les évolutions v32 : ROM européenne et choix
 
 ### P1 — Audit ELF et chaîne de dépendances
 
-- [ ] Extraire l'AppImage en CI et analyser chaque exécutable/bibliothèque ELF du payload.
-- [ ] Échouer sur toute dépendance non résolue et toute dépendance hôte inattendue ; maintenir une allowlist courte et expliquée pour les composants qui doivent venir de l'hôte (glibc, serveur de fenêtres, audio, OpenGL/Vulkan et pilotes).
+- [ ] Extraire l'AppImage en CI et analyser chaque exécutable/bibliothèque ELF du payload. (Implémenté dans le PR #7 ; en attente du résultat CI.)
+- [ ] Échouer sur toute dépendance non résolue et toute dépendance hôte inattendue ; maintenir une allowlist courte et expliquée pour les composants qui doivent venir de l'hôte (glibc, serveur de fenêtres, audio, OpenGL/Vulkan et pilotes). (Implémenté, résultat CI en attente.)
 - [ ] Vérifier spécifiquement que les exécutables du toolchain et le programme de smoke test SDL se résolvent dans l'environnement empaqueté.
-- [ ] Générer un rapport JSON d'audit ELF conservé comme artefact.
+- [ ] Générer un rapport JSON d'audit ELF conservé comme artefact. (Implémenté, résultat CI en attente.)
 - [ ] Ne pas tenter d'embarquer les pilotes graphiques du noyau ni la pile graphique de la machine.
 
 ### P1 — Tests fiables sans ROM
@@ -157,3 +157,10 @@ Cette spec fixe le plan. Les éléments non cochés sont des travaux ultérieurs
 - Contenu contrôlé : 96 URLs de paquets, uniquement `linux-64`/`noarch`, chacune avec fragment MD5. SHA-256 attendu du fichier : `5aeec2066f1d9fcfbf729de3ea6531559c8b9b0a31065a610059fb18793bae96`.
 - La CI est modifiée pour vérifier SHA-256, installer depuis la lockfile explicite, comparer l'ensemble des URLs installées à la liste versionnée et tester que `environment.yml` correspond au SHA annoncé par les métadonnées.
 - Ne considérer la lockfile comme validée dans la chaîne AppImage qu'après réussite de toute la CI sur un SHA qui inclut simultanément le lock, son test et le workflow qui le consomme.
+
+
+## 13. Rapport de dépendances, taille et SBOM — PR #7 en vérification
+
+Le nouveau script `tools/packaging/audit_appimage.py` analyse les ELF x86_64 du runtime AppImage et de la toolchain relocalisée, exécute `ldd` avec le chemin de bibliothèques Conda, échoue si une dépendance est introuvable ou si une bibliothèque hôte ne figure pas dans l'allowlist documentée, puis écrit `elf-audit.json`. Il écrit aussi le rapport de taille (AppImage, archive toolchain, AppDir, toolchain relocalisée et fichiers les plus volumineux) et un SBOM CycloneDX 1.5 basé sur les 96 composants Conda de la lockfile.
+
+Les rapports sont uploadés dans un artefact CI de diagnostic séparé afin que le workflow de release, qui valide une liste stricte de trois fichiers, reste inchangé. Les reports/checksums de diagnostic sont uploadés même si l'audit ELF échoue, pour conserver les éléments à corriger. Ne coche pas les critères ELF/SBOM avant le succès du run complet sur le SHA qui inclut le script et son invocation.

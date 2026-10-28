@@ -201,6 +201,32 @@ jobs:
           printf 'AppImage --help: passed\n'
           "$IMAGE" --self-test
 
+      - name: Audit ELF dependencies, size, and Conda SBOM
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          HOME: ${{ runner.temp }}/appimage-home
+          XDG_CACHE_HOME: ${{ runner.temp }}/appimage-cache
+          XDG_DATA_HOME: ${{ runner.temp }}/appimage-data
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          APPDIR="$RUNNER_TEMP/DQIX-Enhanced.AppDir"
+          PACKAGE_DIR="$APPDIR/usr/share/dqix-enhanced"
+          TOOLCHAIN_DIR="$XDG_CACHE_HOME/dqix-enhanced-appimage/toolchain"
+          test -x "$TOOLCHAIN_DIR/bin/python3"
+          SOURCE_TIMESTAMP="$(git show -s --format=%cI "$GITHUB_SHA")"
+          python tools/packaging/audit_appimage.py \
+            --appdir "$APPDIR" \
+            --appimage "$GITHUB_WORKSPACE/dist/DQIX-Enhanced-Builder-x86_64.AppImage" \
+            --toolchain-dir "$TOOLCHAIN_DIR" \
+            --toolchain-archive "$PACKAGE_DIR/toolchain.tar.gz" \
+            --lock packaging/linux/conda-linux-64.lock \
+            --source-sha "$GITHUB_SHA" \
+            --version "$(awk -F '"' '/DQIX_VERSION / {print $2; exit}' runtime/version.h)" \
+            --timestamp "$SOURCE_TIMESTAMP" \
+            --out-dir "$GITHUB_WORKSPACE/dist"
+          (cd dist && sha256sum --check DIAGNOSTICS-SHA256SUMS)
+
       - name: Generate and verify checksums
         run: |
           set -euo pipefail
@@ -219,3 +245,17 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+      - name: Upload AppImage diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dqix-enhanced-appimage-diagnostics
+          path: |
+            dist/elf-audit.json
+            dist/size-report.json
+            dist/sbom.cdx.json
+            dist/DIAGNOSTICS-SHA256SUMS
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6

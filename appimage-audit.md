@@ -86,3 +86,8 @@ Restent ouverts : lockfile Conda transitif versionnée et effectivement consomm�
 ## Conda lock explicite — validation CI en attente
 
 Le PR #7 versionne `packaging/linux/conda-linux-64.lock`, une liste explicite Linux x86_64 issue du solve du runner (96 paquets, builds fixés, URLs `linux-64`/`noarch` avec fragments MD5, SHA-256 `5aeec2066f1d9fcfbf729de3ea6531559c8b9b0a31065a610059fb18793bae96`). Le workflow est modifié pour installer depuis cette liste, contrôler le checksum et comparer la liste installée à celle commise. Le résultat final doit confirmer cette CI avant de déclarer le lock effectif et reproductible.
+
+
+## Audit ELF, taille et SBOM — implémentation en attente de CI
+
+Le PR #7 ajoute un audit ELF x86_64 de l'AppImage et de la toolchain relocalisée, avec une allowlist explicite des dépendances hôte attendues et un échec sur les dépendances introuvables/inattendues. Trois rapports sont produits : `elf-audit.json`, `size-report.json`, et `sbom.cdx.json` (CycloneDX 1.5, 96 composants Conda verrouillés). Ils sont conservés dans l'artefact `dqix-enhanced-appimage-diagnostics`, séparé de l'artefact AppImage destiné à une éventuelle release. Validation en attente de la CI sur le HEAD qui contient ces changements.

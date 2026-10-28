@@ -25,3 +25,8 @@ La CI génère l'AppImage du constructeur sans ROM et teste les options CLI, les
 ## Lock Conda de la toolchain Linux
 
 Le PR #7 ajoute un lock explicite `linux-64` et des métadonnées SHA-256. L'environnement CI/AppImage est modifié pour utiliser ce lock plutôt que résoudre à nouveau les versions dans `environment.yml`; la CI contrôle que les URLs et builds installés correspondent à la liste commise. La lockfile vient d'un solve de CI réel, mais il ne faut considérer l'intégration validée qu'après réussite du run complet sur le commit qui consomme le lock.
+
+
+## Audit ELF et rapport de taille CI
+
+Le PR #7 ajoute un audit des dépendances ELF de la toolchain relocalisée, un rapport de taille par composant et un SBOM CycloneDX basé sur la lockfile Conda. Les rapports sont fournis comme artefact de diagnostic de CI séparé de l'AppImage téléchargeable. Ils ne valident pas le gameplay et n'impliquent aucune publication automatique. Les résultats ne sont considérés comme validés qu'après le run complet du commit concerné.
