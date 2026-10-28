@@ -127,7 +127,7 @@ jobs:
             echo "Forbidden ROM/save/build binary or private asset found in AppDir" >&2
             exit 1
           fi
-          if find "$PACKAGE_DIR/source" -mindepth 1 -maxdepth 1 -type d \( -iname game -o -iname build -o -iname extract -o -iname rom -o -iname testbuild -o -iname test-build -o -iname obj -o -iname gen -o -iname gen7 -o -iname Mods -o -iname mods -o -iname music -o -iname textures -o -iname wfc -o -iname release -o -iname reports \) -print -quit | grep -q .; then
+          if find "$PACKAGE_DIR/source" -type d \( -iname game -o -iname build -o -iname extract -o -iname rom -o -iname testbuild -o -iname test-build -o -iname obj -o -iname gen -o -iname gen7 -o -iname Mods -o -iname mods -o -iname music -o -iname textures -o -iname wfc -o -iname release -o -iname reports \) -print -quit | grep -q .; then
             echo "Forbidden private build/workspace directory found in AppDir source" >&2
             exit 1
           fi

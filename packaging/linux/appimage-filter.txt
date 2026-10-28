@@ -28,6 +28,23 @@
 - /music/***
 - /textures/***
 - /wfc/***
+# Defend against private/generated folders nested inside otherwise allowlisted trees.
+- **/game/***
+- **/build/***
+- **/extract/***
+- **/rom/***
+- **/testbuild/***
+- **/test-build/***
+- **/obj/***
+- **/gen/***
+- **/gen7/***
+- **/release/***
+- **/reports/***
+- **/Mods/***
+- **/mods/***
+- **/music/***
+- **/textures/***
+- **/wfc/***
 - *.nds
 - *.sav
 - *.dsv
