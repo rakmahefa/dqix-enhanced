@@ -4,7 +4,8 @@ This directory contains the **first pre-Play Linux launcher prototype** plus the
 settings model and the integration-boundary tests. It validates the SDL3 + Dear
 ImGui + Vulkan UI independently of the existing game runtime. The native launcher
 is still a preview: it is not an in-game overlay and does not yet control the game's
-SDL2 event loop or pause/tick state.
+SDL2 event loop or pause/tick state. It is **not yet packaged in the builder AppImage**
+and is not yet wired to the existing Tk builder's Play button.
 
 ## What it builds
 
