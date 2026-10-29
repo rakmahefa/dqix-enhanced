@@ -41,6 +41,19 @@ fs::path canonical_or_normal(const fs::path& value, std::error_code& ec) {
     return result.lexically_normal();
 }
 
+void reject_symlink_components(const fs::path& workspace, const fs::path& relative) {
+    fs::path current = workspace;
+    for (const auto& component : relative) {
+        current /= component;
+        std::error_code ec;
+        const auto status = fs::symlink_status(current, ec);
+        if (ec == std::errc::no_such_file_or_directory) continue;
+        if (ec) throw std::runtime_error("Cannot inspect workspace path " + current.string() + ": " + ec.message());
+        if (fs::is_symlink(status))
+            throw std::runtime_error("Refusing to write through a workspace symlink: " + current.string());
+    }
+}
+
 bool ignored_name(const fs::path& path) {
     const std::string name = path.filename().string();
     static const char* exact[] = {
@@ -119,6 +132,7 @@ void stage_sources(const fs::path& source, const fs::path& workspace,
             continue;
         }
 
+        reject_symlink_components(workspace, relative);
         const fs::path destination = workspace / relative;
         if (fs::is_directory(status)) {
             fs::create_directories(destination, ec);
@@ -336,6 +350,8 @@ void BuildJob::run(BuildRequest request) {
         log_path_ = request.workspace / "launcher-build.log";
         fs::create_directories(request.workspace, ec);
         if (ec) throw std::runtime_error("Cannot initialize workspace: " + ec.message());
+        reject_symlink_components(request.workspace, fs::path("launcher-build.log"));
+        reject_symlink_components(request.workspace, fs::path(kWorkspaceMarker));
         log_line("[builder] DQIX Enhanced native SDL2 build started");
         log_line("[builder] Workspace: " + request.workspace.string());
         log_line("[builder] ROM selected: " + request.rom.filename().string());
