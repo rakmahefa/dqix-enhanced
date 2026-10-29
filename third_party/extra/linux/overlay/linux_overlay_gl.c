@@ -1,4 +1,5 @@
 #include "linux_overlay_gl.h"
+#include "linux_overlay.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <stddef.h>
