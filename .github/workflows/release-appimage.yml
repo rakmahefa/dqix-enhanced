@@ -14,7 +14,7 @@ on:
       release_name:
         description: Name shown on the GitHub Release
         required: true
-        default: DQIX Enhanced Linux Builder
+        default: DQIX Enhanced Linux Launcher
         type: string
       dry_run:
         description: Run read-only preflight without creating a tag or release (safe default)
@@ -134,7 +134,7 @@ jobs:
           }
 
           cat > "$RUNNER_TEMP/release-notes.md" <<EOF
-          ## DQIX Enhanced Linux Builder
+          ## DQIX Enhanced Linux Launcher
 
           This AppImage contains the builder and public source payload. It does not contain a ROM or a prebuilt game.
 

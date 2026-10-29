@@ -1,0 +1,612 @@
+name: Linux development diagnostics (temporary)
+
+# Small, repeatable SDL2 checks for the Linux-only implementation.
+# The full AppImage workflow remains separate to keep iterations fast.
+on:
+  push:
+    branches:
+      - plan/v32-linux-launcher-settings
+    paths:
+      - '.github/workflows/linux-dev-sandbox.yml'
+      - 'third_party/extra/linux/**'
+      - 'packaging/linux/**'
+      - 'tools/**'
+      - 'tests/**'
+      - '.github/scripts/**'
+  workflow_dispatch:
+    inputs:
+      require_linux_prototype:
+        description: Fail unless the SDL2 Linux prototype exists and builds
+        type: boolean
+        required: true
+        default: true
+      run_project_tests:
+        description: Also run existing source, packaging and semantic checks (slower)
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-dev-sandbox-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnostics:
+    name: SDL2 prototype, tests and diagnostics
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      REQUIRE_LINUX_PROTOTYPE: ${{ inputs.require_linux_prototype || false }}
+      RUN_PROJECT_TESTS: ${{ inputs.run_project_tests || false }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare diagnostic directory
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/dqix-linux-dev-logs"
+          echo "DEV_LOG_DIR=$RUNNER_TEMP/dqix-linux-dev-logs" >> "$GITHUB_ENV"
+          {
+            echo "Workflow: $GITHUB_WORKFLOW"
+            echo "Event: $GITHUB_EVENT_NAME"
+            echo "Ref: $GITHUB_REF"
+            echo "Commit: $GITHUB_SHA"
+            echo "Run ID: $GITHUB_RUN_ID"
+            date --utc --iso-8601=seconds
+          } > "$RUNNER_TEMP/dqix-linux-dev-logs/run-context.txt"
+
+      - name: Install SDL2 and diagnostics toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '$ sudo apt-get update'
+            sudo apt-get update
+            echo '$ sudo apt-get install --no-install-recommends ...'
+            sudo apt-get install --no-install-recommends -y \
+              build-essential clang lld cmake ninja-build pkg-config rsync \
+              libsdl2-dev python3 python3-pip patch
+          } 2>&1 | tee "$DEV_LOG_DIR/install-toolchain.log"
+
+      - name: Record platform, compiler and SDL2 details
+        shell: bash
+        run: |
+          set +e
+          {
+            echo '=== OS release ==='
+            cat /etc/os-release
+            echo
+            echo '=== Kernel and architecture ==='
+            uname -a
+            dpkg --print-architecture
+            echo
+            echo '=== CPU and disk ==='
+            lscpu
+            df -h
+            echo
+            echo '=== Compiler / build tools ==='
+            cc --version
+            c++ --version
+            clang --version
+            cmake --version
+            ninja --version
+            pkg-config --version
+            echo
+            echo '=== Installed SDL2 packages ==='
+            dpkg-query -W -f='${binary:Package} ${Version}\n' 'libsdl2*' 2>&1
+            echo
+            echo '=== SDL2 pkg-config ==='
+            pkg-config --modversion sdl2
+            pkg-config --cflags --libs sdl2
+          } > "$DEV_LOG_DIR/platform-and-dependencies.txt" 2>&1
+          cat "$DEV_LOG_DIR/platform-and-dependencies.txt"
+
+      - name: Record diff and enforce Linux-source placement
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git diff --name-status origin/main...HEAD | tee "$DEV_LOG_DIR/changed-files.txt"
+          git diff --name-only origin/main...HEAD > "$DEV_LOG_DIR/changed-paths.txt"
+
+          # Protected runtime and shared build paths must remain unchanged.
+          if grep -E '^(runtime/|build\.mk$|build-windows\.sh$|BUILD\.bat$|tools/build-game\.sh$|\.github/workflows/.*windows.*|.*\.(bat|cmd|ps1|sln|vcxproj|rc|resx|manifest)$)' "$DEV_LOG_DIR/changed-paths.txt"; then
+            echo "::error::A protected runtime source or Windows/shared build path changed." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
+            exit 1
+          fi
+          echo "Protected runtime and Windows/shared build paths are unchanged." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
+
+          git diff --diff-filter=A --name-only origin/main...HEAD > "$DEV_LOG_DIR/added-paths.txt"
+          if grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|m|mm|glsl|vert|frag|comp)$' "$DEV_LOG_DIR/added-paths.txt" \
+              | grep -v '^third_party/extra/linux/'; then
+            echo "::error::New native Linux sources must live under third_party/extra/linux/." | tee "$DEV_LOG_DIR/source-placement-check.txt"
+            exit 1
+          fi
+          echo "Source-boundary and placement checks passed." | tee "$DEV_LOG_DIR/source-placement-check.txt"
+
+      - name: Validate Linux packaging entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n packaging/linux/AppRun
+          grep -F -- 'exec "$LAUNCHER"' packaging/linux/AppRun >/dev/null
+          grep -F -- '--source-root "$BUNDLED_SOURCE"' packaging/linux/AppRun >/dev/null
+          grep -F -- '--default-workspace "$WORKSPACE"' packaging/linux/AppRun >/dev/null
+          if grep -F -- 'gui.py' packaging/linux/AppRun; then
+            echo "::error::AppRun must not start the retired Tk GUI."
+            exit 1
+          fi
+          grep -F -- '-S third_party/extra/linux -B "$LAUNCHER_BUILD_DIR" -G Ninja' .github/workflows/linux-ci-appimage.yml >/dev/null
+          grep -F -- 'cmake --build "$LAUNCHER_BUILD_DIR" --verbose' .github/workflows/linux-ci-appimage.yml >/dev/null
+          grep -F -- 'install -m 0755 "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher"' .github/workflows/linux-ci-appimage.yml >/dev/null
+          grep -F -- '--version "$VERSION" --self-test' packaging/linux/AppRun >/dev/null
+          grep -F -- '-DCMAKE_SKIP_RPATH=ON' .github/workflows/linux-ci-appimage.yml >/dev/null
+          grep -F -- 'args.toolchain_dir / "lib"' tools/packaging/audit_appimage.py >/dev/null
+          git diff --check origin/main...HEAD -- .github/workflows/linux-dev-sandbox.yml .github/workflows/linux-ci-appimage.yml packaging/linux/gui.py packaging/linux/AppRun third_party/extra/linux ':!third_party/extra/linux/patches/**'
+          python3 third_party/extra/linux/tools/sync_linux_sources.py --check 2>&1 | tee "$DEV_LOG_DIR/source-mirror-check.log"
+          cc -std=gnu11 -fsyntax-only -Wno-unused-parameter $(pkg-config --cflags sdl2) -Iruntime -I. \
+            third_party/extra/linux/src/runtime/frontend_sdl.c 2>&1 | tee "$DEV_LOG_DIR/patched-runtime-syntax.log"
+
+          # Compile the exact mirror/frontend and its overlay objects through the Makefile
+          # used by the ROM-driven build. This is intentionally ROM-free; no link/game data.
+          RUNTIME_OBJ_DIR="$RUNNER_TEMP/dqix-linux-mirror-objects"
+          make --no-print-directory -f third_party/extra/linux/src/build.mk \
+            FRONTEND=sdl OBJ="$RUNTIME_OBJ_DIR" \
+            "$RUNTIME_OBJ_DIR/rt/frontend_sdl.o" \
+            "$RUNTIME_OBJ_DIR/rt/linux_overlay.o" \
+            "$RUNTIME_OBJ_DIR/rt/linux_overlay_gl.o" \
+            2>&1 | tee "$DEV_LOG_DIR/patched-runtime-objects.log"
+          echo "SDL2-only GUI, regenerated source mirror, and Linux frontend/overlay object builds passed."
+
+      - name: Configure, build and test Linux prototype
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_DIR="third_party/extra/linux"
+          BUILD_DIR="$RUNNER_TEMP/dqix-linux-dev-build"
+          if [ ! -f "$PROJECT_DIR/CMakeLists.txt" ]; then
+            echo "No $PROJECT_DIR/CMakeLists.txt; diagnostic-only run." | tee "$DEV_LOG_DIR/prototype-build.txt"
+            if [ "$REQUIRE_LINUX_PROTOTYPE" = "true" ]; then
+              echo "::error::The SDL2 Linux prototype is required but is missing."
+              exit 1
+            fi
+            exit 0
+          fi
+          cmake -S "$PROJECT_DIR" -B "$BUILD_DIR" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            2>&1 | tee "$DEV_LOG_DIR/cmake-configure.log"
+          cmake --build "$BUILD_DIR" --verbose \
+            2>&1 | tee "$DEV_LOG_DIR/cmake-build.log"
+          ctest --test-dir "$BUILD_DIR" --output-on-failure \
+            2>&1 | tee "$DEV_LOG_DIR/ctest.log"
+          cp "$BUILD_DIR/compile_commands.json" "$DEV_LOG_DIR/compile_commands.json" 2>/dev/null || true
+
+      - name: Set up Python 3.11 for packaging checks
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify AppImage workflow safety and payload policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "PyYAML==6.0.2"
+          {
+            python tests/packaging/test_release_workflow_safety.py
+            python tests/packaging/test_appimage_payload.py
+          } 2>&1 | tee "$DEV_LOG_DIR/appimage-safety-tests.log"
+
+      - name: Run optional source, packaging and semantic tests
+        if: env.RUN_PROJECT_TESTS == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            for script in .github/scripts/*.sh; do bash -n "$script"; done
+            python tests/packaging/test_conda_lock.py
+            python -m compileall -q recomp tools tests
+            for script in tools/build-game.sh tools/where.sh build-windows.sh; do sh -n "$script"; done
+            python tests/semantics/run.py 2000
+          } 2>&1 | tee "$DEV_LOG_DIR/project-tests.log"
+
+      - name: Write run summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Linux development diagnostics (temporary)"
+            echo
+            echo "- Commit: $GITHUB_SHA"
+            echo "- SDL2 version: $(pkg-config --modversion sdl2 2>/dev/null || echo unavailable)"
+            echo "- Required prototype: $REQUIRE_LINUX_PROTOTYPE"
+            echo "- Existing project tests requested: $RUN_PROJECT_TESTS"
+            echo
+            echo "Diagnostic logs are attached as an artifact, including on failure."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload diagnostics and build logs (also on failure)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-dev-diagnostics
+          path: ${{ runner.temp }}/dqix-linux-dev-logs/
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
+
+
+  appimage-sdl2-toolchain:
+    name: Launcher using locked AppImage SDL2
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Prepare Conda-toolchain diagnostics
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/dqix-conda-sdl2-logs"
+          echo "CONDA_LOG_DIR=$RUNNER_TEMP/dqix-conda-sdl2-logs" >> "$GITHUB_ENV"
+          {
+            echo "Commit: $GITHUB_SHA"
+            echo "Runner: $(uname -a)"
+            date --utc --iso-8601=seconds
+          } > "$RUNNER_TEMP/dqix-conda-sdl2-logs/run-context.txt"
+
+      - name: Install launcher packaging tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential cmake ninja-build
+
+      - name: Verify committed Conda lock checksum
+        shell: bash
+        run: sha256sum --check packaging/linux/conda-linux-64.lock.sha256
+
+      - name: Set up the exact AppImage Conda environment
+        uses: mamba-org/setup-micromamba@f457c30a868e4760d3a6fcea5f25dc655b8edf39 # v3
+        with:
+          environment-file: packaging/linux/conda-linux-64.lock
+          environment-name: dqix-builder
+          cache-environment: true
+          cache-downloads: true
+          init-shell: bash
+
+      - name: Verify installed environment matches the lock
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          micromamba env export --name dqix-builder --explicit > "$RUNNER_TEMP/resolved-conda-linux-64.lock"
+          diff -u \
+            <(grep -E '^https?://' packaging/linux/conda-linux-64.lock | LC_ALL=C sort) \
+            <(grep -E '^https?://' "$RUNNER_TEMP/resolved-conda-linux-64.lock" | LC_ALL=C sort)
+
+      - name: Build and test against locked SDL2
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          {
+            echo "Conda prefix: $CONDA_PREFIX"
+            echo "Compiler: $(c++ --version | head -n 1)"
+            echo "SDL2 version: $(pkg-config --modversion sdl2)"
+            echo "SDL2 link flags: $(pkg-config --cflags --libs sdl2)"
+
+            BUILD_DIR="$RUNNER_TEMP/dqix-conda-sdl2-build"
+            env -u LDFLAGS -u CFLAGS -u CXXFLAGS -u CPPFLAGS cmake \
+              -S third_party/extra/linux -B "$BUILD_DIR" -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_SKIP_RPATH=ON
+            cmake --build "$BUILD_DIR" --verbose
+
+            export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            RPATH_TAGS="$(readelf -d "$BUILD_DIR/dqix-linux-ui-launcher" | grep -E '\(RPATH|RUNPATH\)' || true)"
+            printf "%s\n" "$RPATH_TAGS" | tee "$CONDA_LOG_DIR/launcher-rpath.txt"
+            if grep -F "$CONDA_PREFIX" <<< "$RPATH_TAGS"; then
+              echo "Launcher contains a non-portable build-time Conda RPATH." >&2
+              exit 1
+            fi
+            ldd "$BUILD_DIR/dqix-linux-ui-launcher" | tee "$CONDA_LOG_DIR/launcher-ldd.txt"
+            if grep -F "not found" "$CONDA_LOG_DIR/launcher-ldd.txt"; then
+              echo "Launcher has unresolved dynamic dependencies." >&2
+              exit 1
+            fi
+            "$BUILD_DIR/dqix-linux-ui-launcher" --help
+            ctest --test-dir "$BUILD_DIR" --output-on-failure
+          } 2>&1 | tee "$CONDA_LOG_DIR/build-and-test.log"
+
+      - name: Upload Conda SDL2 diagnostics (also on failure)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: appimage-sdl2-toolchain-diagnostics
+          path: ${{ runner.temp }}/dqix-conda-sdl2-logs/
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
+
+
+  appimage-end-to-end:
+    name: Assemble and exercise the complete AppImage (temporary)
+    needs:
+      - diagnostics
+      - appimage-sdl2-toolchain
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      APPIMAGETOOL_SHA256: 46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Prepare AppImage diagnostics directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dqix-appimage-e2e-logs"
+          echo "APPIMAGE_LOG_DIR=$RUNNER_TEMP/dqix-appimage-e2e-logs" >> "$GITHUB_ENV"
+          {
+            echo "Commit: $GITHUB_SHA"
+            echo "Runner: $(uname -a)"
+            date --utc --iso-8601=seconds
+          } > "$RUNNER_TEMP/dqix-appimage-e2e-logs/run-context.txt"
+
+      - name: Install AppImage build utilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            sudo apt-get update
+            sudo apt-get install --no-install-recommends -y \
+              build-essential cmake ninja-build desktop-file-utils \
+              libfuse2 rsync squashfs-tools
+          } 2>&1 | tee "$APPIMAGE_LOG_DIR/install-tools.log"
+
+      - name: Verify committed Conda lock checksum
+        shell: bash
+        run: sha256sum --check packaging/linux/conda-linux-64.lock.sha256
+
+      - name: Set up the exact AppImage Conda environment
+        uses: mamba-org/setup-micromamba@f457c30a868e4760d3a6fcea5f25dc655b8edf39 # v3
+        with:
+          environment-file: packaging/linux/conda-linux-64.lock
+          environment-name: dqix-builder
+          cache-environment: true
+          cache-downloads: true
+          init-shell: bash
+
+      - name: Verify resolved Conda environment against the lock
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          micromamba env export --name dqix-builder --explicit > "$RUNNER_TEMP/resolved-conda-linux-64.lock"
+          diff -u \
+            <(grep -E '^https?://' packaging/linux/conda-linux-64.lock | LC_ALL=C sort) \
+            <(grep -E '^https?://' "$RUNNER_TEMP/resolved-conda-linux-64.lock" | LC_ALL=C sort)
+
+      - name: Pack the relocatable toolchain
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          test -n "$CONDA_PREFIX"
+          conda-pack -p "$CONDA_PREFIX" --format tar.gz -o "$RUNNER_TEMP/toolchain.tar.gz"
+          tar -tzf "$RUNNER_TEMP/toolchain.tar.gz" >/dev/null
+          sha256sum "$RUNNER_TEMP/toolchain.tar.gz" > "$APPIMAGE_LOG_DIR/toolchain-archive.sha256"
+
+      - name: Download and verify pinned appimagetool
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOL="$RUNNER_TEMP/appimagetool-x86_64.AppImage"
+          curl --fail --location --retry 3 \
+            https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage \
+            --output "$TOOL"
+          printf '%s  %s\n' "$APPIMAGETOOL_SHA256" "$TOOL" | sha256sum --check -
+          chmod +x "$TOOL"
+          echo "APPIMAGETOOL=$TOOL" >> "$GITHUB_ENV"
+
+      - name: Assemble AppDir, build launcher and enforce payload rules
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          APPDIR="$RUNNER_TEMP/DQIX-Enhanced.AppDir"
+          PACKAGE_DIR="$APPDIR/usr/share/dqix-enhanced"
+          rm -rf "$APPDIR" dist
+          mkdir -p "$PACKAGE_DIR/source" \
+            "$APPDIR/usr/share/icons/hicolor/scalable/apps" dist
+
+          rsync -a \
+            --filter="merge $GITHUB_WORKSPACE/packaging/linux/appimage-filter.txt" \
+            ./ "$PACKAGE_DIR/source/"
+
+          cp packaging/linux/AppRun "$APPDIR/AppRun"
+          chmod 0755 "$APPDIR/AppRun"
+          cp packaging/linux/dqix-enhanced-builder.desktop "$APPDIR/dqix-enhanced-builder.desktop"
+          cp packaging/linux/dqix-enhanced-builder.svg "$APPDIR/dqix-enhanced-builder.svg"
+          cp packaging/linux/dqix-enhanced-builder.svg \
+            "$APPDIR/usr/share/icons/hicolor/scalable/apps/dqix-enhanced-builder.svg"
+          cp "$RUNNER_TEMP/toolchain.tar.gz" "$PACKAGE_DIR/toolchain.tar.gz"
+
+          LAUNCHER_BUILD_DIR="$RUNNER_TEMP/dqix-linux-launcher-build"
+          echo "Building SDL2 launcher against Conda SDL2 $(pkg-config --modversion sdl2)"
+          env -u LDFLAGS -u CFLAGS -u CXXFLAGS -u CPPFLAGS cmake \
+            -S third_party/extra/linux -B "$LAUNCHER_BUILD_DIR" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DCMAKE_SKIP_RPATH=ON
+          cmake --build "$LAUNCHER_BUILD_DIR" --target dqix-linux-ui-launcher --verbose
+          export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" --help
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" --self-test
+
+          LAUNCHER_RPATH="$(readelf -d "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" | grep -E '\(RPATH|RUNPATH\)' || true)"
+          printf '%s\n' "$LAUNCHER_RPATH" > "$APPIMAGE_LOG_DIR/launcher-rpath.txt"
+          if grep -F "$CONDA_PREFIX" <<< "$LAUNCHER_RPATH"; then
+            echo "SDL2 launcher has a non-portable build-time Conda RPATH." >&2
+            exit 1
+          fi
+          LAUNCHER_LDD="$(ldd "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher")"
+          printf '%s\n' "$LAUNCHER_LDD" > "$APPIMAGE_LOG_DIR/launcher-ldd.txt"
+          if grep -F "not found" <<< "$LAUNCHER_LDD"; then
+            echo "SDL2 launcher has unresolved dynamic dependencies." >&2
+            exit 1
+          fi
+          install -m 0755 "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" \
+            "$PACKAGE_DIR/dqix-linux-ui-launcher"
+
+          VERSION="$(awk -F '"' '/DQIX_VERSION / {print $2; exit}' runtime/version.h)"
+          test -n "$VERSION"
+          printf '%s\n' "$VERSION" > "$PACKAGE_DIR/APP_VERSION"
+          sha256sum "$PACKAGE_DIR/toolchain.tar.gz" | awk '{print $1}' > "$PACKAGE_DIR/toolchain.sha256"
+
+          echo "Project version: $VERSION" > dist/build-info.txt
+          echo "Source commit: $GITHUB_SHA" >> dist/build-info.txt
+          echo "Target: Linux x86_64; build host: Ubuntu 22.04" >> dist/build-info.txt
+          echo "Toolchain: packaging/linux/conda-linux-64.lock, packed with conda-pack" >> dist/build-info.txt
+          LOCK_SHA256="$(sha256sum packaging/linux/conda-linux-64.lock | awk '{print $1}')"
+          TOOLCHAIN_SHA256="$(sha256sum "$PACKAGE_DIR/toolchain.tar.gz" | awk '{print $1}')"
+          echo "Conda lock SHA-256: $LOCK_SHA256" >> dist/build-info.txt
+          echo "Toolchain archive SHA-256: $TOOLCHAIN_SHA256" >> dist/build-info.txt
+          echo "ROM and prebuilt game: not included; build occurs on the user's machine" >> dist/build-info.txt
+          echo "AppImage tool: appimagetool 1.9.0 (sha256 46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1)" >> dist/build-info.txt
+
+          if find "$APPDIR" -type f \( -iname '*.nds' -o -iname '*.sav' -o -iname '*.dsv' -o -iname '*.srm' -o -iname '*.sra' -o -iname '*.o' -o -iname '*.exe' -o -iname '*.dll' -o -iname '*.so' -o -iname '*.ppm' -o -iname '*.bmp' -o -iname '*.wav' -o -iname '*.pyc' \) -print -quit | grep -q .; then
+            echo "Forbidden ROM/save/build binary or private asset found in AppDir" >&2
+            exit 1
+          fi
+          python tests/packaging/test_appimage_payload.py
+          echo "AppDir payload, launcher, and library checks passed." | tee "$APPIMAGE_LOG_DIR/appdir-validation.txt"
+
+      - name: Build the x86_64 AppImage
+        shell: bash -el {0}
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          set -euo pipefail
+          APPDIR="$RUNNER_TEMP/DQIX-Enhanced.AppDir"
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 \
+            "$APPIMAGETOOL" "$APPDIR" "$GITHUB_WORKSPACE/dist/DQIX-Enhanced-Builder-x86_64.AppImage"
+          chmod +x dist/DQIX-Enhanced-Builder-x86_64.AppImage
+          file dist/DQIX-Enhanced-Builder-x86_64.AppImage | tee "$APPIMAGE_LOG_DIR/appimage-file.txt"
+          sha256sum dist/DQIX-Enhanced-Builder-x86_64.AppImage > "$APPIMAGE_LOG_DIR/appimage.sha256"
+
+      - name: Exercise the real AppImage cold/warm startup and bundled launcher
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          HOME: ${{ runner.temp }}/appimage-e2e-home
+          XDG_CACHE_HOME: ${{ runner.temp }}/appimage-e2e-cache
+          XDG_DATA_HOME: ${{ runner.temp }}/appimage-e2e-data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME"
+          IMAGE=./dist/DQIX-Enhanced-Builder-x86_64.AppImage
+          EXPECTED_VERSION="$(awk -F '"' '/DQIX_VERSION / {print $2; exit}' runtime/version.h)"
+          test "$("$IMAGE" --version)" = "$EXPECTED_VERSION"
+          HELP_OUTPUT="$("$IMAGE" --help)"
+          printf '%s\n' "$HELP_OUTPUT" | grep -F -- "--self-test" >/dev/null
+
+          CACHE_ROOT="$XDG_CACHE_HOME/dqix-enhanced-appimage"
+          TOOLCHAIN_DIR="$CACHE_ROOT/toolchain"
+          test ! -e "$TOOLCHAIN_DIR"
+          "$IMAGE" --self-test 2>&1 | tee "$APPIMAGE_LOG_DIR/cold-start.log"
+          test -x "$TOOLCHAIN_DIR/bin/python3"
+          test -f "$TOOLCHAIN_DIR/.toolchain-sha256"
+          PACKAGE_DIR="$RUNNER_TEMP/DQIX-Enhanced.AppDir/usr/share/dqix-enhanced"
+          EXPECTED_TOOLCHAIN_SHA="$(cat "$PACKAGE_DIR/toolchain.sha256")"
+          test "$(cat "$TOOLCHAIN_DIR/.toolchain-sha256")" = "$EXPECTED_TOOLCHAIN_SHA"
+          MARKER_BEFORE="$(stat -c '%i:%s:%y' "$TOOLCHAIN_DIR/.toolchain-sha256")"
+
+          "$IMAGE" --self-test 2>&1 | tee "$APPIMAGE_LOG_DIR/warm-start.log"
+          MARKER_AFTER="$(stat -c '%i:%s:%y' "$TOOLCHAIN_DIR/.toolchain-sha256")"
+          test "$MARKER_BEFORE" = "$MARKER_AFTER"
+          echo "Cold startup, warm startup, and bundled SDL2 launcher self-test passed." \
+            | tee "$APPIMAGE_LOG_DIR/appimage-smoke-summary.txt"
+
+          CORRUPT_APPDIR="$RUNNER_TEMP/DQIX-Enhanced-Corrupt.AppDir"
+          cp -a "$RUNNER_TEMP/DQIX-Enhanced.AppDir" "$CORRUPT_APPDIR"
+          CORRUPT_PACKAGE="$CORRUPT_APPDIR/usr/share/dqix-enhanced"
+          printf 'corruption-sentinel' >> "$CORRUPT_PACKAGE/toolchain.tar.gz"
+          CORRUPT_HOME="$RUNNER_TEMP/appimage-e2e-corrupt-home"
+          CORRUPT_CACHE="$RUNNER_TEMP/appimage-e2e-corrupt-cache"
+          CORRUPT_DATA="$RUNNER_TEMP/appimage-e2e-corrupt-data"
+          mkdir -p "$CORRUPT_HOME" "$CORRUPT_CACHE" "$CORRUPT_DATA"
+          set +e
+          APPDIR="$CORRUPT_APPDIR" HOME="$CORRUPT_HOME" \
+            XDG_CACHE_HOME="$CORRUPT_CACHE" XDG_DATA_HOME="$CORRUPT_DATA" \
+            "$CORRUPT_APPDIR/AppRun" --self-test > "$APPIMAGE_LOG_DIR/corrupt-toolchain.log" 2>&1
+          CORRUPT_STATUS=$?
+          set -e
+          test "$CORRUPT_STATUS" -ne 0
+          grep -F "bundled toolchain checksum does not match" "$APPIMAGE_LOG_DIR/corrupt-toolchain.log"
+          echo "Corrupted bundled toolchain is rejected." | tee -a "$APPIMAGE_LOG_DIR/appimage-smoke-summary.txt"
+
+      - name: Audit packaged ELF dependencies and produce diagnostics
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          HOME: ${{ runner.temp }}/appimage-e2e-home
+          XDG_CACHE_HOME: ${{ runner.temp }}/appimage-e2e-cache
+          XDG_DATA_HOME: ${{ runner.temp }}/appimage-e2e-data
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          APPDIR="$RUNNER_TEMP/DQIX-Enhanced.AppDir"
+          PACKAGE_DIR="$APPDIR/usr/share/dqix-enhanced"
+          TOOLCHAIN_DIR="$XDG_CACHE_HOME/dqix-enhanced-appimage/toolchain"
+          test -x "$TOOLCHAIN_DIR/bin/python3"
+          SOURCE_TIMESTAMP="$(git show -s --format=%cI "$GITHUB_SHA")"
+          python tools/packaging/audit_appimage.py \
+            --appdir "$APPDIR" \
+            --appimage "$GITHUB_WORKSPACE/dist/DQIX-Enhanced-Builder-x86_64.AppImage" \
+            --toolchain-dir "$TOOLCHAIN_DIR" \
+            --toolchain-archive "$PACKAGE_DIR/toolchain.tar.gz" \
+            --lock packaging/linux/conda-linux-64.lock \
+            --source-sha "$GITHUB_SHA" \
+            --version "$(awk -F '"' '/DQIX_VERSION / {print $2; exit}' runtime/version.h)" \
+            --timestamp "$SOURCE_TIMESTAMP" \
+            --out-dir "$GITHUB_WORKSPACE/dist"
+          {
+            echo "Working directory after ELF audit: $PWD"
+            ls -lah "$GITHUB_WORKSPACE/dist"
+          } | tee "$APPIMAGE_LOG_DIR/post-audit-dist-inventory.txt"
+          (
+            cd "$GITHUB_WORKSPACE/dist"
+            sha256sum --check DIAGNOSTICS-SHA256SUMS
+            sha256sum DQIX-Enhanced-Builder-x86_64.AppImage build-info.txt > SHA256SUMS
+            sha256sum --check SHA256SUMS
+          )
+
+      - name: Upload complete AppImage artifact
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dqix-enhanced-appimage-e2e
+          path: |
+            dist/DQIX-Enhanced-Builder-x86_64.AppImage
+            dist/SHA256SUMS
+            dist/build-info.txt
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload AppImage E2E diagnostics (also on failure)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dqix-enhanced-appimage-e2e-diagnostics
+          path: |
+            ${{ runner.temp }}/dqix-appimage-e2e-logs/
+            ${{ runner.temp }}/dqix-linux-launcher-rpath.txt
+            ${{ runner.temp }}/dqix-linux-launcher-ldd.txt
+            dist/elf-audit.json
+            dist/size-report.json
+            dist/sbom.cdx.json
+            dist/DIAGNOSTICS-SHA256SUMS
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
