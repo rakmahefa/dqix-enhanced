@@ -46,6 +46,25 @@ target_include_directories(dqix_dear_imgui
 target_compile_features(dqix_dear_imgui PUBLIC cxx_std_17)
 target_link_libraries(dqix_dear_imgui PUBLIC SDL3::SDL3 Vulkan::Vulkan)
 
+# The settings layer stays independent from SDL/Vulkan so it can be tested without
+# a window, a GPU, a ROM, or an initialized game runtime.
+add_library(dqix-linux-settings STATIC
+    settings/settings_model.cpp
+)
+target_include_directories(dqix-linux-settings PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/settings")
+target_compile_features(dqix-linux-settings PUBLIC cxx_std_17)
+
+if(BUILD_TESTING)
+    add_executable(dqix-linux-settings-tests settings/settings_model_test.cpp)
+    target_compile_features(dqix-linux-settings-tests PRIVATE cxx_std_17)
+    target_link_libraries(dqix-linux-settings-tests PRIVATE dqix-linux-settings)
+    add_test(
+        NAME linux-settings-model-and-runtime-parity
+        COMMAND "$<TARGET_FILE:dqix-linux-settings-tests>"
+                "${CMAKE_CURRENT_SOURCE_DIR}/../../../runtime/frontend_sdl.c"
+    )
+endif()
+
 # This is the official upstream example, used only as a technical probe.
 # The actual DQIX launcher UI and engine bridge are intentionally not part of P0.
 add_executable(dqix-linux-ui-prototype
