@@ -138,6 +138,10 @@ jobs:
           bash -n packaging/linux/AppRun
           grep -F -- '--launcher "$PACKAGE_DIR/dqix-linux-ui-launcher"' packaging/linux/AppRun >/dev/null
           grep -F -- '-S third_party/extra/linux -B "$LAUNCHER_BUILD_DIR" -G Ninja' .github/workflows/linux-ci-appimage.yml >/dev/null
+          grep -F -- 'cmake --build "$LAUNCHER_BUILD_DIR" --target dqix-linux-ui-launcher' .github/workflows/linux-ci-appimage.yml >/dev/null
+          grep -F -- 'install -m 0755 "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher"' .github/workflows/linux-ci-appimage.yml >/dev/null
+          grep -F -- '"$LAUNCHER" --self-test' packaging/linux/AppRun >/dev/null
+          grep -F -- '-DCMAKE_SKIP_RPATH=ON' .github/workflows/linux-ci-appimage.yml >/dev/null
           git diff --check origin/main...HEAD -- .github/workflows/linux-dev-sandbox.yml .github/workflows/linux-ci-appimage.yml packaging/linux/gui.py packaging/linux/AppRun
           echo "Linux GUI syntax, AppRun syntax and launcher packaging hooks passed."
 
