@@ -14,7 +14,7 @@
 - Keep canonical Windows/shared files (`runtime/`, root `build.mk`, root `tools/build-game.sh`, and Win32 resources) unchanged. Ordered patches, manifest, checked-in mirrors and `tools/sync_linux_sources.py --check` now define the Linux-only build path.
 - BuildJob requires `third_party/extra/linux/src/tools/build-game.sh`; it selects the mirror makefile and frontend. Do not add a fallback to the canonical script.
 - The mirrored frontend emits a `renderer-diagnostics` block to stderr, captured in workspace `devlog.log`, with fallback state/reason and OpenGL or SDL_Renderer details. A real AppImage run is still needed to confirm the contents.
-- A standalone C overlay raster module and ROM-free pixel test are committed as a prototype. It is not yet connected to the runtime: next wire Escape, pause/resume, keyboard/gamepad input and presentation into the patch-derived frontend, then test GL and SDL_Renderer fallback.
+- The Linux-only overlay is now wired into the patch-derived frontend mirror via ordered patch `0004-linux-ingame-overlay.patch`: Escape toggles the overlay, pauses via the runtime pause loop, keyboard/gamepad input is captured for navigation/selection, and presentation has an OpenGL helper plus an SDL_Renderer streaming-texture path. This is implementation, not runtime acceptance: the real-game input/focus/fullscreen/shutdown/renderer-fallback matrix is still pending.
 
 ## 2. Implemented native SDL2 builder
 
@@ -30,12 +30,14 @@
 
 ## 3. Verification status
 
-Latest full E2E run: [40824893570](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570), on the synthetic game-output capture implementation. **All three jobs succeeded.**
+Latest full temporary E2E run: [40838080231](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231), triggered after the overlay patch correction. **All three jobs succeeded.**
 
-- System SDL2 and locked Conda SDL2 builds each passed all four CTest cases. The builder test now launches a synthetic `game/play.sh` through the production helper, checks captured stdout/stderr, exercises safe fallback from a symlinked `devlog.log`, and checks appending the exit record to the active log.
-- The x86_64 AppImage assembled and passed cold/warm startup, integrated launcher self-test, toolchain archive corruption rejection, payload policy and ELF audit. The audit reported 718 ELF files and zero findings; the SBOM has 96 components.
-- Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570/artifacts/12876321813), [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570/artifacts/12876371225), [SDL2 diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570/artifacts/12876550365).
-- The user manually confirmed Build/Play work with a real ROM/workspace. We still need the user to inspect the content of `devlog.log` once with the updated AppImage to confirm the specific renderer diagnostics their runtime emits.
+- Source mirror validation applied all four ordered patches without fuzz and confirmed the canonical input hashes and checked-in mirror hashes match.
+- The native Linux SDL2 job compiled the overlay raster and OpenGL helper and passed all five CTest cases. The locked Conda SDL2 launcher build also passed.
+- The x86_64 AppImage assembled and passed cold/warm startup, the bundled SDL2 launcher self-test, payload checks and rejection of a corrupted toolchain archive. The ELF audit reported 718 ELF files and zero findings; the SBOM contains 96 components.
+- Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231/artifacts/12882115300), [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231/artifacts/12881985842), [SDL2 toolchain diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231/artifacts/12881512941), [Linux development diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231/artifacts/12881073759).
+- These CI checks validate the patch/mirror regeneration, source syntax, helper build and AppImage launcher packaging; they do not execute a game ROM or verify the live in-game overlay.
+- The user manually confirmed Build/Play work with a real ROM/workspace before the new renderer diagnostics and overlay changes. Still needed: one updated AppImage run with a local real ROM/workspace, checking workspace-root `devlog.log` for renderer diagnostics and exercising the overlay.
 - The AppImage source policy excludes the former Tk GUI, ROMs, saves and protected game data. CI confirms the Windows/shared-source boundary remains clean.
 
 The in-game overlay is a separate architecture decision; no unsupported second-process hack or shared Windows-source modification was introduced. See `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
@@ -44,11 +46,10 @@ The permanent production AppImage workflow has not yet been confirmed on an allo
 
 ## 4. Known limitations and next work
 
-1. Run the updated AppImage once with a real user ROM and check workspace-root `devlog.log` for its session header, game stdout/stderr, SDL/OpenGL renderer messages and exit record. No ROM belongs in CI or AppImage.
-2. Continue auditing settings path migration and unsupported/startup-only/runtime-dependent options. Saving a setting is not proof the runtime applies it.
-3. Run the permanent production workflow on an allowed event and review the complete diff against `main`.
-4. Run the updated AppImage with a real game; inspect `devlog.log` for `renderer-diagnostics: game_renderer_fallback=`, OpenGL vendor/renderer/version or SDL_Renderer capabilities, and any fallback reason.
-5. Integrate the overlay painter into the mirrored Linux frontend (event capture, pause/resume, GL and SDL_Renderer presentation), then run the acceptance matrix (Escape/focus, controller, fullscreen, shutdown and fallback).
+1. Run the updated AppImage with a local real ROM/workspace. Check workspace-root `devlog.log` for the session header, `renderer-diagnostics: game_renderer_fallback=`, OpenGL vendor/renderer/version or SDL_Renderer capabilities, fallback reason, game stdout/stderr and the exit record. No ROM belongs in CI or AppImage.
+2. Complete the in-game overlay acceptance matrix on a real game: Escape open/close without triggering a DS action, pause/resume tick behavior, keyboard and gamepad capture, focus loss, fullscreen/resize, shutdown, OpenGL presentation and SDL_Renderer/software fallback. Fix any issues and add ROM-free tests where practical.
+3. Continue auditing settings path migration and unsupported/startup-only/runtime-dependent options. Saving a setting is not proof the runtime applies it.
+4. Run the permanent production AppImage workflow on an allowed event and review the complete diff against `main`.
 
 ## 5. Final guard rails
 
@@ -57,8 +58,11 @@ The permanent production AppImage workflow has not yet been confirmed on an allo
 - [x] No ImGui/SDL3/Vulkan/new UI-toolkit dependency added.
 - [x] Source-boundary CI has verified no protected runtime/Windows/shared build paths changed.
 - [x] Builder dry-run tests cover success/failure, path rejection, staging exclusions, output logs and destination symlink safety (locked Conda SDL2 suite passed).
-- [x] Temporary CI AppImage assembly/self-test/checksum/ELF audit passes for the unified launcher (run 40818245989).
+- [x] Temporary CI AppImage assembly, cold/warm startup, bundled self-test, checksum-rejection test and ELF audit pass for the unified launcher (run 40838080231).
+- [x] Linux source mirrors regenerate with all four ordered patches and no fuzz (run 40838080231).
+- [x] Native Linux SDL2 CMake build and all five CTest cases pass, including the overlay raster test (run 40838080231).
+- [ ] Live overlay behavior on a real game accepted on both OpenGL and SDL_Renderer fallback paths.
 - [ ] Permanent production AppImage workflow passes on an allowed event.
 - [x] User confirmed the AppImage build/launch flow works with a real ROM/workspace (before devlog capture).
 - [ ] Updated AppImage's `devlog.log` verified against a real gameplay session.
-- [x] No in-game overlay support claimed; the selected patch-derived Linux mirror architecture and its acceptance gate are documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
+- [x] Linux-only in-game overlay rendering/input/pause implementation is wired into the patch-derived mirror; the live-game acceptance gate remains open in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
