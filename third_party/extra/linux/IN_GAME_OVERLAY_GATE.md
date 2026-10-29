@@ -1,6 +1,6 @@
 # In-game SDL2 overlay integration gate
 
-**Status: patch-derived Linux mirror and renderer diagnostics implemented; overlay UI and runtime acceptance tests are still pending.**
+**Status: patch-derived Linux mirror and renderer diagnostics implemented; standalone overlay raster prototype added; runtime event/render/pause integration and acceptance tests remain pending.**
 
 ## Findings from the existing Linux build path
 
@@ -42,6 +42,10 @@ This approach is worthwhile because a small patch set can modify Linux runtime b
 ## Renderer diagnostics (implemented; manual check pending)
 
 The patch-derived Linux frontend writes a `renderer-diagnostics` block to stderr at startup; the launcher captures it in workspace-root `devlog.log`. It explicitly reports `game_renderer_fallback=false` for OpenGL, `true` for SDL_Renderer fallback, or `not-applicable` in headless mode. It records the OpenGL skip/failure reason, SDL compile/runtime versions and video driver, environment overrides, window/display details, GL vendor/renderer/version/GLSL/context attributes, or SDL_Renderer name/flags/formats/errors/output size and streaming texture format/access/dimensions. A real AppImage/game run is still needed to confirm the output in practice.
+
+## Overlay raster prototype (committed; runtime integration pending)
+
+`overlay/linux_overlay.c` produces a transparent RGBA menu surface using a project-owned 5×7 bitmap font. Its ROM-free CTest checks the dimming surface, panel accent and changed selection-row pixels. It intentionally has no SDL dependency and is not yet connected to the game frontend; this test proves raster output only, not in-game input, pause, render-path or shutdown behavior.
 
 ## Required acceptance tests
 

@@ -14,7 +14,7 @@
 - Keep canonical Windows/shared files (`runtime/`, root `build.mk`, root `tools/build-game.sh`, and Win32 resources) unchanged. Ordered patches, manifest, checked-in mirrors and `tools/sync_linux_sources.py --check` now define the Linux-only build path.
 - BuildJob requires `third_party/extra/linux/src/tools/build-game.sh`; it selects the mirror makefile and frontend. Do not add a fallback to the canonical script.
 - The mirrored frontend emits a `renderer-diagnostics` block to stderr, captured in workspace `devlog.log`, with fallback state/reason and OpenGL or SDL_Renderer details. A real AppImage run is still needed to confirm the contents.
-- The overlay UI is not implemented yet; implement the in-process event/render/pause hook in the mirrored frontend, then validate input, pause, renderer modes and shutdown.
+- A standalone C overlay raster module and ROM-free pixel test are committed as a prototype. It is not yet connected to the runtime: next wire Escape, pause/resume, keyboard/gamepad input and presentation into the patch-derived frontend, then test GL and SDL_Renderer fallback.
 
 ## 2. Implemented native SDL2 builder
 
@@ -48,7 +48,7 @@ The permanent production AppImage workflow has not yet been confirmed on an allo
 2. Continue auditing settings path migration and unsupported/startup-only/runtime-dependent options. Saving a setting is not proof the runtime applies it.
 3. Run the permanent production workflow on an allowed event and review the complete diff against `main`.
 4. Run the updated AppImage with a real game; inspect `devlog.log` for `renderer-diagnostics: game_renderer_fallback=`, OpenGL vendor/renderer/version or SDL_Renderer capabilities, and any fallback reason.
-5. Implement the overlay in the mirrored Linux frontend and run the acceptance matrix (Escape/focus, pause/resume, OpenGL/software fallback, fullscreen and shutdown).
+5. Integrate the overlay painter into the mirrored Linux frontend (event capture, pause/resume, GL and SDL_Renderer presentation), then run the acceptance matrix (Escape/focus, controller, fullscreen, shutdown and fallback).
 
 ## 5. Final guard rails
 

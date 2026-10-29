@@ -1,11 +1,15 @@
 cmake_minimum_required(VERSION 3.20)
-project(dqix_linux_ui LANGUAGES CXX)
+project(dqix_linux_ui LANGUAGES C CXX)
 
 include(CTest)
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
 pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
 find_program(BASH_EXECUTABLE bash REQUIRED)
+
+add_library(dqix-linux-overlay STATIC overlay/linux_overlay.c)
+target_include_directories(dqix-linux-overlay PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/overlay")
+target_compile_features(dqix-linux-overlay PUBLIC c_std_11)
 
 add_library(dqix-linux-settings STATIC settings/settings_model.cpp)
 target_include_directories(dqix-linux-settings PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/settings")
@@ -27,6 +31,11 @@ if(BUILD_TESTING)
     add_test(NAME linux-builder-dry-run-success-failure
         COMMAND "$<TARGET_FILE:dqix-linux-builder-tests>")
     set_tests_properties(linux-builder-dry-run-success-failure PROPERTIES TIMEOUT 30)
+
+    add_executable(dqix-linux-overlay-tests overlay/linux_overlay_test.c)
+    target_compile_features(dqix-linux-overlay-tests PRIVATE c_std_11)
+    target_link_libraries(dqix-linux-overlay-tests PRIVATE dqix-linux-overlay)
+    add_test(NAME linux-ingame-overlay-raster COMMAND "$<TARGET_FILE:dqix-linux-overlay-tests>")
 
     add_executable(dqix-linux-settings-tests settings/settings_model_test.cpp)
     target_compile_features(dqix-linux-settings-tests PRIVATE cxx_std_17)

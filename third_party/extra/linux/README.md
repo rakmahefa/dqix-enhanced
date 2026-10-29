@@ -4,7 +4,7 @@
 
 The native Linux launcher uses the project's SDL2 stack and SDL_Renderer with a small project-owned UI. It does not use Dear ImGui, SDL3, Vulkan, SDL_ttf, GTK, Qt or Tk as its GUI toolkit. The same SDL2 window provides setup/build, progress/logs, settings, diagnostics and Play.
 
-No in-game overlay is claimed: a separate pre-Play process does not share the game's runtime window, event queue or pause state.
+No complete in-game overlay is claimed yet: a separate pre-Play process cannot share the game's runtime window/event queue/pause state. The first Linux-only building block is a standalone RGBA overlay painter and ROM-free raster test; the runtime hook is still pending.
 
 ## Implementation
 
@@ -64,4 +64,4 @@ The builder requires `third_party/extra/linux/src/tools/build-game.sh`; it selec
 
 1. With the updated AppImage, check workspace-root `devlog.log` for the timestamped session header, the runtime's stdout/stderr, SDL/OpenGL messages and exit status. `devlog.log` records diagnostics the runtime already emits; it does not export every frame's in-memory performance counters.
 2. Confirm the production AppImage workflow on its intended trigger.
-3. Verify the renderer diagnostic block with the updated AppImage. The overlay remains unimplemented until `IN_GAME_OVERLAY_GATE.md` acceptance tests pass.
+3. Verify the renderer diagnostic block with the updated AppImage. Integrate the overlay raster module into the runtime, then validate Escape/pause, keyboard/gamepad input, GL and SDL_Renderer fallback before marking the gate passed.

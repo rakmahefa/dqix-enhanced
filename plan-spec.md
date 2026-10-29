@@ -232,15 +232,15 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 
 ### P4 — In-game menu/overlay through patch-derived Linux sources
 
-**Source/build groundwork implemented:** preserve canonical sources, derive a minimal Linux source mirror under `third_party/extra/linux/src/`, and compile that mirror only for Linux. The renderer diagnostics patch is implemented; the overlay UI and runtime interaction tests remain pending.
+**Source/build groundwork implemented; overlay prototype started:** preserve canonical sources and compile a deterministic Linux-only source mirror. An independent C module now rasterizes a 512×768 transparent RGBA menu surface with a project-owned bitmap font, and a ROM-free test checks its backdrop, panel and selection rendering. This is only the painting foundation: it is not yet wired into the game frontend/event/pause lifecycle, and no complete in-game overlay is claimed.
 
 1. **Implemented:** the minimal mirrors cover `runtime/frontend_sdl.c`, `build.mk`, and `tools/build-game.sh` only.
 2. **Implemented:** ordered patches, source manifest and sync/check tool regenerate copies in a temporary directory and fail closed on upstream blob drift or patch failure.
 3. **Implemented:** the mirror build entry point preserves code generation/assembly and selects the mirrored makefile; Linux BuildJob calls it explicitly.
 4. **CI wired in this commit:** development CI checks mirror integrity and syntax-compiles the patched frontend; production workflow checks mirror integrity.
-5. Implement the in-game overlay with the runtime's active render path, event lifecycle and pause state. Do not introduce a second window, SDL symbol interposition, `LD_PRELOAD`, ImGui, SDL3, Vulkan or another UI toolkit.
-6. Extend temporary development CI with overlay-specific tests and the existing dry-run/E2E diagnostics. Confirm canonical protected paths remain unchanged.
-7. Run the runtime acceptance matrix from Section 6.3 against the real game on Linux before calling the overlay complete.
+5. Wire the standalone RGBA overlay painter into the mirrored Linux frontend: Escape/pause, input capture and navigation, draw after both the GL and SDL_Renderer output paths, and clean up resources. Do not introduce a second window, symbol interposition, `LD_PRELOAD`, ImGui, SDL3, Vulkan or another UI toolkit.
+6. Extend development CI with frontend syntax/build checks and runtime-focused tests; preserve dry-run/E2E diagnostics and verify canonical protected paths remain unchanged.
+7. Run the runtime acceptance matrix from Section 6.3 against the real game on Linux before claiming completion.
 
 **P4 exit:** mirrors reproducibly derive from declared upstream inputs and patch series; the Linux build demonstrably compiles the mirrored runtime source; root Windows/shared files remain unchanged; overlay lifecycle, input, pause, renderer fallback, fullscreen and shutdown tests pass.
 
@@ -276,7 +276,7 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 - [x] Linux BuildJob requires the mirrored build entry point; its makefile explicitly selects the mirrored frontend with no canonical-script fallback.
 - [x] Temporary CI checks patch application/content hashes and syntax-compiles the patched frontend; production CI checks mirror integrity.
 - [ ] Manually verify the renderer diagnostic block in workspace `devlog.log` with the updated AppImage and real gameplay.
-- [x] No in-game overlay support is claimed yet; the selected patch-derived Linux mirror architecture and its runtime acceptance gate are documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
+- [x] A standalone Linux-only overlay raster module and ROM-free rendering test are committed; in-game event/pause/render integration is still pending and documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
 
 ## 9. Out of scope
 
