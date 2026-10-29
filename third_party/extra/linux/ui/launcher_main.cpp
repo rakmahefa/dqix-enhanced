@@ -940,6 +940,15 @@ int main(int argc,char** argv) {
                     if(state.path_editing) {
                         if(key==SDLK_ESCAPE) { state.path_editing=false; SDL_StopTextInput(); }
                         else if(key==SDLK_RETURN || key==SDLK_KP_ENTER) (void)commit_browser_path(state);
+                        else if(key==SDLK_a && (event.key.keysym.mod & KMOD_CTRL)) state.path_edit_buffer.clear();
+                        else if(key==SDLK_v && (event.key.keysym.mod & KMOD_CTRL)) {
+                            char* clipboard=SDL_GetClipboardText();
+                            if(clipboard) {
+                                const std::size_t length=std::strlen(clipboard);
+                                if(state.path_edit_buffer.size()+length<4096) state.path_edit_buffer+=clipboard;
+                                SDL_free(clipboard);
+                            }
+                        }
                         else if(key==SDLK_BACKSPACE && !state.path_edit_buffer.empty()) {
                             std::size_t erase_at=state.path_edit_buffer.size()-1;
                             while(erase_at>0 &&
