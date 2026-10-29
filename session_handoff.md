@@ -30,13 +30,13 @@
 
 ## 3. Verification status
 
-Latest full temporary E2E run: [40838080231](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231), triggered after the overlay patch correction. **All three jobs succeeded.**
+Latest full temporary E2E run: [40838643741](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741), including the explicit Makefile-object smoke build. **All three jobs succeeded.**
 
 - Source mirror validation applied all four ordered patches without fuzz and confirmed the canonical input hashes and checked-in mirror hashes match.
-- The native Linux SDL2 job compiled the overlay raster and OpenGL helper and passed all five CTest cases. The locked Conda SDL2 launcher build also passed.
+- The native Linux SDL2 job compiled the actual mirror/frontend objects using the staged-build Makefile rules: `frontend_sdl.o`, `linux_overlay.o` and `linux_overlay_gl.o`. It also compiled the SDL2 launcher and overlay helper and passed all five CTest cases. The locked Conda SDL2 launcher build passed.
 - The x86_64 AppImage assembled and passed cold/warm startup, the bundled SDL2 launcher self-test, payload checks and rejection of a corrupted toolchain archive. The ELF audit reported 718 ELF files and zero findings; the SBOM contains 96 components.
-- Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231/artifacts/12882115300), [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231/artifacts/12881985842), [SDL2 toolchain diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231/artifacts/12881512941), [Linux development diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231/artifacts/12881073759).
-- These CI checks validate the patch/mirror regeneration, source syntax, helper build and AppImage launcher packaging; they do not execute a game ROM or verify the live in-game overlay.
+- Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881643184), [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881926899), [SDL2 toolchain diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12882130883), [Linux development diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881449070).
+- These CI checks validate patch/mirror regeneration, compilation of the frontend and overlay objects, the ROM-free test suite and AppImage launcher packaging; they do not link a complete game from ROM-generated code or execute the live in-game overlay.
 - The user manually confirmed Build/Play work with a real ROM/workspace before the new renderer diagnostics and overlay changes. Still needed: one updated AppImage run with a local real ROM/workspace, checking workspace-root `devlog.log` for renderer diagnostics and exercising the overlay.
 - The AppImage source policy excludes the former Tk GUI, ROMs, saves and protected game data. CI confirms the Windows/shared-source boundary remains clean.
 
@@ -58,9 +58,10 @@ The permanent production AppImage workflow has not yet been confirmed on an allo
 - [x] No ImGui/SDL3/Vulkan/new UI-toolkit dependency added.
 - [x] Source-boundary CI has verified no protected runtime/Windows/shared build paths changed.
 - [x] Builder dry-run tests cover success/failure, path rejection, staging exclusions, output logs and destination symlink safety (locked Conda SDL2 suite passed).
-- [x] Temporary CI AppImage assembly, cold/warm startup, bundled self-test, checksum-rejection test and ELF audit pass for the unified launcher (run 40838080231).
-- [x] Linux source mirrors regenerate with all four ordered patches and no fuzz (run 40838080231).
-- [x] Native Linux SDL2 CMake build and all five CTest cases pass, including the overlay raster test (run 40838080231).
+- [x] Temporary CI AppImage assembly, cold/warm startup, bundled self-test, checksum-rejection test and ELF audit pass for the unified launcher (run 40838643741).
+- [x] Linux source mirrors regenerate with all four ordered patches and no fuzz (run 40838643741).
+- [x] Native Linux SDL2 CMake build and all five CTest cases pass, including the overlay raster test (run 40838643741).
+- [x] Makefile-driven smoke compilation passes for the mirrored frontend and both overlay objects without a ROM (run 40838643741).
 - [ ] Live overlay behavior on a real game accepted on both OpenGL and SDL_Renderer fallback paths.
 - [ ] Permanent production AppImage workflow passes on an allowed event.
 - [x] User confirmed the AppImage build/launch flow works with a real ROM/workspace (before devlog capture).
