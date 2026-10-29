@@ -146,9 +146,10 @@ jobs:
           echo "Building SDL2 launcher against Conda SDL2 $(pkg-config --modversion sdl2)"
           env -u LDFLAGS -u CFLAGS -u CXXFLAGS -u CPPFLAGS cmake \
             -S third_party/extra/linux -B "$LAUNCHER_BUILD_DIR" -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DCMAKE_SKIP_RPATH=ON
-          cmake --build "$LAUNCHER_BUILD_DIR" --target dqix-linux-ui-launcher --verbose
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_SKIP_RPATH=ON
+          cmake --build "$LAUNCHER_BUILD_DIR" --verbose
           export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          ctest --test-dir "$LAUNCHER_BUILD_DIR" --output-on-failure
           "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" --help
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
             "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" --self-test
