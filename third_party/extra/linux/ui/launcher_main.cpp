@@ -780,27 +780,82 @@ void render_ui(SDL_Renderer* renderer, LauncherState& state) {
 }
 
 bool parse_arguments(int argc,char** argv,LauncherState& state,bool& show_help,bool& self_test,std::string& error) {
-    fs::path requested; bool requested_explicitly=false;
+    fs::path requested_game, requested_source, requested_workspace, requested_rom;
+    std::string requested_version = "unknown";
+    bool game_explicit=false, workspace_explicit=false, rom_explicit=false;
     for(int i=1;i<argc;++i) {
         const std::string_view arg(argv[i]);
         if(arg=="--help"||arg=="-h"){show_help=true;return true;}
         if(arg=="--self-test"){self_test=true;continue;}
+        auto require_value=[&](const char* option)->const char* {
+            if(i+1>=argc) { error=std::string(option)+" requires a value"; return nullptr; }
+            return argv[++i];
+        };
         if(arg=="--game-dir") {
-            if(i+1>=argc){error="--game-dir requires a path";return false;}
-            requested=argv[++i]; requested_explicitly=true; continue;
+            const char* value=require_value("--game-dir"); if(!value)return false;
+            requested_game=value;game_explicit=true;continue;
+        }
+        if(arg=="--source-root") {
+            const char* value=require_value("--source-root"); if(!value)return false;
+            requested_source=value;continue;
+        }
+        if(arg=="--default-workspace"||arg=="--workspace") {
+            const char* value=require_value("--default-workspace"); if(!value)return false;
+            requested_workspace=value;workspace_explicit=true;continue;
+        }
+        if(arg=="--rom") {
+            const char* value=require_value("--rom"); if(!value)return false;
+            requested_rom=value;rom_explicit=true;continue;
+        }
+        if(arg=="--version") {
+            const char* value=require_value("--version"); if(!value)return false;
+            requested_version=value;continue;
         }
         error="unknown argument: "+std::string(arg); return false;
     }
-    if(!requested_explicitly) {
-        if(const char* env=std::getenv("DQIX_GAME_DIR");env&&*env){requested=env;requested_explicitly=true;}
+    state.version=requested_version;
+    state.integrated_builder=!requested_source.empty();
+    if(state.integrated_builder) {
+        state.source_root=absolute_path(requested_source);
+        if(!workspace_explicit) {
+            if(const char* env=std::getenv("DQIX_WORKSPACE");env&&*env) requested_workspace=env;
+            else if(const char* data=std::getenv("XDG_DATA_HOME");data&&*data)
+                requested_workspace=fs::path(data)/"dqix-enhanced-linux"/"workspace";
+            else if(const char* home=std::getenv("HOME");home&&*home)
+                requested_workspace=fs::path(home)/".local/share/dqix-enhanced-linux/workspace";
+            else requested_workspace=fs::current_path()/"dqix-enhanced-workspace";
+        }
+        state.workspace=absolute_path(requested_workspace);
+        state.game_dir=state.workspace/"game";
+        if(game_explicit) {
+            state.game_dir=absolute_path(requested_game);
+            state.workspace=state.game_dir.filename()=="game"?state.game_dir.parent_path():state.game_dir.parent_path();
+        }
+        if(rom_explicit) state.rom_path=absolute_path(requested_rom);
+        else {
+            const fs::path built_rom=state.game_dir/"data"/"dqix.nds";
+            std::error_code ec;
+            if(fs::is_regular_file(built_rom,ec)&&!ec) state.rom_path=absolute_path(built_rom);
+        }
+    } else {
+        fs::path requested; bool requested_explicitly=game_explicit;
+        if(game_explicit) requested=requested_game;
+        if(!requested_explicitly) {
+            if(const char* env=std::getenv("DQIX_GAME_DIR");env&&*env){requested=env;requested_explicitly=true;}
+        }
+        if(!requested_explicitly) {
+            std::error_code ec; const fs::path current=fs::current_path(ec); const fs::path candidate=current/"game";
+            requested=(!ec&&fs::is_directory(candidate,ec))?candidate:current;
+        }
+        state.game_dir=absolute_path(requested);
+        state.workspace=state.game_dir.parent_path();
+        if(rom_explicit) state.rom_path=absolute_path(requested_rom);
     }
-    if(!requested_explicitly) {
-        std::error_code ec; const fs::path current=fs::current_path(ec); const fs::path candidate=current/"game";
-        requested=(!ec&&fs::is_directory(candidate,ec))?candidate:current;
-    }
-    state.game_dir=absolute_path(requested); state.settings_path=state.game_dir/"settings.ini";
-    state.log_path=state.game_dir/"launcher.log"; return true;
+    state.settings_path=state.game_dir/"settings.ini";
+    state.log_path=state.game_dir/"launcher.log";
+    return true;
 }
+
 int self_test() {
     (void)::setenv("SDL_VIDEODRIVER","dummy",1); (void)::setenv("SDL_AUDIODRIVER","dummy",1);
     SDL_SetHint(SDL_HINT_RENDER_DRIVER,"software");
@@ -864,23 +919,79 @@ int main(int argc,char** argv) {
             else if(event.type==SDL_WINDOWEVENT && event.window.event==SDL_WINDOWEVENT_CLOSE) running=false;
             else if(event.type==SDL_MOUSEBUTTONUP && event.button.button==SDL_BUTTON_LEFT) {
                 g_mouse_click=true; g_mouse_x=event.button.x; g_mouse_y=event.button.y;
+            } else if(event.type==SDL_TEXTINPUT && state.path_editing &&
+                      state.path_edit_buffer.size()+std::strlen(event.text.text)<4096) {
+                state.path_edit_buffer += event.text.text;
             } else if(event.type==SDL_KEYDOWN && !event.key.repeat) {
-                switch(event.key.keysym.sym) {
-                case SDLK_ESCAPE: running=false; break;
-                case SDLK_LEFT: state.page=static_cast<Page>((static_cast<int>(state.page)+7)%8);state.focus_index=0;break;
-                case SDLK_RIGHT: state.page=static_cast<Page>((static_cast<int>(state.page)+1)%8);state.focus_index=0;break;
-                case SDLK_UP: state.focus_index=(state.focus_index+state.previous_button_count-1)%state.previous_button_count;break;
-                case SDLK_DOWN: case SDLK_TAB: state.focus_index=(state.focus_index+1)%state.previous_button_count;break;
-                case SDLK_RETURN: case SDLK_SPACE: g_activate=true;break;
-                default: break;
+                const SDL_Keycode key=event.key.keysym.sym;
+                if(state.browser_kind!=BrowserKind::None) {
+                    if(state.path_editing) {
+                        if(key==SDLK_ESCAPE) { state.path_editing=false; SDL_StopTextInput(); }
+                        else if(key==SDLK_RETURN || key==SDLK_KP_ENTER) (void)commit_browser_path(state);
+                        else if(key==SDLK_BACKSPACE && !state.path_edit_buffer.empty()) {
+                            do { state.path_edit_buffer.pop_back(); }
+                            while(!state.path_edit_buffer.empty() &&
+                                  (static_cast<unsigned char>(state.path_edit_buffer.back())&0xC0)==0x80);
+                            if(!state.path_edit_buffer.empty()) state.path_edit_buffer.pop_back();
+                        }
+                    } else {
+                        const std::size_t total=state.browser_entries.size();
+                        if(key==SDLK_ESCAPE) close_browser(state);
+                        else if(key==SDLK_BACKSPACE) {
+                            const fs::path parent=state.browser_dir.parent_path();
+                            if(!parent.empty()&&parent!=state.browser_dir){state.browser_dir=parent;refresh_browser_entries(state);}
+                        } else if(key==SDLK_HOME) {
+                            const char* home=std::getenv("HOME");
+                            if(home&&*home){state.browser_dir=absolute_path(home);refresh_browser_entries(state);}
+                        } else if(key==SDLK_UP && total>0) {
+                            if(state.browser_selection>0)--state.browser_selection;
+                            if(state.browser_selection<state.browser_scroll)state.browser_scroll=state.browser_selection;
+                        } else if(key==SDLK_DOWN && total>0) {
+                            if(state.browser_selection+1<total)++state.browser_selection;
+                            if(state.browser_selection>=state.browser_scroll+kBrowserVisibleRows)
+                                state.browser_scroll=state.browser_selection-kBrowserVisibleRows+1;
+                        } else if((key==SDLK_RETURN||key==SDLK_KP_ENTER) && total>0)
+                            activate_browser_entry(state,state.browser_selection);
+                        else if(key==SDLK_PAGEUP) {
+                            state.browser_scroll=state.browser_scroll>kBrowserVisibleRows?state.browser_scroll-kBrowserVisibleRows:0;
+                            state.browser_selection=state.browser_scroll;
+                        } else if(key==SDLK_PAGEDOWN && total>0) {
+                            state.browser_scroll=std::min(total-1,state.browser_scroll+kBrowserVisibleRows);
+                            state.browser_selection=state.browser_scroll;
+                        }
+                    }
+                } else {
+                    switch(key) {
+                    case SDLK_ESCAPE: running=false; break;
+                    case SDLK_LEFT: state.page=static_cast<Page>((static_cast<int>(state.page)+7)%8);state.focus_index=0;break;
+                    case SDLK_RIGHT: state.page=static_cast<Page>((static_cast<int>(state.page)+1)%8);state.focus_index=0;break;
+                    case SDLK_UP: state.focus_index=(state.focus_index+state.previous_button_count-1)%state.previous_button_count;break;
+                    case SDLK_DOWN: case SDLK_TAB: state.focus_index=(state.focus_index+1)%state.previous_button_count;break;
+                    case SDLK_RETURN: case SDLK_SPACE: g_activate=true;break;
+                    default: break;
+                    }
                 }
             } else if(event.type==SDL_CONTROLLERBUTTONDOWN) {
-                if(event.cbutton.button==SDL_CONTROLLER_BUTTON_B) running=false;
-                else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_LEFT) {state.page=static_cast<Page>((static_cast<int>(state.page)+7)%8);state.focus_index=0;}
-                else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_RIGHT) {state.page=static_cast<Page>((static_cast<int>(state.page)+1)%8);state.focus_index=0;}
-                else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP) state.focus_index=(state.focus_index+state.previous_button_count-1)%state.previous_button_count;
-                else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN) state.focus_index=(state.focus_index+1)%state.previous_button_count;
-                else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_A) g_activate=true;
+                if(state.browser_kind!=BrowserKind::None) {
+                    const std::size_t total=state.browser_entries.size();
+                    if(event.cbutton.button==SDL_CONTROLLER_BUTTON_B) close_browser(state);
+                    else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP && total>0) {
+                        if(state.browser_selection>0)--state.browser_selection;
+                        if(state.browser_selection<state.browser_scroll)state.browser_scroll=state.browser_selection;
+                    } else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN && total>0) {
+                        if(state.browser_selection+1<total)++state.browser_selection;
+                        if(state.browser_selection>=state.browser_scroll+kBrowserVisibleRows)
+                            state.browser_scroll=state.browser_selection-kBrowserVisibleRows+1;
+                    } else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_A && total>0)
+                        activate_browser_entry(state,state.browser_selection);
+                } else {
+                    if(event.cbutton.button==SDL_CONTROLLER_BUTTON_B) running=false;
+                    else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_LEFT) {state.page=static_cast<Page>((static_cast<int>(state.page)+7)%8);state.focus_index=0;}
+                    else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_RIGHT) {state.page=static_cast<Page>((static_cast<int>(state.page)+1)%8);state.focus_index=0;}
+                    else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_UP) state.focus_index=(state.focus_index+state.previous_button_count-1)%state.previous_button_count;
+                    else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_DPAD_DOWN) state.focus_index=(state.focus_index+1)%state.previous_button_count;
+                    else if(event.cbutton.button==SDL_CONTROLLER_BUTTON_A) g_activate=true;
+                }
             }
         }
         render_ui(renderer,state); SDL_Delay(16);
