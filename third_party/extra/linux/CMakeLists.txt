@@ -49,6 +49,8 @@ if(BUILD_TESTING)
         COMMAND "${BASH_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/smoke-ui.sh"
                 "$<TARGET_FILE:dqix-linux-ui-launcher>")
+    add_test(NAME linux-opengl-host-compat-shell-syntax
+        COMMAND /bin/sh -n "${CMAKE_CURRENT_SOURCE_DIR}/tools/linux-gl-compat.sh")
     set_tests_properties(linux-ui-sdl2-software-renderer-smoke PROPERTIES TIMEOUT 15)
 endif()
 

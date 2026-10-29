@@ -3,11 +3,13 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
+#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <fcntl.h>
 #include <string>
 #include <system_error>
+#include <vector>
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -44,6 +46,44 @@ bool write_log_record(int fd, const std::string& message) {
     std::string line = "[" + local_timestamp() + "] " + message;
     if (line.empty() || line.back() != '\n') line.push_back('\n');
     return write_all(fd, line.data(), line.size());
+}
+
+std::string merge_path_list(const std::string& preferred, const char* existing) {
+    std::string merged;
+    auto append = [&merged](const char* paths) {
+        if (!paths) return;
+        const char* start = paths;
+        while (*start) {
+            const char* end = std::strchr(start, ':');
+            const std::size_t length = end
+                ? static_cast<std::size_t>(end - start) : std::strlen(start);
+            if (length > 0) {
+                const std::string candidate(start, length);
+                bool found = false;
+                std::size_t offset = 0;
+                while (offset < merged.size()) {
+                    const std::size_t separator = merged.find(':', offset);
+                    const std::size_t count = separator == std::string::npos
+                        ? merged.size() - offset : separator - offset;
+                    if (merged.compare(offset, count, candidate) == 0) {
+                        found = true;
+                        break;
+                    }
+                    if (separator == std::string::npos) break;
+                    offset = separator + 1;
+                }
+                if (!found) {
+                    if (!merged.empty()) merged.push_back(':');
+                    merged += candidate;
+                }
+            }
+            if (!end) break;
+            start = end + 1;
+        }
+    };
+    append(preferred.c_str());
+    append(existing);
+    return merged;
 }
 
 int open_append_no_follow(const fs::path& path) {
@@ -115,6 +155,39 @@ GameProcessLaunch launch_game_process(const fs::path& workspace,
         }
     }
 
+    const char* host_gl_preload = std::getenv("DQIX_LINUX_GL_PRELOAD");
+    const char* host_gl_override = std::getenv("DQIX_LINUX_GL_OVERRIDE_DIR");
+    const bool use_host_gl_compat = host_gl_preload && host_gl_preload[0] &&
+                                    host_gl_override && host_gl_override[0];
+    std::vector<std::string> compatibility_args;
+    std::vector<char*> compatibility_argv;
+    if (use_host_gl_compat) {
+        compatibility_args.emplace_back("env");
+        compatibility_args.emplace_back(
+            "LD_PRELOAD=" + merge_path_list(host_gl_preload, std::getenv("LD_PRELOAD")));
+        compatibility_args.emplace_back(
+            "LD_LIBRARY_PATH=" + merge_path_list(host_gl_override, std::getenv("LD_LIBRARY_PATH")));
+        compatibility_args.emplace_back("SDL_VIDEODRIVER=x11");
+        compatibility_args.emplace_back("SDL_VIDEO_X11_FORCE_EGL=0");
+        if (result.used_play_script) {
+            compatibility_args.emplace_back("/bin/bash");
+            compatibility_args.emplace_back(play_script);
+        } else {
+            compatibility_args.emplace_back(executable);
+            compatibility_args.emplace_back("data/dqix.nds");
+            compatibility_args.emplace_back("data/code");
+            compatibility_args.emplace_back("0");
+            compatibility_args.emplace_back("1");
+            compatibility_args.emplace_back("dqix.sav");
+        }
+        compatibility_argv.reserve(compatibility_args.size() + 1);
+        for (auto& argument : compatibility_args) compatibility_argv.push_back(argument.data());
+        compatibility_argv.push_back(nullptr);
+    }
+
+    if (use_host_gl_compat && output_fd >= 0)
+        (void)write_log_record(output_fd, "[launcher] OpenGL host-library compatibility enabled (X11/GLX)");
+
     const pid_t pid = ::fork();
     if (pid < 0) {
         const int fork_error = errno;
@@ -136,6 +209,10 @@ GameProcessLaunch launch_game_process(const fs::path& workspace,
         }
         if (::chdir(game_cwd.c_str()) != 0)
             child_error("[launcher] chdir to game directory failed\n", 126);
+        if (use_host_gl_compat) {
+            ::execv("/usr/bin/env", compatibility_argv.data());
+            child_error("[launcher] exec /usr/bin/env for OpenGL compatibility failed\n", 127);
+        }
         if (result.used_play_script) {
             char* const play_args[] = {
                 const_cast<char*>("bash"), const_cast<char*>(play_script.c_str()), nullptr

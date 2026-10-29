@@ -8,7 +8,8 @@
     "0004-linux-ingame-overlay.patch",
     "0005-linux-settings-persistence.patch",
     "0006-linux-overlay-aspect-fit.patch",
-    "0007-linux-wayland-opengl-retry.patch"
+    "0007-linux-wayland-opengl-retry.patch",
+    "0008-linux-opengl-host-library-preload.patch"
   ],
   "sources": [
     {
@@ -27,7 +28,7 @@
       "source_path": "tools/build-game.sh",
       "mirror_path": "third_party/extra/linux/src/tools/build-game.sh",
       "base_git_blob_sha1": "0d68108400b09d5519cfa3db90577a24137e5989",
-      "mirror_git_blob_sha1": "ff398d77b15f60cbc6b3a056711f48a29ccd4085"
+      "mirror_git_blob_sha1": "776743c098a10fefa17b6a1c2ac91aed3c886071"
     }
   ]
 }

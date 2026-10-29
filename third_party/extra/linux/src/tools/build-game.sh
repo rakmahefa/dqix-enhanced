@@ -188,7 +188,16 @@ if errorlevel 1 pause
 BAT
 cat > game/play.sh <<'SH'
 #!/bin/sh
-cd "$(dirname "$0")" && exec ./dqix data/dqix.nds data/code 0 1 dqix.sav
+set -eu
+GAME_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+WORKSPACE_DIR="$(CDPATH= cd -- "$GAME_DIR/.." && pwd)"
+GL_COMPAT="$WORKSPACE_DIR/third_party/extra/linux/tools/linux-gl-compat.sh"
+if [ -r "$GL_COMPAT" ]; then
+    . "$GL_COMPAT"
+    dqix_linux_gl_apply
+fi
+cd "$GAME_DIR"
+exec ./dqix data/dqix.nds data/code 0 1 dqix.sav
 SH
 chmod +x game/play.sh
 echo

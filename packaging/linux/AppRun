@@ -117,6 +117,13 @@ fi
 export LD_LIBRARY_PATH="$ENV_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export PYTHONNOUSERSITE=1
 
+# Prepare host GLX compatibility metadata for the game child only. Do not
+# preload host GL libraries into the SDL2 builder UI itself.
+GL_COMPAT_HELPER="$BUNDLED_SOURCE/third_party/extra/linux/tools/linux-gl-compat.sh"
+[ -r "$GL_COMPAT_HELPER" ] || die "Linux OpenGL compatibility helper is missing"
+. "$GL_COMPAT_HELPER"
+dqix_linux_gl_prepare
+
 if command -v x86_64-conda-linux-gnu-cc >/dev/null 2>&1; then
     export CC="$(command -v x86_64-conda-linux-gnu-cc)"
 elif command -v x86_64-conda-linux-gnu-gcc >/dev/null 2>&1; then

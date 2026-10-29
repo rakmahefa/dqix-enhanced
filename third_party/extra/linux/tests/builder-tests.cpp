@@ -3,6 +3,8 @@
 
 #include <filesystem>
 #include <cerrno>
+#include <cstdlib>
+#include <initializer_list>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -24,6 +26,24 @@ void write_file(const fs::path& path, const std::string& text) {
     fs::create_directories(path.parent_path());
     std::ofstream out(path, std::ios::binary);
     out << text;
+}
+struct SavedEnvironment {
+    bool present = false;
+    std::string value;
+};
+SavedEnvironment save_environment(const char* name) {
+    const char* value = std::getenv(name);
+    return {value != nullptr, value ? value : ""};
+}
+void restore_environment(const char* name, const SavedEnvironment& saved) {
+    if (saved.present) (void)::setenv(name, saved.value.c_str(), 1);
+    else (void)::unsetenv(name);
+}
+std::string first_existing_library(std::initializer_list<const char*> candidates) {
+    for (const char* candidate : candidates) {
+        if (candidate && ::access(candidate, R_OK) == 0) return candidate;
+    }
+    return {};
 }
 }
 
@@ -139,10 +159,43 @@ echo "== Done."
 set -eu
 printf 'synthetic-game-stdout-marker\n'
 printf 'synthetic-game-stderr-marker\n' >&2
+printf 'synthetic-gl-ld-preload=%s\n' "$LD_PRELOAD"
+printf 'synthetic-gl-library-path=%s\n' "$LD_LIBRARY_PATH"
+printf 'synthetic-gl-video-driver=%s\n' "$SDL_VIDEODRIVER"
+printf 'synthetic-gl-force-egl=%s\n' "$SDL_VIDEO_X11_FORCE_EGL"
 exit 0
 )script");
+    const std::string test_host_preload = first_existing_library({
+        "/usr/lib/libm.so.6", "/usr/lib64/libm.so.6", "/lib/libm.so.6", "/lib64/libm.so.6",
+        "/usr/lib/x86_64-linux-gnu/libm.so.6", "/lib/x86_64-linux-gnu/libm.so.6"});
+    const std::string test_user_preload = first_existing_library({
+        "/usr/lib/libgcc_s.so.1", "/usr/lib64/libgcc_s.so.1", "/lib/libgcc_s.so.1",
+        "/lib64/libgcc_s.so.1", "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+        "/lib/x86_64-linux-gnu/libgcc_s.so.1"});
+    ok &= require(!test_host_preload.empty() && !test_user_preload.empty(),
+                  "system libm and libgcc_s must be available for safe preload-environment testing");
+    const auto old_dqix_gl_preload = save_environment("DQIX_LINUX_GL_PRELOAD");
+    const auto old_dqix_gl_override = save_environment("DQIX_LINUX_GL_OVERRIDE_DIR");
+    const auto old_ld_preload = save_environment("LD_PRELOAD");
+    const auto old_ld_library_path = save_environment("LD_LIBRARY_PATH");
+    const auto old_video_driver = save_environment("SDL_VIDEODRIVER");
+    const auto old_force_egl = save_environment("SDL_VIDEO_X11_FORCE_EGL");
+    const std::string test_gl_override = (temp / "system-gl-override").string();
+    fs::create_directories(test_gl_override);
+    (void)::setenv("DQIX_LINUX_GL_PRELOAD", test_host_preload.c_str(), 1);
+    (void)::setenv("DQIX_LINUX_GL_OVERRIDE_DIR", test_gl_override.c_str(), 1);
+    (void)::setenv("LD_PRELOAD", test_user_preload.c_str(), 1);
+    (void)::setenv("LD_LIBRARY_PATH", "/test/toolchain/lib:/usr/lib", 1);
+    (void)::setenv("SDL_VIDEODRIVER", "wayland", 1);
+    (void)::setenv("SDL_VIDEO_X11_FORCE_EGL", "1", 1);
     const auto launched_game = dqix::linux_ui::launch_game_process(
         game_workspace, game_dir, game_dir / "launcher.log", "test-version");
+    restore_environment("DQIX_LINUX_GL_PRELOAD", old_dqix_gl_preload);
+    restore_environment("DQIX_LINUX_GL_OVERRIDE_DIR", old_dqix_gl_override);
+    restore_environment("LD_PRELOAD", old_ld_preload);
+    restore_environment("LD_LIBRARY_PATH", old_ld_library_path);
+    restore_environment("SDL_VIDEODRIVER", old_video_driver);
+    restore_environment("SDL_VIDEO_X11_FORCE_EGL", old_force_egl);
     ok &= require(launched_game.pid > 0, "synthetic game process should start: " + launched_game.error);
     ok &= require(launched_game.devlog_enabled, "game output capture should open devlog.log");
     ok &= require(launched_game.used_play_script, "production launch helper should prefer game/play.sh");
@@ -166,6 +219,16 @@ exit 0
                   "game stdout must be captured in devlog.log");
     ok &= require(game_devlog.find("synthetic-game-stderr-marker") != std::string::npos,
                   "game stderr/renderer diagnostics must be captured in devlog.log");
+    ok &= require(game_devlog.find("synthetic-gl-ld-preload=" + test_host_preload + ":" + test_user_preload) != std::string::npos,
+                  "game launch must prepend host libraries and preserve the existing LD_PRELOAD");
+    ok &= require(game_devlog.find("synthetic-gl-library-path=" + test_gl_override + ":/test/toolchain/lib:/usr/lib") != std::string::npos,
+                  "game launch must put the host override before the toolchain and preserve other paths");
+    ok &= require(game_devlog.find("synthetic-gl-video-driver=x11") != std::string::npos,
+                  "game launch must select X11 for host-GL compatibility");
+    ok &= require(game_devlog.find("synthetic-gl-force-egl=0") != std::string::npos,
+                  "game launch must select GLX rather than EGL under X11");
+    ok &= require(game_devlog.find("OpenGL host-library compatibility enabled") != std::string::npos,
+                  "devlog must mark when host OpenGL compatibility is applied");
     ok &= require(game_devlog.find("[game] Game exited with code 0.") != std::string::npos,
                   "game exit status should be appendable to devlog.log");
 
