@@ -190,6 +190,14 @@ void launch_game(LauncherState& state) {
             (void)::dup2(log_fd, STDOUT_FILENO); (void)::dup2(log_fd, STDERR_FILENO);
             if (log_fd > STDERR_FILENO) ::close(log_fd);
         }
+        const fs::path play_script = state.game_dir / "play.sh";
+        std::error_code play_ec;
+        if (fs::is_regular_file(play_script, play_ec) && !play_ec &&
+            ::access(play_script.c_str(), R_OK) == 0) {
+            ::execl("/bin/bash", "bash", play_script.c_str(), static_cast<char*>(nullptr));
+            _exit(127);
+        }
+        // Compatibility fallback for workspaces that predate play.sh.
         char* const args[] = {
             const_cast<char*>(executable.c_str()), const_cast<char*>("data/dqix.nds"),
             const_cast<char*>("data/code"), const_cast<char*>("0"), const_cast<char*>("1"),
