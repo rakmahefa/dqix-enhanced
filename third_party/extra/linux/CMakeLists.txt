@@ -10,7 +10,7 @@ add_library(dqix-linux-settings STATIC settings/settings_model.cpp)
 target_include_directories(dqix-linux-settings PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/settings")
 target_compile_features(dqix-linux-settings PUBLIC cxx_std_17)
 
-add_executable(dqix-linux-ui-launcher ui/launcher_main.cpp)
+add_executable(dqix-linux-ui-launcher ui/launcher_main.cpp builder/build_job.cpp)
 target_compile_features(dqix-linux-ui-launcher PRIVATE cxx_std_17)
 target_link_libraries(dqix-linux-ui-launcher PRIVATE dqix-linux-settings PkgConfig::SDL2)
 
