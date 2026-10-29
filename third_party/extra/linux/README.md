@@ -1,39 +1,62 @@
-# Linux UI launcher — SDL2
+# Linux launcher and builder — SDL2
 
-**Architecture target:** SDL2 + SDL_Renderer, with a small UI layer maintained in this project. Dear ImGui, SDL3, Vulkan and external UI toolkits are not dependencies of the target.
+## Architecture
 
-## Implementation state
+The native Linux launcher uses the project's SDL2 stack and SDL_Renderer with a small project-owned UI. It does not use Dear ImGui, SDL3, Vulkan, SDL_ttf, GTK, Qt or Tk as its GUI toolkit. The same SDL2 window provides setup/build, progress/logs, settings, diagnostics and Play.
 
-- The launcher source has been migrated from the earlier SDL3/ImGui/Vulkan prototype to a minimal SDL2 application.
-- ui/launcher_main.cpp draws controls and text with SDL_Renderer and a compact embedded 5x7 bitmap font.
-- The settings model in settings/ remains independent of SDL and graphics, and can be tested without a window or ROM.
-- CLI help is available. The self-test opens a hidden SDL2 window with the software renderer under SDL's dummy video driver and renders one frame.
-- The UI currently edits a subset of audited settings, checks for dqix, data/dqix.nds and data/code/, and can launch the existing game binary. Keyboard, mouse and basic gamepad navigation are supported.
-- Controls remapping and free-form editing of player/server text fields are not implemented. A saved setting does not guarantee the game renderer can apply it.
-- Temporary E2E workflow run [40815344443](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40815344443) passed all three jobs. The system and locked Conda SDL2 builds each passed 3/3 CTest. It also assembled and uploaded a real x86_64 AppImage; cold/warm startup, bundled launcher self-test, corrupted-toolchain rejection and checksum checks passed. The ELF audit found 718 ELF files and zero dependency issues; the SBOM contains 96 Conda components.
-- The Tk builder and AppRun are wired to the native launcher, and the temporary E2E job has validated full AppImage assembly/self-test. The permanent production workflow has not yet run on this branch, and the Tk button has not been manually exercised against a built game workspace. The in-game menu/bridge is not implemented.
+No in-game overlay is claimed: a separate pre-Play process does not share the game's runtime window, event queue or pause state.
 
-## Build and test
+## Implementation
 
-Install SDL2 development files, CMake, Ninja, a C++17 compiler and pkg-config, then run:
+- `ui/launcher_main.cpp` draws the UI with SDL_Renderer and an embedded 5x7 bitmap font. Keyboard, mouse and basic gamepad navigation are supported.
+- The Game page offers ROM and workspace selection via an in-app file/folder browser with path entry, plus build status/progress, scrollable recent output and Play Now.
+- `builder/build_job.cpp` validates ROM/workspace paths, confirms merging non-empty unmarked workspaces, stages project sources while excluding generated/private output, and protects against writes through destination symlinks.
+- Source staging and compilation run outside the SDL render/event loop. `BuildJob` captures combined build output, sends events to the UI and persists the full log at `launcher-build.log`. Approximate build stages are shown; code-generation/compilation use indeterminate progress where no precise counter is available.
+- After a successful build, the launcher validates the generated game layout and launches via `game/play.sh` when present, with a direct-executable fallback.
+- Graphics/display/audio/controls/mods/wireless/system pages remain. Some controls are still explicitly informational or not implemented (notably controls remapping and free-form text editing); saving a setting does not guarantee that the runtime applies it.
+- `packaging/linux/AppRun` checks the bundled toolchain as before and starts the SDL2 launcher directly. The former Tk app `packaging/linux/gui.py` is deleted from the branch and excluded by the AppImage payload policy. The build toolchain still contains Python for code generation/build/package tasks; this does not create a Tk UI.
+- No Windows/runtime source, `build.mk` or `tools/build-game.sh` was modified. Native Linux code and tests are under `third_party/extra/linux/`.
 
-    cmake -S third_party/extra/linux -B build-linux-ui -G Ninja -DCMAKE_BUILD_TYPE=Debug
-    cmake --build build-linux-ui --verbose
-    ctest --test-dir build-linux-ui --output-on-failure
+## Verification
 
-CTest checks settings-model/runtime schema parity, CLI help and an SDL2 software-renderer smoke test. The smoke test needs no Vulkan device, desktop session or ROM.
+The integrated implementation passed temporary CI run [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989), on implementation commit `4e41e34114d3a5a09a3792e8a8393625aabd80a5`:
 
-## CLI
+- System SDL2 build: 4/4 CTest tests passed.
+- Locked Conda SDL2 build: 4/4 CTest tests passed.
+- Native builder dry-run tests cover synthetic build success and failure, log/exit-status reporting, staging exclusions, source/workspace overlap and destination-symlink protection. No real ROM or generated game data is used by CI.
+- The complete x86_64 AppImage was assembled and tested with cold/warm start and its bundled SDL2 software-renderer self-test. A corrupted toolchain archive was rejected; the payload policy passed; checksums and ELF audit passed.
+- ELF audit reported 718 ELF files and zero findings; the Conda SBOM has 96 components. The AppImage artifact and diagnostic artifacts were uploaded in the run.
 
-    dqix-linux-ui-launcher --game-dir /absolute/path/to/game
-    dqix-linux-ui-launcher --help
-    dqix-linux-ui-launcher --self-test
+The permanent production AppImage workflow has not yet been confirmed on an allowed PR/main/workflow-dispatch event. Manual interactive testing with a real user-provided ROM and a built game workspace is still required to validate the full local gameplay journey.
 
-The selected directory must contain an executable dqix, data/dqix.nds and data/code/ before Play is enabled. No game binary, ROM, save or game asset is included in this source tree.
+## Build and test locally
 
-## Next work
+Install SDL2 development files, CMake, Ninja, a C++17 compiler and pkg-config:
 
-1. The latest temporary E2E CI run passed all three jobs. The artifact and diagnostic reports are available from the run page.
-2. Improve settings path/migration coverage and safely add missing UI controls only when their behavior is implemented.
-3. Prove a Linux-only runtime integration path for the in-game menu without touching Windows sources or shared build configuration.
-4. Run the permanent AppImage workflow from an allowed trigger and validate final AppDir assembly, bundled `AppRun --self-test`, and the GUI `--launcher` path; then run a manual UI test with a built game folder.
+```sh
+cmake -S third_party/extra/linux -B build-linux-ui -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-linux-ui --verbose
+ctest --test-dir build-linux-ui --output-on-failure
+```
+
+The four CTest cases cover builder dry-run success/failure and symlink protection, settings-model/runtime schema parity, launcher CLI help, and a hidden SDL2 software-renderer smoke test. They require no real ROM or desktop GPU.
+
+## Launcher arguments
+
+```sh
+dqix-linux-ui-launcher \
+  --source-root /path/to/bundled/source \
+  --default-workspace "$HOME/.local/share/dqix-enhanced-linux/workspace" \
+  --version 1.2.3
+dqix-linux-ui-launcher --game-dir /absolute/path/to/game
+dqix-linux-ui-launcher --help
+dqix-linux-ui-launcher --self-test
+```
+
+The integrated AppImage path passes the first group of arguments automatically. Before Play, the game directory must contain an executable `dqix`, `data/dqix.nds` and `data/code/`. No game binary, ROM, save or generated game asset is bundled.
+
+## Remaining manual checks
+
+1. With a user-provided ROM, exercise the in-app browser, existing-workspace confirmation, full build log, retry after failure, settings file location and Play/game exit status.
+2. Confirm the production AppImage workflow on its intended trigger.
+3. Keep the in-game menu/overlay blocked until Linux-only integration proves keyboard/gamepad focus, event capture, pause/resume, OpenGL/software fallback, fullscreen and shutdown without touching protected Windows code.
