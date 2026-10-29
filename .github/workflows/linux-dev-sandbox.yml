@@ -134,17 +134,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -c 'import ast; from pathlib import Path; ast.parse(Path("packaging/linux/gui.py").read_text(encoding="utf-8"))'
           bash -n packaging/linux/AppRun
-          grep -F -- '--launcher "$PACKAGE_DIR/dqix-linux-ui-launcher"' packaging/linux/AppRun >/dev/null
+          grep -F -- 'exec "$LAUNCHER"' packaging/linux/AppRun >/dev/null
+          grep -F -- '--source-root "$BUNDLED_SOURCE"' packaging/linux/AppRun >/dev/null
+          grep -F -- '--default-workspace "$WORKSPACE"' packaging/linux/AppRun >/dev/null
+          if grep -F -- 'gui.py' packaging/linux/AppRun; then
+            echo "::error::AppRun must not start the retired Tk GUI."
+            exit 1
+          fi
           grep -F -- '-S third_party/extra/linux -B "$LAUNCHER_BUILD_DIR" -G Ninja' .github/workflows/linux-ci-appimage.yml >/dev/null
           grep -F -- 'cmake --build "$LAUNCHER_BUILD_DIR" --target dqix-linux-ui-launcher' .github/workflows/linux-ci-appimage.yml >/dev/null
           grep -F -- 'install -m 0755 "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher"' .github/workflows/linux-ci-appimage.yml >/dev/null
           grep -F -- '"$LAUNCHER" --self-test' packaging/linux/AppRun >/dev/null
           grep -F -- '-DCMAKE_SKIP_RPATH=ON' .github/workflows/linux-ci-appimage.yml >/dev/null
           grep -F -- 'args.toolchain_dir / "lib"' tools/packaging/audit_appimage.py >/dev/null
-          git diff --check origin/main...HEAD -- .github/workflows/linux-dev-sandbox.yml .github/workflows/linux-ci-appimage.yml packaging/linux/gui.py packaging/linux/AppRun
-          echo "Linux GUI syntax, AppRun syntax and launcher packaging hooks passed."
+          git diff --check origin/main...HEAD -- .github/workflows/linux-dev-sandbox.yml .github/workflows/linux-ci-appimage.yml packaging/linux/gui.py packaging/linux/AppRun third_party/extra/linux
+          echo "SDL2-only GUI entry point, AppRun syntax and launcher packaging hooks passed."
 
       - name: Configure, build and test Linux prototype
         shell: bash
