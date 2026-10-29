@@ -142,6 +142,7 @@ jobs:
           grep -F -- 'install -m 0755 "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher"' .github/workflows/linux-ci-appimage.yml >/dev/null
           grep -F -- '"$LAUNCHER" --self-test' packaging/linux/AppRun >/dev/null
           grep -F -- '-DCMAKE_SKIP_RPATH=ON' .github/workflows/linux-ci-appimage.yml >/dev/null
+          grep -F -- 'args.toolchain_dir / "lib"' tools/packaging/audit_appimage.py >/dev/null
           git diff --check origin/main...HEAD -- .github/workflows/linux-dev-sandbox.yml .github/workflows/linux-ci-appimage.yml packaging/linux/gui.py packaging/linux/AppRun
           echo "Linux GUI syntax, AppRun syntax and launcher packaging hooks passed."
 

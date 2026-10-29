@@ -336,8 +336,11 @@ def main() -> int:
             candidates.append((
                 path,
                 f"AppDir/{path.relative_to(args.appdir).as_posix()}",
-                None,
-                args.appdir,
+                # AppRun exports the relocated Conda environment's lib/ in
+                # LD_LIBRARY_PATH before it launches this binary. Audit against
+                # that same library root instead of the CI host defaults.
+                args.toolchain_dir / "lib",
+                args.toolchain_dir,
                 False,
             ))
         except OSError:
