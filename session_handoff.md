@@ -28,14 +28,15 @@
 
 ## 3. Verification status
 
-Latest relevant CI run: [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989) against implementation commit `4e41e34114d3a5a09a3792e8a8393625aabd80a5`.
+Latest final CI run: [40818812000](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818812000), on code commit `57d394fd`. **All three jobs succeeded.**
 
-- Locked Conda SDL2 launcher build and test job passed all four CTest cases: builder dry-run/symlink safety, settings-model/runtime schema parity, CLI help and hidden SDL2 software-renderer smoke test.
-- Run [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989) completed successfully across all three jobs. Both system SDL2 and locked Conda SDL2 builds passed all four CTest cases.
-- The full x86_64 AppImage was assembled and passed cold/warm startup, integrated launcher self-test, corrupted-toolchain rejection, payload policy, checksums and ELF audit. The audit reported 718 ELF files and zero findings; the SBOM contains 96 components. The AppImage and diagnostic artifacts are available from the run page.
-- Follow-up run [40818570839](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818570839) also passed after the Linux launcher README/payload policy update. Final polish commit `c720d0ac` (move `play.sh` detection before `fork()`) plus AppRun help wording is being checked in run [40818812000](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818812000); system and locked-Conda SDL2 jobs passed, and its final AppImage job is still in progress.
-- No real user ROM or complete local gameplay session is run in CI. Manual validation with the user's own ROM and a successfully built workspace remains required before claiming end-to-end gameplay validation.
-- The permanent production AppImage workflow has not yet been confirmed on an allowed PR/main/workflow-dispatch event.
+- System SDL2 and locked Conda SDL2 builds each passed all four CTest cases: builder dry-run/symlink safety, settings-model/runtime schema parity, CLI help and hidden SDL2 software-renderer smoke test.
+- The x86_64 AppImage was assembled and passed cold/warm startup, the integrated SDL2 launcher self-test, corrupted-toolchain rejection, payload-policy validation, checksum verification and ELF audit.
+- ELF audit: 718 ELF files, zero findings; SBOM: 96 Conda components.
+- Artifacts uploaded: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818812000/artifacts/12873179668), [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818812000/artifacts/12873279106), [launcher SDL2 diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818812000/artifacts/12873856313).
+- The AppImage payload policy excludes the former Tk GUI, ROMs, saves and protected game assets. Temporary CI also verified the Windows/shared-source boundary remained clean.
+
+No real user ROM or complete local gameplay session is run in CI. Manual validation with a user-provided ROM and a successfully built workspace remains required before claiming the full local gameplay journey is verified. The permanent production AppImage workflow has not yet been confirmed on an allowed PR/main/workflow-dispatch event.
 
 ## 4. Known limitations and next work
 
