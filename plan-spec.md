@@ -1,6 +1,6 @@
 # Plan-spec — Linux v32, launcher et menu in-game SDL3/Vulkan
 
-**Statut :** spécification en cours ; un probe technique autonome SDL3/Vulkan/ImGui est ajouté dans `third_party/extra/linux/`, mais sa compilation/exécution CI et l'intégration au runtime ne sont pas encore validées.  
+**Statut :** spécification en cours ; un probe technique autonome SDL3/Vulkan/ImGui et un modèle de paramètres Linux isolé sont ajoutés dans `third_party/extra/linux/`. Leur validation CI, le launcher et l'intégration au runtime restent non confirmés.  
 **Base de travail :** branche `main`, commit `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.  
 **Cible primaire :** Linux x86_64, build local et AppImage.  
 **Décision d'architecture :** SDL3 + Dear ImGui + Vulkan pour les nouvelles interfaces Linux.  
@@ -184,6 +184,9 @@ Le développement a besoin d'un environnement reproductible pour exécuter de pe
 **Sortie P0 :** (a) résultats build/smoke du probe SDL3/Vulkan/ImGui vérifiés ; (b) manifeste des frontières Windows/Linux ; (c) décision explicite sur l'intégration in-game. Le probe graphique ne valide pas l'intégration runtime. P3 reste bloqué tant que (c) n'est pas résolu.
 
 ### P1 — Fiabiliser les paramètres et rendre le renderer lisible
+
+**État d'implémentation au 2026-10-29 :** une première couche `settings/settings_model.cpp` existe sous `third_party/extra/linux/`. Elle préserve les lignes/valeurs non reconnues, valide les clés connues, borne les valeurs selon une table de types et écrit avec remplacement atomique. Un test CTest compare les clés du schéma avec les clés lues par `runtime/frontend_sdl.c` et la fonction `settings_save()`, en plus des tests round-trip. Le test est ajouté mais son exécution CI reste à vérifier ; le launcher n'utilise pas encore ce modèle et le chemin relatif historique n'est pas encore résolu par un contrat de données.
+
 
 1. Implémenter le modèle et l'adaptateur de configuration Linux dans `third_party/extra/linux/`.
 2. Stabiliser les chemins et le cycle lecture/validation/sauvegarde sans écraser les préférences sur un fallback.
