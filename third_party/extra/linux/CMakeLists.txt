@@ -68,10 +68,10 @@ endif()
 # This is the official upstream example, used only as a technical probe.
 # The actual DQIX launcher UI and engine bridge are intentionally not part of P0.
 add_executable(dqix-linux-ui-prototype
-    "${DEAR_IMGUI_DIR}/examples/example_sdl3_vulkan/main.cpp"
+    ui/launcher_main.cpp
 )
 target_compile_features(dqix-linux-ui-prototype PRIVATE cxx_std_17)
-target_link_libraries(dqix-linux-ui-prototype PRIVATE dqix_dear_imgui)
+target_link_libraries(dqix-linux-ui-prototype PRIVATE dqix_dear_imgui dqix-linux-settings)
 
 if(BUILD_TESTING)
     add_test(
