@@ -4,20 +4,21 @@
   "patches": [
     "0001-renderer-diagnostics.patch",
     "0002-linux-build-mirror.patch",
-    "0003-linux-build-entrypoint.patch"
+    "0003-linux-build-entrypoint.patch",
+    "0004-linux-ingame-overlay.patch"
   ],
   "sources": [
     {
       "source_path": "runtime/frontend_sdl.c",
       "mirror_path": "third_party/extra/linux/src/runtime/frontend_sdl.c",
       "base_git_blob_sha1": "600d95d5d928d9b2158d05b0ef2754e754746f4f",
-      "mirror_git_blob_sha1": "e37373a36ab862d7c522b93c011fb0a74d4824fa"
+      "mirror_git_blob_sha1": "175703a053ca7def9d2655d0b022f2b6e473c562"
     },
     {
       "source_path": "build.mk",
       "mirror_path": "third_party/extra/linux/src/build.mk",
       "base_git_blob_sha1": "ca723a055a35a17fa35b699616b4a70b6fa45a99",
-      "mirror_git_blob_sha1": "02c09d4c050621e39db3c402c6e9dd1c09d495c2"
+      "mirror_git_blob_sha1": "dcda95b6ccfe21cf1238d6afb11771e50d077e09"
     },
     {
       "source_path": "tools/build-game.sh",

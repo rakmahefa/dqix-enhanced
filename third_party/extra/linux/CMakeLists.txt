@@ -7,7 +7,8 @@ find_package(Threads REQUIRED)
 pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
 find_program(BASH_EXECUTABLE bash REQUIRED)
 
-add_library(dqix-linux-overlay STATIC overlay/linux_overlay.c)
+add_library(dqix-linux-overlay STATIC overlay/linux_overlay.c overlay/linux_overlay_gl.c)
+target_link_libraries(dqix-linux-overlay PUBLIC PkgConfig::SDL2)
 target_include_directories(dqix-linux-overlay PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/overlay")
 target_compile_features(dqix-linux-overlay PUBLIC c_std_11)
 
@@ -52,4 +53,4 @@ if(BUILD_TESTING)
 endif()
 
 message(STATUS "DQIX Linux launcher: SDL2 + SDL_Renderer; no external UI toolkit or Vulkan")
-message(STATUS "DQIX in-game runtime bridge: not implemented")
+message(STATUS "DQIX Linux in-game overlay: GL and SDL_Renderer helper compiled; live-game acceptance remains required")

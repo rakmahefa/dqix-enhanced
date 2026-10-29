@@ -35,7 +35,7 @@ NET_LIBS ?=
 
 GENOBJ = $(patsubst $(GEN)/%.c,$(OBJ)/gen/%.o,$(wildcard $(GEN)/*.c))
 GEN7OBJ = $(patsubst $(GEN7)/%.c,$(OBJ)/gen7/%.o,$(wildcard $(GEN7)/*.c))
-RTOBJ = $(patsubst runtime/%.c,$(OBJ)/rt/%.o,$(filter runtime/%,$(RT))) $(if $(filter third_party/extra/linux/src/runtime/frontend_sdl.c,$(RT)),$(OBJ)/rt/frontend_sdl.o)
+RTOBJ = $(patsubst runtime/%.c,$(OBJ)/rt/%.o,$(filter runtime/%,$(RT))) $(if $(filter third_party/extra/linux/src/runtime/frontend_sdl.c,$(RT)),$(OBJ)/rt/frontend_sdl.o $(OBJ)/rt/linux_overlay.o $(OBJ)/rt/linux_overlay_gl.o)
 
 # RES: optional extra objects for the program only, e.g. the Windows icon
 # resource the build makes from the ROM (tools/rom_icon.py)
@@ -88,9 +88,17 @@ $(OBJ)/rt/menu_win32.o: runtime/menu_win32.c runtime/menu.h runtime/controls.h
 	@mkdir -p $(dir $@)
 	$(CC) -O2 -g -Wall -Wno-unused-parameter $(PIC) $(SDL_CFLAGS) $(DEFS) -Iruntime -c $< -o $@
 
-$(OBJ)/rt/frontend_sdl.o: third_party/extra/linux/src/runtime/frontend_sdl.c runtime/nds.h runtime/frontend.h runtime/gl_render.h runtime/menu.h runtime/version.h runtime/session.h runtime/air.h runtime/text.h runtime/controls.h runtime/discord.h runtime/music.h
+$(OBJ)/rt/frontend_sdl.o: third_party/extra/linux/src/runtime/frontend_sdl.c runtime/nds.h runtime/frontend.h runtime/gl_render.h runtime/menu.h runtime/version.h runtime/session.h runtime/air.h runtime/text.h runtime/controls.h runtime/discord.h runtime/music.h third_party/extra/linux/overlay/linux_overlay.h third_party/extra/linux/overlay/linux_overlay_gl.h
 	@mkdir -p $(dir $@)
 	$(CC) -O2 -g -Wall -Wno-unused-parameter $(PIC) $(DETERMINISM) $(SDL_CFLAGS) $(DEFS) -Iruntime -c $< -o $@
+
+$(OBJ)/rt/linux_overlay.o: third_party/extra/linux/overlay/linux_overlay.c third_party/extra/linux/overlay/linux_overlay.h
+	@mkdir -p $(dir $@)
+	$(CC) -O2 -g -Wall $(PIC) -Ithird_party/extra/linux/overlay -c $< -o $@
+
+$(OBJ)/rt/linux_overlay_gl.o: third_party/extra/linux/overlay/linux_overlay_gl.c third_party/extra/linux/overlay/linux_overlay_gl.h third_party/extra/linux/overlay/linux_overlay.h
+	@mkdir -p $(dir $@)
+	$(CC) -O2 -g -Wall $(PIC) $(SDL_CFLAGS) -Ithird_party/extra/linux/overlay -c $< -o $@
 
 # Sessions need every PC to compute exactly the same: no stack garbage in uninitialised variables.
 DETERMINISM ?= -ftrivial-auto-var-init=zero
