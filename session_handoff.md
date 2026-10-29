@@ -46,8 +46,12 @@ The permanent production AppImage workflow has not yet been confirmed on an allo
 
 ## 4. Known limitations and next work
 
+See [`third_party/extra/linux/FEATURE_PARITY_AUDIT.md`](third_party/extra/linux/FEATURE_PARITY_AUDIT.md) for the runtime-feature/settings matrix and Vulkan feasibility assessment. The launcher exposes only a subset of the runtime settings; runtime support is not the same as launcher UI coverage.
+
+
 1. Run the updated AppImage with a local real ROM/workspace. Check workspace-root `devlog.log` for the session header, `renderer-diagnostics: game_renderer_fallback=`, OpenGL vendor/renderer/version or SDL_Renderer capabilities, fallback reason, game stdout/stderr and the exit record. No ROM belongs in CI or AppImage.
 2. Complete the in-game overlay acceptance matrix on a real game: Escape open/close without triggering a DS action, pause/resume tick behavior, keyboard and gamepad capture, focus loss, fullscreen/resize, shutdown, OpenGL presentation and SDL_Renderer/software fallback. Fix any issues and add ROM-free tests where practical.
+3. Decide which of the settings absent from the launcher UI should be exposed next; validate startup-only/runtime-dependent options in a real game.
 3. Continue auditing settings path migration and unsupported/startup-only/runtime-dependent options. Saving a setting is not proof the runtime applies it.
 4. Run the permanent production AppImage workflow on an allowed event and review the complete diff against `main`.
 

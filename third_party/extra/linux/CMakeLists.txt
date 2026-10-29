@@ -43,7 +43,7 @@ if(BUILD_TESTING)
     target_link_libraries(dqix-linux-settings-tests PRIVATE dqix-linux-settings)
     add_test(NAME linux-settings-model-and-runtime-parity
         COMMAND "$<TARGET_FILE:dqix-linux-settings-tests>"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../../../runtime/frontend_sdl.c")
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/frontend_sdl.c")
     add_test(NAME linux-ui-launcher-help COMMAND "$<TARGET_FILE:dqix-linux-ui-launcher>" --help)
     add_test(NAME linux-ui-sdl2-software-renderer-smoke
         COMMAND "${BASH_EXECUTABLE}"

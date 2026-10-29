@@ -4,7 +4,7 @@
 
 The native Linux launcher uses the project's SDL2 stack and SDL_Renderer with a small project-owned UI. It does not use Dear ImGui, SDL3, Vulkan, SDL_ttf, GTK, Qt or Tk as its GUI toolkit. The same SDL2 window provides setup/build, progress/logs, settings, diagnostics and Play.
 
-No complete in-game overlay is claimed yet: a separate pre-Play process cannot share the game's runtime window/event queue/pause state. The first Linux-only building block is a standalone RGBA overlay painter and ROM-free raster test; the runtime hook is still pending.
+The in-game overlay is wired into the patch-derived Linux frontend: Escape, pause/resume, keyboard/gamepad navigation, and GL plus SDL_Renderer drawing paths are implemented. Live-game acceptance remains pending for input capture, focus loss, fullscreen, shutdown and both renderer paths; see `IN_GAME_OVERLAY_GATE.md`.
 
 ## Implementation
 
@@ -13,20 +13,22 @@ No complete in-game overlay is claimed yet: a separate pre-Play process cannot s
 - `builder/build_job.cpp` validates ROM/workspace paths, confirms merging non-empty unmarked workspaces, stages project sources while excluding generated/private output, and protects against writes through destination symlinks.
 - Source staging and compilation run outside the SDL render/event loop. `BuildJob` captures combined build output, sends events to the UI and persists the raw build transcript at `launcher-build.log`. It also mirrors timestamped build messages into workspace-root `devlog.log`.
 - After a successful build, the launcher validates the generated game layout and launches via `game/play.sh` when present, with a direct-executable fallback. Game stdout/stderr are appended to workspace-root `devlog.log` under a timestamped session header. The patched Linux frontend emits a structured `renderer-diagnostics` block with fallback state/reason, SDL/video/window/display details, OpenGL vendor/renderer/version/context attributes or SDL_Renderer name/capabilities/formats/errors/output size and texture details. `game/launcher.log` remains the launcher/settings log. If `devlog.log` cannot be opened, output falls back to `launcher.log` and the UI reports the fallback.
-- Graphics/display/audio/controls/mods/wireless/system pages remain. Some controls are still explicitly informational or not implemented (notably controls remapping and free-form text editing); saving a setting does not guarantee that the runtime applies it.
+- Graphics/display/audio/controls/mods/wireless/system pages remain. The launcher edits a subset of runtime settings; controls remapping and free-form server/player text entry are not implemented there yet. See `FEATURE_PARITY_AUDIT.md` for the exact coverage and Vulkan assessment. Saving a setting is not proof the runtime applies it.
 - `packaging/linux/AppRun` checks the bundled toolchain as before and starts the SDL2 launcher directly. The former Tk app `packaging/linux/gui.py` is deleted from the branch and excluded by the AppImage payload policy. The build toolchain still contains Python for code generation/build/package tasks; this does not create a Tk UI.
 - Canonical Windows/runtime sources, root `build.mk` and root `tools/build-game.sh` remain unchanged. Ordered patches, `source-mirror-manifest.json`, `tools/sync_linux_sources.py` and checked-in mirrors under `src/` define the Linux-only build path.
 
 ## Verification
 
-Full temporary E2E run [40824893570](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570) passed all three jobs with the synthetic game-output capture test:
+Latest full temporary E2E run [40838643741](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741) passed all three jobs.
 
-- System SDL2: 4/4 CTest tests passed.
-- Locked Conda SDL2: 4/4 CTest tests passed, including real synthetic game stdout/stderr capture to `devlog.log`, log-symlink fallback, and appending the exit record to the active log.
-- The x86_64 AppImage assembled and passed cold/warm startup, the integrated SDL2 software-renderer self-test, corrupted-toolchain rejection, payload policy, checksums and ELF audit.
+- Source-mirror regeneration applies all four overlay/build patches without fuzz and confirms the canonical and mirror hashes match (the settings persistence patch is now added as the fifth patch and awaits this commit's CI).
+- The native SDL2 job compiles the patched frontend plus `linux_overlay.o` and `linux_overlay_gl.o` through the actual Linux Makefile rules and passes all five CTest cases.
+- The locked Conda SDL2 launcher build passes. The x86_64 AppImage passes cold/warm startup, integrated launcher self-test, corrupt-toolchain rejection and payload checks.
 - ELF audit: 718 ELF files, zero findings; SBOM: 96 Conda components.
 
-Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570/artifacts/12876321813) · [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570/artifacts/12876371225) · [SDL2 diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570/artifacts/12876550365).
+Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881643184) · [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881926899) · [SDL2 toolchain diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12882130883) · [Linux development diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881449070).
+
+Those CI checks do not run a real ROM-backed game; live renderer, overlay and settings behavior still need manual acceptance. See `FEATURE_PARITY_AUDIT.md` for the settings coverage and Vulkan assessment.
 
 The user has confirmed the AppImage builds and launches the game with a real ROM/workspace. The new capture has automated child-process coverage; one real game run should still confirm the precise renderer diagnostics emitted by the user's build. The permanent production AppImage workflow has not yet been confirmed on an allowed trigger.
 
@@ -40,7 +42,7 @@ cmake --build build-linux-ui --verbose
 ctest --test-dir build-linux-ui --output-on-failure
 ```
 
-The four CTest cases cover builder dry-run success/failure, real synthetic game stdout/stderr capture and symlink-safe log fallback, settings-model/runtime schema parity, launcher CLI help, and a hidden SDL2 software-renderer smoke test. They require no real ROM or desktop GPU.
+The five CTest cases cover builder dry-run success/failure, overlay raster pixels, settings-model/runtime-mirror schema parity, launcher CLI help, and a hidden SDL2 software-renderer smoke test. They require no real ROM or desktop GPU and do not prove a ROM-backed game boots.
 
 ## Launcher arguments
 

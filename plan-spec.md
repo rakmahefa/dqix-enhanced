@@ -5,7 +5,7 @@
 **Work branch:** `plan/v32-linux-launcher-settings`  
 **Base:** `main` at `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.
 
-**Implementation update (2026-10-29):** the native SDL2 launcher replaces the former Tk builder, and `AppRun` starts that launcher directly. The user has confirmed that the AppImage builds and launches the game with a real ROM/workspace. Workspace-root `devlog.log` now receives timestamped builder messages and the game's stdout/stderr, including renderer diagnostics already emitted by the runtime. A reusable Linux-only game-process helper is used by both the launcher and CTest; synthetic tests verify stdout/stderr capture, log symlink rejection/fallback and writing the exit record to the active log. Full E2E run [40824893570](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570) passed system SDL2, locked-Conda SDL2 and AppImage assembly/cold-warm-start/toolchain-integrity/ELF checks (718 ELF files, zero findings; 96-component SBOM). The remaining manual check is to inspect this log with the user's actual game build and confirm the runtime's renderer messages appear as expected.
+**Implementation update (2026-10-29):** the native SDL2 launcher replaces the former Tk builder and `AppRun` starts it directly. The Linux frontend/overlay integration is compiled from the patch-derived mirror; the source-mirror check, Makefile-driven frontend/overlay object build, five CTest cases and full temporary AppImage E2E passed in [run 40838643741](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741). This audit adds settings-schema parity against the exact mirror, fixes persistence of a custom `discord_app_id` in the Linux-only patch, and documents which runtime settings remain unexposed in the launcher plus Vulkan feasibility. Real-game behavior is not claimed verified; the remaining manual gates are listed in `third_party/extra/linux/FEATURE_PARITY_AUDIT.md` and `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
 
 
 
@@ -276,7 +276,10 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 - [x] Linux BuildJob requires the mirrored build entry point; its makefile explicitly selects the mirrored frontend with no canonical-script fallback.
 - [x] Temporary CI checks patch application/content hashes and syntax-compiles the patched frontend; production CI checks mirror integrity.
 - [ ] Manually verify the renderer diagnostic block in workspace `devlog.log` with the updated AppImage and real gameplay.
-- [x] A standalone Linux-only overlay raster module and ROM-free rendering test are committed; in-game event/pause/render integration is still pending and documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
+- [x] Linux-only in-game overlay event/pause and GL/SDL_Renderer presentation wiring is in the patch-derived mirror; live-game acceptance remains pending in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
+- [x] Settings schema parity is checked against the Linux mirror, including loaded keys and custom `discord_app_id` persistence.
+- [ ] All runtime settings are exposed in the launcher UI; see `third_party/extra/linux/FEATURE_PARITY_AUDIT.md` for the current coverage gap.
+- [ ] Full gameplay feature/settings parity is verified on a real game build.
 
 ## 9. Out of scope
 

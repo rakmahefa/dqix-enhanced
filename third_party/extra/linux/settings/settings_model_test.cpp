@@ -111,6 +111,13 @@ void test_runtime_schema_parity(const std::filesystem::path& runtime_source) {
 
     require(!loaded.empty(), "parity test did not find settings loader keys");
     require(!written.empty(), "parity test did not find settings writer keys");
+    for (const auto& key : loaded) {
+        bool in_schema = false;
+        for (const auto candidate : known_setting_keys()) if (candidate == key) in_schema = true;
+        require(in_schema, "runtime loader key is missing from the audited schema: " + key);
+    }
+    require(written.count("discord_app_id") != 0,
+        "runtime must persist a custom discord_app_id after loading it");
     for (const auto key_view : known_setting_keys()) {
         const std::string key(key_view);
         require(loaded.count(key) != 0, "schema key is not recognized by runtime loader: " + key);
@@ -127,7 +134,7 @@ void test_runtime_schema_parity(const std::filesystem::path& runtime_source) {
 
 int main(int argc, char** argv) {
     try {
-        require(argc == 2, "usage: dqix-settings-model-tests /path/to/runtime/frontend_sdl.c");
+        require(argc == 2, "usage: dqix-settings-model-tests /path/to/Linux/mirror/frontend_sdl.c");
         test_validation();
         test_document_and_atomic_write();
         test_runtime_schema_parity(argv[1]);
