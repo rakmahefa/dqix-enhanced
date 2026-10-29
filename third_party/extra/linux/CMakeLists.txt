@@ -4,6 +4,7 @@ project(dqix_linux_ui LANGUAGES CXX)
 include(CTest)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
+find_program(BASH_EXECUTABLE bash REQUIRED)
 
 add_library(dqix-linux-settings STATIC settings/settings_model.cpp)
 target_include_directories(dqix-linux-settings PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/settings")
@@ -21,7 +22,10 @@ if(BUILD_TESTING)
         COMMAND "$<TARGET_FILE:dqix-linux-settings-tests>"
                 "${CMAKE_CURRENT_SOURCE_DIR}/../../../runtime/frontend_sdl.c")
     add_test(NAME linux-ui-launcher-help COMMAND "$<TARGET_FILE:dqix-linux-ui-launcher>" --help)
-    add_test(NAME linux-ui-sdl2-software-renderer-smoke COMMAND "$<TARGET_FILE:dqix-linux-ui-launcher>" --self-test)
+    add_test(NAME linux-ui-sdl2-software-renderer-smoke
+        COMMAND "${BASH_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/smoke-ui.sh"
+                "$<TARGET_FILE:dqix-linux-ui-launcher>")
     set_tests_properties(linux-ui-sdl2-software-renderer-smoke PROPERTIES TIMEOUT 15)
 endif()
 
