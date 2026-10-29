@@ -1,6 +1,6 @@
 # In-game SDL2 overlay integration gate
 
-**Status: Linux-only overlay event/pause wiring, GL/SDL_Renderer drawing and aspect-fit presentation are implemented in the patch-derived mirror. The prior settings/packaging baseline passed run [40840985795](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40840985795); the current patch adds aspect-fit geometry tests and its CI run must pass before live-game acceptance.**
+**Status: Linux-only overlay event/pause wiring and aspect-fit GL/SDL_Renderer presentation are implemented. Run [40842120096](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40842120096) passed all three jobs: six source patches applied without fuzz, frontend/overlay objects compiled, all five CTest cases and the full temporary AppImage E2E passed. Live-game acceptance remains pending.**
 
 ## Findings from the existing Linux build path
 
@@ -47,7 +47,7 @@ The patch-derived Linux frontend writes a `renderer-diagnostics` block to stderr
 
 `overlay/linux_overlay.c` produces a transparent 512×768 RGBA menu canvas with a project-owned 5×7 bitmap font. The GL and SDL_Renderer paths dim the complete gameplay window independently, then draw the menu into a centered 2:3 aspect-fit rectangle to avoid stretching in fullscreen/widescreen windows. Mouse hit-testing maps through the same fitted rectangle. The GL helper restores the renderer state it changes. The ROM-free raster test now also checks fitted geometry for native, 16:9 and 4:3 viewports.
 
-The temporary CI run confirms source-mirror regeneration without fuzz, Makefile-driven compilation of the patched frontend plus both overlay objects, all five launcher/project CTest cases, and AppImage cold/warm startup and ELF audit. It does **not** link a game containing ROM-generated code or execute the in-game overlay. The required GL, software-renderer, input, focus, fullscreen, shutdown and real-game checks below must pass before this gate can be marked complete.
+Run 40842120096 confirms source-mirror regeneration without fuzz, Makefile-driven compilation of the patched frontend plus both overlay objects, all five launcher/project CTest cases, and AppImage cold/warm startup and ELF audit. It does **not** link a game containing ROM-generated code or execute the in-game overlay. The required GL, software-renderer, input, focus, fullscreen, shutdown and real-game checks below must pass before this gate can be marked complete.
 
 ## Required acceptance tests
 

@@ -8,7 +8,7 @@
 
 The Linux build selects the project's existing SDL2 gameplay frontend from `third_party/extra/linux/src/runtime/frontend_sdl.c`, produced by an ordered patch series. It does not replace the game renderer with a Linux-specific reimplementation. The runtime still attempts OpenGL 3.3 for Enhanced rendering and falls back to SDL_Renderer plus software 3D when OpenGL initialization is skipped or fails.
 
-The latest completed settings/packaging baseline, [40840985795](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40840985795), passed source-mirror regeneration, Makefile-driven compilation, five CTest tests, the locked-Conda SDL2 build, AppImage cold/warm startup, bundled launcher self-test, corrupt-toolchain rejection and ELF audit (718 ELF files, zero findings). The current patch adds aspect-fit overlay drawing and geometry assertions; its CI run validates that follow-up. These checks still provide **no proof that every game feature works during a ROM-backed session**: CI intentionally does not package a real ROM or link/run a completed game build.
+The latest full temporary E2E run, [40842120096](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40842120096), passed all three jobs on the aspect-fit overlay revision. It verified all six source patches without fuzz, Makefile-driven frontend/overlay compilation, five CTest cases including aspect-fit geometry, the locked SDL2 build, AppImage cold/warm startup, toolchain corruption rejection and ELF audit (718 ELF files, zero findings). These checks still provide **no proof that every game feature works during a ROM-backed session**: CI intentionally does not package a real ROM or link/run a completed game build.
 
 ## Runtime feature parity
 

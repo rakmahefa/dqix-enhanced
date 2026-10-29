@@ -19,14 +19,12 @@ The in-game overlay is wired into the patch-derived Linux frontend: Escape, paus
 
 ## Verification
 
-Baseline full temporary E2E run [40840985795](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40840985795) passed all three jobs after settings-schema and Discord ID validation fixes. The current aspect-fit patch adds a new geometry regression test and is validated by the CI run triggered by this commit.
-
-- The ordered Linux patch series now contains six patches. Source-mirror regeneration must apply all six without fuzz and confirm that canonical inputs and mirror hashes match.
+Full temporary E2E run [40842120096](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40842120096) passed all three jobs on the aspect-fit overlay revision. Source-mirror regeneration applied all six ordered patches without fuzz and matched canonical/mirror hashes; the Makefile-driven frontend/overlay builds and all five CTest cases passed.
 - The native SDL2 job compiles the patched frontend plus `linux_overlay.o` and `linux_overlay_gl.o` through the actual Linux Makefile rules and passes all five CTest cases.
 - The locked Conda SDL2 launcher build passes. The x86_64 AppImage passes cold/warm startup, integrated launcher self-test, corrupt-toolchain rejection and payload checks.
 - ELF audit: 718 ELF files, zero findings; SBOM: 96 Conda components.
 
-Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881643184) · [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881926899) · [SDL2 toolchain diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12882130883) · [Linux development diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881449070).
+Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40842120096/artifacts/12882774555) · [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40842120096/artifacts/12883587104) · [SDL2 toolchain diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40842120096/artifacts/12883760187) · [Linux development diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40842120096/artifacts/12883471218).
 
 Those CI checks do not run a real ROM-backed game; live renderer, overlay and settings behavior still need manual acceptance. See `FEATURE_PARITY_AUDIT.md` for the settings coverage and Vulkan assessment.
 

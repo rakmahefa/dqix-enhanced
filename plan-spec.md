@@ -5,7 +5,7 @@
 **Work branch:** `plan/v32-linux-launcher-settings`  
 **Base:** `main` at `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.
 
-**Implementation update (2026-10-29):** the native SDL2 launcher replaces the former Tk builder and `AppRun` starts it directly. The Linux frontend/overlay integration is compiled from the patch-derived mirror; run [40840985795](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40840985795) passed all three jobs after settings-schema parity and Discord ID validation fixes. Patch 0006 now adds aspect-fit overlay presentation with geometry assertions; the new revision must pass CI and live-game behavior remains unverified. See `third_party/extra/linux/FEATURE_PARITY_AUDIT.md` and `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
+**Implementation update (2026-10-29):** the native SDL2 launcher replaces the former Tk builder and `AppRun` starts it directly. Run [40842120096](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40842120096) passed all three temporary CI jobs after adding aspect-fit overlay presentation and geometry assertions; source mirror, object builds, five CTest cases and AppImage E2E are green. The settings UI still exposes a subset only; a real-ROM gameplay check remains open. See `third_party/extra/linux/FEATURE_PARITY_AUDIT.md` and `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
 
 
 
