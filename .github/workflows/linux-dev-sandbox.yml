@@ -125,11 +125,13 @@ jobs:
           git diff --name-status origin/main...HEAD | tee "$DEV_LOG_DIR/changed-files.txt"
           git diff --name-only origin/main...HEAD > "$DEV_LOG_DIR/changed-paths.txt"
 
-          # Existing runtime C/C++ sources can be shared with Windows: keep them untouched.
-          if grep -E '^runtime/.*\.(c|cc|cpp|cxx|h|hh|hpp|m|mm)$' "$DEV_LOG_DIR/changed-paths.txt"; then
-            echo "::error::Runtime sources changed outside the Linux-only extension point; preserve Windows sources." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
+          # These files/directories are shared with, or define, the Windows build.
+          # The Linux experiment must leave them byte-for-byte unchanged.
+          if grep -E '^(runtime/|build\.mk$|build-windows\.sh$|BUILD\.bat$|tools/build-game\.sh$|\.github/workflows/.*windows.*|.*\.(bat|cmd|ps1|sln|vcxproj|rc|resx|manifest)$)' "$DEV_LOG_DIR/changed-paths.txt"; then
+            echo "::error::A protected runtime source or Windows/shared build configuration changed; keep the Linux work isolated." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
             exit 1
           fi
+          echo "Protected runtime and Windows/shared build paths are unchanged." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
 
           # Newly added native source files must live under third_party/extra/linux/.
           git diff --diff-filter=A --name-only origin/main...HEAD > "$DEV_LOG_DIR/added-paths.txt"
