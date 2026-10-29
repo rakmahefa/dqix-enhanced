@@ -130,6 +130,17 @@ jobs:
           fi
           echo "Source-boundary and placement checks passed." | tee "$DEV_LOG_DIR/source-placement-check.txt"
 
+      - name: Validate Linux packaging entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'import ast; from pathlib import Path; ast.parse(Path("packaging/linux/gui.py").read_text(encoding="utf-8"))'
+          bash -n packaging/linux/AppRun
+          grep -F -- '--launcher "$PACKAGE_DIR/dqix-linux-ui-launcher"' packaging/linux/AppRun >/dev/null
+          grep -F -- 'cmake -S third_party/extra/linux' .github/workflows/linux-ci-appimage.yml >/dev/null
+          git diff --check origin/main...HEAD
+          echo "Linux GUI syntax, AppRun syntax and launcher packaging hooks passed."
+
       - name: Configure, build and test Linux prototype
         shell: bash
         run: |
