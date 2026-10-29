@@ -143,7 +143,7 @@ jobs:
             exit 1
           fi
           grep -F -- '-S third_party/extra/linux -B "$LAUNCHER_BUILD_DIR" -G Ninja' .github/workflows/linux-ci-appimage.yml >/dev/null
-          grep -F -- 'cmake --build "$LAUNCHER_BUILD_DIR" --target dqix-linux-ui-launcher' .github/workflows/linux-ci-appimage.yml >/dev/null
+          grep -F -- 'cmake --build "$LAUNCHER_BUILD_DIR" --verbose' .github/workflows/linux-ci-appimage.yml >/dev/null
           grep -F -- 'install -m 0755 "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher"' .github/workflows/linux-ci-appimage.yml >/dev/null
           grep -F -- '"$LAUNCHER" --self-test' packaging/linux/AppRun >/dev/null
           grep -F -- '-DCMAKE_SKIP_RPATH=ON' .github/workflows/linux-ci-appimage.yml >/dev/null
