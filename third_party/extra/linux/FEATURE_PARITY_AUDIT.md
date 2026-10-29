@@ -1,7 +1,7 @@
 # v32 Linux feature and settings parity audit
 
-**Date:** 2026-10-29  
-**Branch:** `plan/v32-linux-launcher-settings`  
+**Date:** 2026-10-29
+**Branch:** `plan/v32-linux-launcher-settings`
 **Status:** source/compile audit complete; full in-game acceptance is **not** complete.
 
 ## Executive result
