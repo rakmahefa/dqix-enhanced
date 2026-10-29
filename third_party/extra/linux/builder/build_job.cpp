@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
@@ -161,8 +162,11 @@ bool valid_rom_path(const fs::path& rom, std::string& error) {
         error = "ROM file does not exist or is not a regular file.";
         return false;
     }
-    if (resolved.extension() != ".nds" && resolved.extension() != ".NDS" &&
-        resolved.extension() != ".Nds") {
+    std::string extension = resolved.extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    if (extension != ".nds") {
         error = "The selected ROM must have the .nds extension.";
         return false;
     }
@@ -335,7 +339,7 @@ void BuildJob::run(BuildRequest request) {
         log_line("[builder] DQIX Enhanced native SDL2 build started");
         log_line("[builder] Workspace: " + request.workspace.string());
         log_line("[builder] ROM selected: " + request.rom.filename().string());
-        publish({BuildEvent::Kind::Status, "Preparing project sources in workspace…", 2, false});
+        publish({BuildEvent::Kind::Status, "Preparing project sources in workspace…", 2, true});
         std::size_t copied_files = 0;
         std::uintmax_t copied_bytes = 0;
         const auto copy_start = std::chrono::steady_clock::now();
@@ -382,6 +386,7 @@ void BuildJob::run(BuildRequest request) {
         }
         (void)::setpgid(pid, pid);
         child_pid_.store(pid);
+        if (cancel_.load()) (void)::kill(-pid, SIGTERM);
         ::close(pipe_fds[1]);
         FILE* stream = ::fdopen(pipe_fds[0], "r");
         if (!stream) {
