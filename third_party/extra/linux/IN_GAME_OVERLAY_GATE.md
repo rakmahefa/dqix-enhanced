@@ -1,6 +1,6 @@
 # In-game SDL2 overlay integration gate
 
-**Status: Linux-only overlay event/pause wiring and GL/SDL_Renderer drawing paths are implemented in the patch-derived mirror; CI and real-game acceptance remain pending.**
+**Status: Linux-only overlay event/pause wiring and GL/SDL_Renderer drawing paths are implemented in the patch-derived mirror. Source-mirror validation, frontend syntax validation, helper build/CTest and temporary AppImage E2E passed in run [40838080231](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838080231); live-game acceptance remains pending.**
 
 ## Findings from the existing Linux build path
 
@@ -47,7 +47,7 @@ The patch-derived Linux frontend writes a `renderer-diagnostics` block to stderr
 
 `overlay/linux_overlay.c` produces the transparent RGBA menu surface with a project-owned 5×7 bitmap font. The Linux-only frontend mirror now intercepts Escape, pauses via the existing runtime pause loop, captures keyboard/gamepad navigation and selection, and renders the surface through a dedicated OpenGL shader/texture helper or an SDL_Renderer streaming texture. The GL helper saves and restores the renderer state it changes. CMake compiles both overlay implementations and the existing ROM-free raster CTest remains in place.
 
-This is implementation, not proof of runtime correctness: the required GL, software-renderer, input, focus, fullscreen, shutdown and real-game checks below must pass before this gate can be marked complete.
+The temporary CI run confirms source-mirror regeneration without fuzz, syntax compilation of the patched frontend, compilation of the overlay helper and all five launcher/project CTest cases, plus AppImage cold/warm startup and ELF audit. It does **not** link a game containing ROM-generated code or execute the in-game overlay. The required GL, software-renderer, input, focus, fullscreen, shutdown and real-game checks below must pass before this gate can be marked complete.
 
 ## Required acceptance tests
 
