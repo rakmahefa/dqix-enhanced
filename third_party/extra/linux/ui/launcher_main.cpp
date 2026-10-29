@@ -136,7 +136,8 @@ static void SetupVulkan(ImVector<const char*> instance_extensions)
         // Enumerate available extensions
         uint32_t properties_count;
         ImVector<VkExtensionProperties> properties;
-        vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, nullptr);
+        err = vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, nullptr);
+        check_vk_result(err);
         properties.resize(properties_count);
         err = vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.Data);
         check_vk_result(err);
@@ -172,7 +173,10 @@ static void SetupVulkan(ImVector<const char*> instance_extensions)
         // Setup the debug report callback
 #ifdef APP_USE_VULKAN_DEBUG_REPORT
         auto f_vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(g_Instance, "vkCreateDebugReportCallbackEXT");
-        IM_ASSERT(f_vkCreateDebugReportCallbackEXT != nullptr);
+        if (f_vkCreateDebugReportCallbackEXT == nullptr) {
+            launcher_log("[vulkan] VK_EXT_debug_report is enabled but vkCreateDebugReportCallbackEXT could not be loaded.\n");
+            std::exit(EXIT_FAILURE);
+        }
         VkDebugReportCallbackCreateInfoEXT debug_report_ci = {};
         debug_report_ci.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
         debug_report_ci.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
@@ -205,9 +209,11 @@ static void SetupVulkan(ImVector<const char*> instance_extensions)
         // Enumerate physical device extension
         uint32_t properties_count;
         ImVector<VkExtensionProperties> properties;
-        vkEnumerateDeviceExtensionProperties(g_PhysicalDevice, nullptr, &properties_count, nullptr);
+        err = vkEnumerateDeviceExtensionProperties(g_PhysicalDevice, nullptr, &properties_count, nullptr);
+        check_vk_result(err);
         properties.resize(properties_count);
-        vkEnumerateDeviceExtensionProperties(g_PhysicalDevice, nullptr, &properties_count, properties.Data);
+        err = vkEnumerateDeviceExtensionProperties(g_PhysicalDevice, nullptr, &properties_count, properties.Data);
+        check_vk_result(err);
 #ifdef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
         if (IsExtensionAvailable(properties, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME))
             device_extensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
@@ -257,7 +263,8 @@ static void SetupVulkanWindow(ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface
 {
     // Check for WSI support
     VkBool32 res;
-    vkGetPhysicalDeviceSurfaceSupportKHR(g_PhysicalDevice, g_QueueFamily, surface, &res);
+    const VkResult support_result = vkGetPhysicalDeviceSurfaceSupportKHR(g_PhysicalDevice, g_QueueFamily, surface, &res);
+    check_vk_result(support_result);
     if (res != VK_TRUE)
     {
         launcher_log("[vulkan] Selected device cannot present to the SDL window surface (WSI unsupported).\n");
@@ -846,7 +853,7 @@ void draw_launcher_ui(LauncherState& state, VkPhysicalDevice physical_device, fl
                                    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
     ImGui::Begin("DQIX Enhanced Linux Launcher", nullptr, flags);
 
-    ImGui::BeginChild("sidebar", ImVec2(210.0f, 0.0f), true);
+    ImGui::BeginChild("sidebar", ImVec2(210.0f, -64.0f), true);
     ImGui::TextUnformatted("DQIX Enhanced");
     ImGui::TextDisabled("Linux launcher preview");
     ImGui::Separator();
