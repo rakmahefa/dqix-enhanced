@@ -555,7 +555,11 @@ std::string setting_value(const LauncherState& state, std::string_view key,
 
 bool boolean_setting(const LauncherState& state, std::string_view key, bool fallback = false) {
     const std::string value = setting_value(state, key, fallback ? "1" : "0");
-    return value == "1";
+    // The existing runtime uses atoi(value) != 0 for boolean keys; reflect that
+    // when opening a pre-existing file, while validating all newly written values.
+    char* end = nullptr;
+    const long parsed = std::strtol(value.c_str(), &end, 10);
+    return end != value.c_str() && *end == '\0' && parsed != 0;
 }
 
 int integer_setting(const LauncherState& state, std::string_view key, int fallback,
@@ -563,8 +567,9 @@ int integer_setting(const LauncherState& state, std::string_view key, int fallba
     const std::string value = setting_value(state, key, std::to_string(fallback));
     char* end = nullptr;
     const long parsed = std::strtol(value.c_str(), &end, 10);
-    if (end == value.c_str() || *end != '\0') return fallback;
-    return static_cast<int>(std::clamp(parsed, static_cast<long>(minimum), static_cast<long>(maximum)));
+    if (end == value.c_str() || *end != '\0' ||
+        parsed < minimum || parsed > maximum) return fallback;
+    return static_cast<int>(parsed);
 }
 
 void checkbox_setting(LauncherState& state, const char* label, const char* key,
@@ -658,8 +663,8 @@ void launch_game(LauncherState& state) {
             nullptr
         };
         ::execv(executable.c_str(), args);
-        std::fprintf(stderr, "DQIX Launcher: execv(%s) failed: %s\n",
-                     executable.c_str(), std::strerror(errno));
+        // After fork, avoid stdio and allocation before _exit; the parent reports
+        // an exit code of 127 if exec could not start the game.
         _exit(127);
     }
 
@@ -750,7 +755,7 @@ void draw_display_page(LauncherState& state) {
     static const char* const layouts[] = {"stacked", "side_by_side", "corner", "wide", "wide_dynamic", "two_windows"};
     static const char* const backlights[] = {"low", "medium", "high", "max"};
     draw_page_title("Screen & Display", "Some display settings may require restarting the game or may depend on its existing SDL2/OpenGL path.");
-    slider_setting(state, "Window scale", "window_scale", 4, 1, 8, "%dx");
+    slider_setting(state, "Window scale", "window_scale", 2, 1, 8, "%dx");
     combo_setting(state, "Layout", "layout", "stacked", layouts, 6);
     checkbox_setting(state, "Fullscreen", "fullscreen");
     checkbox_setting(state, "Integer pixel scaling", "integer_scaling");
@@ -758,7 +763,7 @@ void draw_display_page(LauncherState& state) {
     checkbox_setting(state, "LCD colours", "lcd_colors", true);
     checkbox_setting(state, "Pixel grid", "pixel_grid", true);
     checkbox_setting(state, "Motion blur", "motion_blur", true);
-    combo_setting(state, "Backlight", "backlight", "high", backlights, 4);
+    combo_setting(state, "Backlight", "backlight", "max", backlights, 4);
     checkbox_setting(state, "Show console shell", "console", true);
     checkbox_setting(state, "Real screen gap", "screen_gap", true);
 }
@@ -767,9 +772,9 @@ void draw_audio_page(LauncherState& state) {
     draw_page_title("Audio & Music", "The game reads these values at startup. Music-pack files remain in the player's game folder.");
     slider_setting(state, "Game volume", "volume", 100, 0, 100, "%d%%");
     checkbox_setting(state, "Mute", "mute");
-    checkbox_setting(state, "Replace music with music packs", "music_packs");
+    checkbox_setting(state, "Replace music with music packs", "music_packs", true);
     checkbox_setting(state, "Show current song name", "music_song_names");
-    slider_setting(state, "Music-pack volume", "music_pack_volume", 100, 0, 200, "%d%%");
+    slider_setting(state, "Music-pack volume", "music_pack_volume", 70, 0, 200, "%d%%");
 }
 
 void draw_controls_page() {
@@ -779,9 +784,9 @@ void draw_controls_page() {
 
 void draw_mods_page(LauncherState& state) {
     draw_page_title("Mods", "These toggles update settings.ini only. The game must have the corresponding assets available to show an effect.");
-    checkbox_setting(state, "Texture packs", "texture_packs");
+    checkbox_setting(state, "Texture packs", "texture_packs", true);
     checkbox_setting(state, "Upscale 3D textures", "upscale_textures");
-    checkbox_setting(state, "Music packs", "music_packs");
+    checkbox_setting(state, "Music packs", "music_packs", true);
     checkbox_setting(state, "Display song names", "music_song_names");
     std::error_code textures_error, music_error;
     const bool textures = fs::is_directory(state.game_dir / "textures", textures_error);
