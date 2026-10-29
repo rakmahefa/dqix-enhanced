@@ -41,7 +41,7 @@ concurrency:
 jobs:
   diagnostics:
     name: Linux prototype, Vulkan diagnostics, and logs
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
       REQUIRE_LINUX_PROTOTYPE: ${{ inputs.require_linux_prototype || false }}
