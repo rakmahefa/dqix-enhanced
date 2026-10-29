@@ -11,7 +11,7 @@
       "source_path": "runtime/frontend_sdl.c",
       "mirror_path": "third_party/extra/linux/src/runtime/frontend_sdl.c",
       "base_git_blob_sha1": "600d95d5d928d9b2158d05b0ef2754e754746f4f",
-      "mirror_git_blob_sha1": "8c2aacb9e70e4589a8d00fc30839aa0576ddd5ae"
+      "mirror_git_blob_sha1": "47282eb56fe2490a2b7f07d42f1f2fefd5a9e572"
     },
     {
       "source_path": "build.mk",

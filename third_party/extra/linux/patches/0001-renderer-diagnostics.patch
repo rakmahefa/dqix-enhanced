@@ -10,7 +10,7 @@
  static SDL_GLContext g_glctx;
  static int g_scale3d = 2;
  extern void (*g_report_capture)(uint32_t out[2][256 * 192]);
-@@ -790,36 +793,137 @@
+@@ -790,36 +793,139 @@
  
  /* OpenGL: a 3.3 core context; on any failure fall back to SDL_Renderer + software 3D. */
  static int try_gl(void) {
@@ -104,9 +104,11 @@
 +    SDL_version cv,rv;SDL_VERSION(&cv);SDL_GetVersion(&rv);
 +    const char* vd=SDL_GetCurrentVideoDriver();
 +    fprintf(stderr,"renderer-diagnostics: begin\n");
-+    fprintf(stderr,"renderer-diagnostics: ready=%s fallback=%s path=%s\n",
-+        g_headless?"headless":((g_gl||(g_ren&&g_tex))?"yes":"no"),
-+        g_headless?"not-applicable":(g_gl?"false":"true"),
++    fprintf(stderr,"renderer-diagnostics: ready=%s\n",
++        g_headless?"headless":((g_gl||(g_ren&&g_tex))?"yes":"no"));
++    fprintf(stderr,"renderer-diagnostics: game_renderer_fallback=%s\n",
++        g_headless?"not-applicable":(g_gl?"false":"true"));
++    fprintf(stderr,"renderer-diagnostics: render_path=%s\n",
 +        g_headless?"headless/no-window":(g_gl?"OpenGL + gl_render":(g_ren?"SDL_Renderer + software 3D":"initialization failed")));
 +    fprintf(stderr,"renderer-diagnostics: fallback_reason=%s\n",
 +        g_headless?"not-applicable (DQIX_NOWINDOW)":(g_gl?"none":renderer_or_unknown(g_gl_fallback_reason)));
@@ -175,7 +177,7 @@
  
  /* The window's icon: the game's own, the 32x32 picture the DS menu shows for
   * the cartridge (in the ROM's banner). On Windows, dqix.exe normally carries
-@@ -952,13 +1056,18 @@
+@@ -952,13 +1058,18 @@
          const char* sc = getenv("DQIX_SCALE");
          if (sc) { g_scale = atoi(sc); if (g_scale < 1) g_scale = 1; if (g_scale > 8) g_scale = 8; }
          if (!try_gl()) {
@@ -201,7 +203,7 @@
          }
          window_icon();
          {   /* started again by the program itself (reset, sessions): the window where it was */
-@@ -980,6 +1089,7 @@
+@@ -980,6 +1091,7 @@
          session_lobby_hook = lobby_hook;
          air_idle_hook = idle_pump;
      }

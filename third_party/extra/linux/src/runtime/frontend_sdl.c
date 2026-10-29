@@ -856,9 +856,11 @@ static void renderer_diagnostics(void) {
     SDL_version cv,rv;SDL_VERSION(&cv);SDL_GetVersion(&rv);
     const char* vd=SDL_GetCurrentVideoDriver();
     fprintf(stderr,"renderer-diagnostics: begin\n");
-    fprintf(stderr,"renderer-diagnostics: ready=%s fallback=%s path=%s\n",
-        g_headless?"headless":((g_gl||(g_ren&&g_tex))?"yes":"no"),
-        g_headless?"not-applicable":(g_gl?"false":"true"),
+    fprintf(stderr,"renderer-diagnostics: ready=%s\n",
+        g_headless?"headless":((g_gl||(g_ren&&g_tex))?"yes":"no"));
+    fprintf(stderr,"renderer-diagnostics: game_renderer_fallback=%s\n",
+        g_headless?"not-applicable":(g_gl?"false":"true"));
+    fprintf(stderr,"renderer-diagnostics: render_path=%s\n",
         g_headless?"headless/no-window":(g_gl?"OpenGL + gl_render":(g_ren?"SDL_Renderer + software 3D":"initialization failed")));
     fprintf(stderr,"renderer-diagnostics: fallback_reason=%s\n",
         g_headless?"not-applicable (DQIX_NOWINDOW)":(g_gl?"none":renderer_or_unknown(g_gl_fallback_reason)));
