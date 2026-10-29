@@ -558,12 +558,70 @@ void setting_toggle(SDL_Renderer* renderer, LauncherState& state, int y, const c
         (void)commit_setting(state, key, value ? "0" : "1");
 }
 void render_ui(SDL_Renderer* renderer, LauncherState& state) {
+    poll_build_events(state);
     update_child_status(state);
     state.button_count = 0;
     set_color(renderer, SDL_Color{15,23,42,255}); SDL_RenderClear(renderer);
     fill_rect(renderer, 0, 0, kWidth, 82, SDL_Color{24,35,54,255});
     draw_text(renderer, 28, 25, "DQIX ENHANCED", SDL_Color{245,191,84,255}, 3);
     draw_text(renderer, 330, 32, "LINUX LAUNCHER / SDL2", SDL_Color{168,184,205,255}, 2, 60);
+    if (state.browser_kind != BrowserKind::None) {
+        fill_rect(renderer,0,82,kWidth,kHeight-142,SDL_Color{15,23,42,255});
+        page_title(renderer,state.browser_kind==BrowserKind::Rom?"SELECT YOUR ROM":"SELECT WORKSPACE FOLDER",
+                   state.browser_kind==BrowserKind::Rom?"Choose a readable .nds file from your own dump.":
+                                                        "Navigate to a folder, then choose Use This Folder.");
+        draw_text(renderer,30,186,"CURRENT PATH",SDL_Color{126,150,178,255},1,120);
+        draw_text(renderer,30,204,short_path(state.path_editing?fs::path(state.path_edit_buffer):state.browser_dir,128),
+                  state.path_editing?SDL_Color{245,191,84,255}:SDL_Color{232,237,245,255},1,128);
+        if (draw_button(renderer,state,30,226,112,38,"PARENT")) {
+            if (state.path_editing) { state.path_editing=false; SDL_StopTextInput(); }
+            const fs::path parent=state.browser_dir.parent_path();
+            if (!parent.empty() && parent!=state.browser_dir) { state.browser_dir=parent; refresh_browser_entries(state); }
+        }
+        if (draw_button(renderer,state,154,226,112,38,"HOME")) {
+            const char* home=std::getenv("HOME");
+            if(home&&*home){state.browser_dir=absolute_path(home);refresh_browser_entries(state);}
+        }
+        if (state.browser_kind==BrowserKind::Workspace &&
+            draw_button(renderer,state,278,226,200,38,"USE THIS FOLDER")) {
+            const fs::path chosen=state.browser_dir;
+            std::string error;
+            if(dqix::linux_ui::validate_workspace_path(state.source_root,chosen,error))
+                choose_workspace(state,chosen);
+            else { state.message=error; state.message_is_error=true; }
+        }
+        if (draw_button(renderer,state,492,226,146,38,state.path_editing?"EDITING PATH":"EDIT PATH")) {
+            if(state.path_editing) {
+                (void)commit_browser_path(state);
+            } else {
+                state.path_editing=true;
+                state.path_edit_buffer=state.browser_dir.string();
+                SDL_StartTextInput();
+            }
+        }
+        draw_text(renderer,660,238,state.path_editing?"Type path; Enter applies, Esc cancels edit.":"Click a folder to open it.",SDL_Color{144,160,181,255},1,92);
+        const std::size_t total=state.browser_entries.size();
+        if(state.browser_selection>=total && total>0) state.browser_selection=total-1;
+        if(state.browser_selection<state.browser_scroll) state.browser_scroll=state.browser_selection;
+        if(state.browser_selection>=state.browser_scroll+kBrowserVisibleRows)
+            state.browser_scroll=state.browser_selection-kBrowserVisibleRows+1;
+        int row_y=274;
+        for(std::size_t row=0;row<kBrowserVisibleRows;++row) {
+            const std::size_t i=state.browser_scroll+row;
+            if(i>=total) break;
+            const auto& entry=state.browser_entries[i];
+            const std::string prefix=entry.directory?"[DIR] ":"      ";
+            const bool clicked=draw_button(renderer,state,30,row_y,930,40,
+                prefix+short_path(entry.path.filename(),100).string(),false);
+            if(clicked) {
+                state.browser_selection=i;
+                activate_browser_entry(state,i);
+            }
+            row_y+=46;
+        }
+        draw_text(renderer,30,700,"Entries: "+std::to_string(total)+" · Use ↑/↓ and Enter, Backspace for parent; Esc closes.",
+                  SDL_Color{144,160,181,255},1,124);
+    } else {
     fill_rect(renderer, 0, 82, 225, kHeight-142, SDL_Color{20,30,46,255});
     draw_text(renderer, 22, 102, "MENU", SDL_Color{126,150,178,255}, 2);
     for (int i = 0; i < static_cast<int>(kPageNames.size()); ++i)
@@ -572,23 +630,72 @@ void render_ui(SDL_Renderer* renderer, LauncherState& state) {
 
     switch (state.page) {
     case Page::Game: {
-        page_title(renderer,"GAME","Select a built game folder using --game-dir PATH.");
-        draw_text(renderer,270,207,"GAME FOLDER",SDL_Color{126,150,178,255});
-        draw_text(renderer,270,230,short_path(state.game_dir),SDL_Color{232,237,245,255},2,76);
-        draw_text(renderer,270,275,std::string("EXECUTABLE: ")+
-            (path_has_file(state.game_dir/"dqix") && ::access((state.game_dir/"dqix").c_str(),X_OK)==0?"READY":"MISSING"),
-            SDL_Color{190,205,222,255});
-        draw_text(renderer,270,298,std::string("ROM: ")+(path_has_file(state.game_dir/"data"/"dqix.nds")?"FOUND":"MISSING"),
-            SDL_Color{190,205,222,255});
-        std::error_code ec;
-        draw_text(renderer,270,321,std::string("GENERATED CODE: ")+
-            (fs::is_directory(state.game_dir/"data"/"code",ec)?"FOUND":"MISSING"),SDL_Color{190,205,222,255});
-        if (draw_button(renderer,state,270,370,250,48,"RELOAD SETTINGS")) (void)load_settings(state);
-        if (draw_button(renderer,state,270,430,250,54,"PLAY NOW",!game_ready(state))) launch_game(state);
-        draw_text(renderer,270,510,"Uses the same data/dqix.nds and data/code/ layout as the build script.",
-                  SDL_Color{144,160,181,255},2,95);
-        draw_text(renderer,270,546,"Game output is appended to launcher.log in the selected folder.",
-                  SDL_Color{144,160,181,255},2,95);
+        if (state.integrated_builder) {
+            page_title(renderer, "BUILD / PLAY", "ROM, build progress, diagnostics and game launch in one SDL2 window.");
+            draw_text(renderer,270,198,"WORKSPACE",SDL_Color{126,150,178,255},2);
+            draw_text(renderer,270,221,short_path(state.workspace,104),SDL_Color{232,237,245,255},2,104);
+            draw_text(renderer,270,256,"ROM",SDL_Color{126,150,178,255},2);
+            draw_text(renderer,270,279,state.rom_path.empty()?"Not selected":short_path(state.rom_path,104),
+                      state.rom_path.empty()?SDL_Color{255,190,125,255}:SDL_Color{232,237,245,255},2,104);
+            if (draw_button(renderer,state,270,310,210,43,"SELECT WORKSPACE"))
+                open_browser(state,BrowserKind::Workspace);
+            if (draw_button(renderer,state,494,310,210,43,"SELECT ROM (.NDS)"))
+                open_browser(state,BrowserKind::Rom);
+            draw_text(renderer,270,371,"BUILD STATUS",SDL_Color{126,150,178,255},2);
+            draw_text(renderer,270,394,state.build_status, state.build_failed?SDL_Color{255,133,125,255}:SDL_Color{190,205,222,255},2,100);
+            fill_rect(renderer,270,419,438,12,SDL_Color{36,47,64,255});
+            int progress_width=static_cast<int>(438.0*std::max(0,std::min(100,state.build_percent))/100.0);
+            if (state.build_indeterminate) {
+                const int phase=static_cast<int>((SDL_GetTicks()/5)%520);
+                const int x=270+std::min(390,phase);
+                fill_rect(renderer,x,419,48,12,SDL_Color{90,169,235,255});
+            } else if(progress_width>0) fill_rect(renderer,270,419,progress_width,12,SDL_Color{90,169,235,255});
+            if (state.confirm_merge) {
+                draw_text(renderer,270,445,"WARNING: This folder is not an initialized workspace.",SDL_Color{255,190,125,255},2,100);
+                draw_text(renderer,270,468,"Matching source files may be refreshed; game/build folders are preserved.",SDL_Color{255,190,125,255},1,120);
+                if (draw_button(renderer,state,270,482,210,42,"CONFIRM + BUILD",state.build_in_progress))
+                    begin_build(state,true);
+                if (draw_button(renderer,state,494,482,160,42,"CANCEL",state.build_in_progress)) {
+                    state.confirm_merge=false;
+                    state.message="Workspace merge cancelled.";
+                    state.message_is_error=false;
+                }
+            } else {
+                if (draw_button(renderer,state,270,482,210,45,state.build_in_progress?"BUILD RUNNING":"BUILD / REBUILD",
+                                state.build_in_progress))
+                    begin_build(state,false);
+                if (draw_button(renderer,state,494,482,210,45,"PLAY NOW",
+                                state.build_in_progress || !game_ready(state)))
+                    launch_game(state);
+            }
+            draw_text(renderer,270,538,"BUILD OUTPUT  (complete log: launcher-build.log)",SDL_Color{126,150,178,255},1,120);
+            int log_y=558;
+            const std::size_t first=state.build_lines.size()>8?state.build_lines.size()-8:0;
+            for(std::size_t i=first;i<state.build_lines.size();++i) {
+                draw_text(renderer,270,log_y,state.build_lines[i],SDL_Color{166,190,211,255},1,116);
+                log_y+=20;
+            }
+            if (state.version!="unknown")
+                draw_text(renderer,270,714,"APP VERSION: "+state.version,SDL_Color{126,150,178,255},1,100);
+        } else {
+            page_title(renderer,"GAME","Select a built game folder using --game-dir PATH.");
+            draw_text(renderer,270,207,"GAME FOLDER",SDL_Color{126,150,178,255});
+            draw_text(renderer,270,230,short_path(state.game_dir),SDL_Color{232,237,245,255},2,76);
+            draw_text(renderer,270,275,std::string("EXECUTABLE: ")+
+                (path_has_file(state.game_dir/"dqix") && ::access((state.game_dir/"dqix").c_str(),X_OK)==0?"READY":"MISSING"),
+                SDL_Color{190,205,222,255});
+            draw_text(renderer,270,298,std::string("ROM: ")+(path_has_file(state.game_dir/"data"/"dqix.nds")?"FOUND":"MISSING"),
+                SDL_Color{190,205,222,255});
+            std::error_code ec;
+            draw_text(renderer,270,321,std::string("GENERATED CODE: ")+
+                (fs::is_directory(state.game_dir/"data"/"code",ec)?"FOUND":"MISSING"),SDL_Color{190,205,222,255});
+            if (draw_button(renderer,state,270,370,250,48,"RELOAD SETTINGS")) (void)load_settings(state);
+            if (draw_button(renderer,state,270,430,250,54,"PLAY NOW",!game_ready(state))) launch_game(state);
+            draw_text(renderer,270,510,"Uses the same data/dqix.nds and data/code/ layout as the build script.",
+                      SDL_Color{144,160,181,255},2,95);
+            draw_text(renderer,270,546,"Game output is appended to launcher.log in the selected folder.",
+                      SDL_Color{144,160,181,255},2,95);
+        }
         break;
     }
     case Page::Graphics:
@@ -659,6 +766,7 @@ void render_ui(SDL_Renderer* renderer, LauncherState& state) {
         if (draw_button(renderer,state,270,430,260,46,"RELOAD SETTINGS")) (void)load_settings(state);
         if (draw_button(renderer,state,550,430,260,46,"SHOW LOG PATH")) state.message="Log file: "+state.log_path.string();
         break;
+    }
     }
     }
     fill_rect(renderer,0,742,kWidth,58,SDL_Color{24,35,54,255});
