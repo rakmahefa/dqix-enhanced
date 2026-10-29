@@ -251,6 +251,7 @@ void launch_game(LauncherState& state) {
                     state.devlog_path.c_str(), std::strerror(saved_errno));
         output_fd = ::open(log_file.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC | O_NOFOLLOW, 0600);
     }
+    const bool fallback_log_enabled = !devlog_enabled && output_fd >= 0;
 
     const pid_t pid = ::fork();
     if (pid < 0) {
@@ -294,7 +295,9 @@ void launch_game(LauncherState& state) {
     state.game_pid = pid; state.child_result.clear();
     state.message = devlog_enabled
         ? "Game started (PID " + std::to_string(pid) + "). Runtime output goes to workspace/devlog.log."
-        : "Game started (PID " + std::to_string(pid) + "). devlog.log unavailable; output goes to launcher.log.";
+        : fallback_log_enabled
+            ? "Game started (PID " + std::to_string(pid) + "). devlog.log unavailable; output goes to launcher.log."
+            : "Game started (PID " + std::to_string(pid) + "), but neither devlog.log nor launcher.log could be opened.";
     state.message_is_error = !devlog_enabled;
     log_message(state.log_path, "[launch] started game pid=%ld from %s\n", static_cast<long>(pid), cwd.c_str());
     if (devlog_enabled)
