@@ -879,14 +879,18 @@ int main(int argc,char** argv) {
         std::fprintf(stderr,"DQIX Linux launcher: %s\nRun --help for usage.\n",argument_error.c_str()); return 2;
     }
     if(show_help) {
-        std::printf("DQIX Enhanced Linux Launcher (SDL2)\nUsage: %s [--game-dir PATH] [--self-test] [--help]\n"
-                    "PATH is the built game folder containing dqix and data/.\n"
+        std::printf("DQIX Enhanced Linux Launcher (SDL2)\nUsage: %s [--source-root PATH --default-workspace PATH] [--game-dir PATH] [--rom PATH] [--version TEXT] [--self-test] [--help]\n"
+                    "With --source-root, one SDL2 window owns ROM selection, build progress, settings and Play.\n"
+                    "Without --source-root, --game-dir selects a built game folder containing dqix and data/.\n"
                     "--self-test runs a hidden SDL2 software-renderer smoke test.\n",argv[0]);
         return 0;
     }
     if(self_test_requested) return self_test();
-    std::error_code ec; fs::create_directories(state.game_dir,ec);
-    if(ec) std::fprintf(stderr,"Warning: cannot create game directory: %s\n",ec.message().c_str());
+    std::error_code ec;
+    if(!state.integrated_builder) {
+        fs::create_directories(state.game_dir,ec);
+        if(ec) std::fprintf(stderr,"Warning: cannot create game directory: %s\n",ec.message().c_str());
+    }
     log_message(state.log_path,"[launcher] SDL2 launcher starting\n[launcher] Game directory: %s\n",state.game_dir.c_str());
     (void)load_settings(state);
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER)!=0) {
@@ -929,10 +933,10 @@ int main(int argc,char** argv) {
                         if(key==SDLK_ESCAPE) { state.path_editing=false; SDL_StopTextInput(); }
                         else if(key==SDLK_RETURN || key==SDLK_KP_ENTER) (void)commit_browser_path(state);
                         else if(key==SDLK_BACKSPACE && !state.path_edit_buffer.empty()) {
-                            do { state.path_edit_buffer.pop_back(); }
-                            while(!state.path_edit_buffer.empty() &&
-                                  (static_cast<unsigned char>(state.path_edit_buffer.back())&0xC0)==0x80);
-                            if(!state.path_edit_buffer.empty()) state.path_edit_buffer.pop_back();
+                            std::size_t erase_at=state.path_edit_buffer.size()-1;
+                            while(erase_at>0 &&
+                                  (static_cast<unsigned char>(state.path_edit_buffer[erase_at])&0xC0)==0x80) --erase_at;
+                            state.path_edit_buffer.erase(erase_at);
                         }
                     } else {
                         const std::size_t total=state.browser_entries.size();
