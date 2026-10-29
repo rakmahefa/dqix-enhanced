@@ -1,6 +1,6 @@
 # Plan-spec — Linux v32, launcher et menu in-game SDL3/Vulkan
 
-**Statut :** plan et spécification ; aucune implémentation fonctionnelle dans ce document.  
+**Statut :** spécification en cours ; un probe technique autonome SDL3/Vulkan/ImGui est ajouté dans `third_party/extra/linux/`, mais sa compilation/exécution CI et l'intégration au runtime ne sont pas encore validées.  
 **Base de travail :** branche `main`, commit `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.  
 **Cible primaire :** Linux x86_64, build local et AppImage.  
 **Décision d'architecture :** SDL3 + Dear ImGui + Vulkan pour les nouvelles interfaces Linux.  
@@ -173,15 +173,15 @@ Le développement a besoin d'un environnement reproductible pour exécuter de pe
 
 ### P0 — Audit des frontières Windows/Linux et preuve technique
 
-1. Établir la liste des sources réellement compilées par la cible Windows et la cible Linux ; enregistrer ce manifeste comme référence pour vérifier le diff de chaque PR.
-2. Cartographier les points d'entrée du moteur, les APIs disponibles pour settings, events, pause/reprise et rendu. Identifier les dépendances directes SDL2/OpenGL.
-3. Compiler et lancer un prototype **SDL3 + Dear ImGui + Vulkan** depuis `third_party/extra/linux/`, avec les dépendances épinglées et aucun changement de source Windows.
-4. Prototyper le raccordement in-game et Escape ; vérifier fenêtre/UI, events, pause/reprise et compatibilité X11/Wayland selon la cible. Déterminer si un overlay au-dessus du jeu est possible sans modifier les sources Windows.
-5. Reproduire F5 avec renderer gameplay OpenGL 3.3 et fallback logiciel ; consigner séparément l'UI renderer Vulkan et le renderer du jeu.
-6. Vérifier le fichier ini lu par le processus, les effets de cwd, la sauvegarde de fin de processus et les logs. Ne pas utiliser de ROM dans les tests unitaires/CI.
-7. Si un raccordement propre au moteur est impossible sans toucher une source Windows, arrêter cette branche d'implémentation au point de blocage et documenter une proposition d'API ou de remplacement Linux isolé.
+1. Auditer le build réel. `build.mk` sélectionne `runtime/frontend_$(FRONTEND).c` et, pour `FRONTEND=sdl`, ajoute également les unités de rendu/menu/contrôles historiques. `tools/build-game.sh` demande aujourd'hui `FRONTEND=sdl` pour les builds Windows comme Linux.
+2. Cartographier les points d'entrée et le cycle runtime. `runtime/frontend.h` définit `frontend_init()`, `frontend_frame()` et `frontend_shutdown()`. `runtime/frontend_sdl.c` initialise SDL2, crée la fenêtre OpenGL 3.3 (ou le fallback SDL/software), traite Escape et les raccourcis, présente les écrans, cadence le jeu et exécute la boucle d'attente pour `g_paused`.
+3. Compiler et lancer le probe autonome **SDL3 + Dear ImGui + Vulkan** sous `third_party/extra/linux/`. Le probe épingle Dear ImGui v1.93.0 à un commit immuable, compile l'exemple upstream `example_sdl3_vulkan` et fournit un smoke test Xvfb. Tant que les logs CI ne sont pas vérifiés, le résultat est « ajouté, non validé » ; l'absence d'un device Vulkan doit être enregistrée comme test ignoré/non exécuté, jamais comme rendu réussi.
+4. Traiter séparément la faisabilité du menu in-game. Un processus SDL3/Vulkan distinct peut être un launcher, mais il ne partage ni la fenêtre SDL2/OpenGL, ni la file d'événements, ni l'état de pause/tick du runtime. X11/Wayland ne constituent pas, à eux seuls, une API du moteur. Ne pas déclarer un overlay ou Escape in-game réalisable sur la seule base du probe autonome.
+5. Le build actuel n'offre pas de variable `FRONTEND_SRC` ou de point d'injection pour sélectionner directement un fichier sous `third_party/extra/linux/` : `build.mk` construit le chemin sous `runtime/`. Le modifier est hors des règles actuelles car il sert également au build Windows. Avant une intégration, rechercher un mécanisme d'extension Linux qui ne requiert ni changement de source Windows ni changement du build Windows. Ne pas créer un symlink/source shim dans `runtime/` pour contourner la règle de confinement.
+6. Reproduire et instrumenter le problème F5 avec OpenGL 3.3 et fallback logiciel ; consigner séparément le renderer UI Vulkan et le renderer gameplay effectif. Garder la préférence demandée distincte de la capacité effective.
+7. Auditer settings.ini/controls.ini, le cwd, la sauvegarde de fin de processus et les logs. Les tests unitaires et le probe UI ne doivent pas nécessiter de ROM. Si un point d'extension conforme n'existe pas, enregistrer le blocage et proposer une décision d'architecture avant P3.
 
-**Sortie P0 :** manifeste des frontières de build et prototype SDL3/Vulkan vérifié ; décision documentée sur l'intégration réelle au jeu. P0 est bloquant pour le menu in-game.
+**Sortie P0 :** (a) résultats build/smoke du probe SDL3/Vulkan/ImGui vérifiés ; (b) manifeste des frontières Windows/Linux ; (c) décision explicite sur l'intégration in-game. Le probe graphique ne valide pas l'intégration runtime. P3 reste bloqué tant que (c) n'est pas résolu.
 
 ### P1 — Fiabiliser les paramètres et rendre le renderer lisible
 
@@ -230,7 +230,8 @@ Le développement a besoin d'un environnement reproductible pour exécuter de pe
 - [ ] Tous les nouveaux sources Linux de l'interface, du bridge, de Vulkan et des tests spécifiques sont sous `third_party/extra/linux/`.
 - [ ] Le launcher natif démarre avec SDL3 + Dear ImGui + Vulkan et affiche les erreurs de création d'instance/device/surface.
 - [ ] Les diagnostics distinguent le renderer Vulkan de l'UI du renderer réel du jeu.
-- [ ] Le prototype P0 prouve le chemin Escape/in-game sans modification des sources Windows ; à défaut, le blocage est documenté et P3 n'est pas annoncé comme terminé.
+- [ ] Le probe P0 SDL3/Vulkan/ImGui compile et son smoke test est observé dans les logs CI ; un test ignoré faute de device n'est pas présenté comme rendu validé.
+- [ ] La faisabilité d'Escape/in-game est prouvée par un raccordement réel au runtime, ou documentée comme blocage explicite. Le probe autonome ne satisfait pas ce critère ; P3 reste bloqué tant que l'intégration n'est pas résolue.
 - [ ] F5 change réellement le mode gameplay quand le moteur le permet ; sinon une explication est affichée et la préférence demandée n'est pas écrasée.
 - [ ] Escape ouvre/ferme le menu in-game ; Resume reprend le jeu ; Quit est séparé et confirmé.
 - [ ] Launcher et menu in-game partagent les mêmes pages, le même modèle de settings et les mêmes résultats d'application.
