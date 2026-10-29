@@ -135,8 +135,8 @@ echo "== Done."
     const fs::path game_dir = game_workspace / "game";
     write_file(game_dir / "play.sh", R"script(#!/bin/bash
 set -eu
-printf 'synthetic-game-stdout-marker\\n'
-printf 'synthetic-game-stderr-marker\\n' >&2
+printf 'synthetic-game-stdout-marker\n'
+printf 'synthetic-game-stderr-marker\n' >&2
 exit 0
 )script");
     const auto launched_game = dqix::linux_ui::launch_game_process(
@@ -171,7 +171,7 @@ exit 0
     const fs::path fallback_workspace = temp / "game-log-fallback";
     const fs::path fallback_game = fallback_workspace / "game";
     const fs::path protected_log = temp / "protected-log.txt";
-    write_file(protected_log, "protected-sentinel\\n");
+    write_file(protected_log, "protected-sentinel\n");
     fs::create_directories(fallback_game);
     fs::create_symlink(protected_log, fallback_workspace / "devlog.log", ec);
     if (ec) {
@@ -179,7 +179,7 @@ exit 0
         ec.clear();
     } else {
         write_file(fallback_game / "play.sh", R"script(#!/bin/bash
-printf 'fallback-game-output-marker\\n'
+printf 'fallback-game-output-marker\n'
 )script");
         const auto fallback_launch = dqix::linux_ui::launch_game_process(
             fallback_workspace, fallback_game, fallback_game / "launcher.log", "test-version");
