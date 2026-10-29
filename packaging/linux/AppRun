@@ -20,8 +20,8 @@ usage() {
     cat <<EOF
 DQIX Enhanced Builder $VERSION
 
-By default, opens a graphical window where you select your ROM (.nds),
-choose a workspace folder, build the game and follow progress.
+By default, opens the native SDL2 launcher where you select your ROM (.nds),
+choose a workspace folder, build the game, inspect settings and press Play.
 
 Usage:
   $0                       Open the graphical builder
@@ -129,16 +129,11 @@ fi
 
 if [ "$ACTION" = "self-test" ]; then
     "$ENV_DIR/bin/python3" -c '
-import ast
-from pathlib import Path
-import tkinter
-from tkinter import filedialog, ttk
+import sys
 import yaml
-gui = Path("'"$BUNDLED_SOURCE"'/packaging/linux/gui.py")
-ast.parse(gui.read_text(encoding="utf-8"))
-print("Python/Tk:", tkinter.TkVersion)
+print("Bundled Python:", sys.version.split()[0])
 print("PyYAML:", yaml.__version__)
-print("GUI source syntax: OK")
+print("Native SDL2 launcher path: checked below")
 '
     make --version | head -n 1
     sdl2-config --version
@@ -169,11 +164,12 @@ C
 fi
 
 if [ "$ACTION" = "gui" ]; then
-    exec "$ENV_DIR/bin/python3" "$BUNDLED_SOURCE/packaging/linux/gui.py" \
-        --source "$BUNDLED_SOURCE" \
+    LAUNCHER="$PACKAGE_DIR/dqix-linux-ui-launcher"
+    [ -x "$LAUNCHER" ] || die "the bundled native SDL2 launcher is missing or not executable"
+    exec "$LAUNCHER" \
+        --source-root "$BUNDLED_SOURCE" \
         --default-workspace "$WORKSPACE" \
-        --version "$VERSION" \
-        --launcher "$PACKAGE_DIR/dqix-linux-ui-launcher"
+        --version "$VERSION"
 fi
 
 # Non-interactive/terminal fallback for automation and advanced users.
