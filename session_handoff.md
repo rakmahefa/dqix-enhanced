@@ -23,7 +23,7 @@
 - Ce document : [session_handoff.md](https://github.com/rakmahefa/dqix-enhanced/blob/plan/v32-linux-launcher-settings/session_handoff.md)
 
 La CI temporaire est destinée aux itérations de développement. Elle est limitée à la branche de travail et peut également être lancée manuellement. Elle :
-- installe les dépendances de diagnostic SDL3/Vulkan sur Ubuntu 24.04 (dont rsync pour le test de politique AppImage facultatif) ;
+- installe les dépendances de diagnostic SDL3/Vulkan sur Ubuntu 26.04 (dont rsync pour le test de politique AppImage facultatif) ;
 - enregistre les versions des outils et le résultat de `vulkaninfo` ;
 - vérifie la frontière de sources Windows et le placement des nouveaux sources natifs ;
 - configure/compile/teste `third_party/extra/linux/` s'il contient un `CMakeLists.txt` ;
