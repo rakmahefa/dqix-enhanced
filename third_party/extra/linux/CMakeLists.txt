@@ -65,8 +65,8 @@ if(BUILD_TESTING)
     )
 endif()
 
-# This is the official upstream example, used only as a technical probe.
-# The actual DQIX launcher UI and engine bridge are intentionally not part of P0.
+# The launcher UI is adapted from the pinned official example. It is a pre-Play
+# application; it does not yet bridge to the running game's SDL2 runtime.
 add_executable(dqix-linux-ui-prototype
     ui/launcher_main.cpp
 )
@@ -74,6 +74,10 @@ target_compile_features(dqix-linux-ui-prototype PRIVATE cxx_std_17)
 target_link_libraries(dqix-linux-ui-prototype PRIVATE dqix_dear_imgui dqix-linux-settings)
 
 if(BUILD_TESTING)
+    add_test(
+        NAME linux-ui-launcher-help
+        COMMAND "$<TARGET_FILE:dqix-linux-ui-prototype>" --help
+    )
     add_test(
         NAME linux-ui-sdl3-vulkan-imgui-smoke
         COMMAND "${BASH_EXECUTABLE}"
