@@ -23,11 +23,11 @@
 - third_party/extra/linux/tests/smoke-ui.sh runs the dummy-video software-renderer self-test without Vulkan or Xvfb.
 - .github/workflows/linux-dev-sandbox.yml now installs SDL2 and runs CMake/CTest. It uploads logs even on failure.
 - README and the plan were updated to distinguish implemented controls from unfinished Controls remapping/free-form text editing.
-- **Latest CI proof:** workflow run [40812634530](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40812634530), commit `f030dddabc8f64c70aa11ef25f4f489a0e131908`, completed successfully with both jobs green. The system-SDL2 job passed configure/build, all 3 CTest tests, static AppImage payload/safety and launcher/AppRun packaging-hook checks, plus the Windows/shared-path boundary check. The second job verified the locked Conda environment, built against SDL2 2.32.56, found no unresolved shared libraries or build-time Conda RPATH, and passed all 3 CTest tests. The optional repository-wide/semantic tests were skipped. The permanent AppImage workflow has not yet completed on this branch, so final AppRun/AppImage assembly remains unverified.
+- **Latest CI proof:** temporary workflow run [40815344443](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40815344443), commit `7092d1920fbc529b6a5529e0cf3273a992431768`, passed all three jobs. Both system SDL2 and locked Conda SDL2 2.32.56 builds passed their 3/3 CTest suites. The third job assembled a real x86_64 AppImage, passed cold/warm startup and bundled launcher self-test, verified a modified toolchain archive is rejected, produced and verified checksums, and completed ELF audit with 718 ELF files / zero findings and a 96-component Conda SBOM. The AppImage artifact and diagnostics were uploaded. The permanent production workflow itself still has not run on a PR/main event; optional broad semantic tests remain skipped.
 
 ## 3. Still not done
 
-- `packaging/linux/gui.py` accepts `--launcher`, and `AppRun` passes the bundled executable path. The permanent AppImage workflow builds and packages that executable against the locked Conda SDL2. These source changes and the pinned-Conda build are validated by the temporary CI, but the full permanent AppImage assembly and `AppRun --self-test` are not yet confirmed end-to-end.
+- `packaging/linux/gui.py` accepts `--launcher`, `AppRun` passes the bundled executable, and the temporary E2E workflow proves the package can be assembled and its launcher self-test succeeds. A manual click through the Tk builder and a launch using a real compiled game workspace are still outstanding.
 - settings.ini and controls.ini path/migration behavior needs a more complete audit. The current launcher reads settings.ini under its selected game directory.
 - The in-game menu/bridge is not implemented. A separate SDL2 process cannot overlay the game's window, share its events or pause the runtime automatically.
 - The source tree still contains an old ImGui license file from the superseded prototype; it is not used by the current CMake target and should be removed as cleanup if no other remaining source refers to it.
@@ -45,9 +45,9 @@
 
 ## 5. Next steps
 
-1. P0 standalone and locked-Conda SDL2 proof is confirmed by workflow run 40812634530: both build/test jobs passed, each 3/3 CTest, plus static AppImage safety/payload and source-boundary checks. The optional broad semantic/package suite remains skipped.
+1. P0 and the temporary AppImage E2E mirror are confirmed by run [40815344443](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40815344443): all three jobs passed, AppImage cold/warm startup and launcher self-test passed, and ELF audit reported zero findings. Optional broad semantic tests remain skipped.
 3. Add tests for missing/unwritable settings files, key/schema parity and persistence. Do not claim that writing a setting guarantees runtime support.
-4. Integrate the launcher with the builder and AppImage only after the standalone target is verified.
+4. Run the permanent AppImage workflow on an allowed PR/main/workflow-dispatch event when possible, then manually exercise the Tk builder button with an actual built workspace. The temporary E2E mirror has already proved image assembly, checksums and bundled self-test.
 5. Keep the in-game menu blocked until a Linux-only runtime integration proof covers events, focus, pause/resume, OpenGL and the software/SDL fallback.
 6. Review the final diff against main for Windows/source-boundary compliance.
 
@@ -60,4 +60,6 @@
 - [ ] Settings schema tests run and their output is inspected.
 - [ ] No ROM, save or protected game assets enter CI/AppImage artifacts.
 - [ ] No in-game menu support is claimed before integration tests pass.
-- [ ] The builder/AppImage source integration and pinned Conda SDL2 build are validated in the temporary CI; the complete packaged AppImage/AppRun end-to-end test remains pending.
+- [x] Temporary CI assembled and uploaded the AppImage, verified the bundled AppRun/launcher self-test and checksum audit, and audited 718 ELF files with zero findings.
+- [ ] Permanent production AppImage workflow run is confirmed.
+- [ ] Interactive Tk → launcher path with a built game workspace is manually tested.

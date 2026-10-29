@@ -10,8 +10,8 @@
 - CLI help is available. The self-test opens a hidden SDL2 window with the software renderer under SDL's dummy video driver and renders one frame.
 - The UI currently edits a subset of audited settings, checks for dqix, data/dqix.nds and data/code/, and can launch the existing game binary. Keyboard, mouse and basic gamepad navigation are supported.
 - Controls remapping and free-form editing of player/server text fields are not implemented. A saved setting does not guarantee the game renderer can apply it.
-- Development CI run [40812634530](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40812634530) completed successfully on `f030dddabc8f64c70aa11ef25f4f489a0e131908`: both system SDL2 and locked Conda SDL2 2.32.56 configure/build/test jobs passed (3/3 CTest each), as did AppImage payload/safety tests, launcher/AppRun packaging-hook checks and the Windows/shared-path boundary check. The full permanent AppImage artifact and `AppRun --self-test` are still not validated end-to-end.
-- The Tk builder and AppRun are now wired to the native launcher in the source branch, and the permanent AppImage workflow builds/packages it against the locked Conda SDL2. That packaging path still needs a completed AppImage CI run. The in-game menu/bridge is not implemented.
+- Temporary E2E workflow run [40815344443](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40815344443) passed all three jobs. The system and locked Conda SDL2 builds each passed 3/3 CTest. It also assembled and uploaded a real x86_64 AppImage; cold/warm startup, bundled launcher self-test, corrupted-toolchain rejection and checksum checks passed. The ELF audit found 718 ELF files and zero dependency issues; the SBOM contains 96 Conda components.
+- The Tk builder and AppRun are wired to the native launcher, and the temporary E2E job has validated full AppImage assembly/self-test. The permanent production workflow has not yet run on this branch, and the Tk button has not been manually exercised against a built game workspace. The in-game menu/bridge is not implemented.
 
 ## Build and test
 
@@ -33,7 +33,7 @@ The selected directory must contain an executable dqix, data/dqix.nds and data/c
 
 ## Next work
 
-1. Review the latest temporary CI logs if a regression appears; the current system/Conda SDL2 build and test jobs have passed.
+1. The latest temporary E2E CI run passed all three jobs. The artifact and diagnostic reports are available from the run page.
 2. Improve settings path/migration coverage and safely add missing UI controls only when their behavior is implemented.
 3. Prove a Linux-only runtime integration path for the in-game menu without touching Windows sources or shared build configuration.
 4. Run the permanent AppImage workflow from an allowed trigger and validate final AppDir assembly, bundled `AppRun --self-test`, and the GUI `--launcher` path; then run a manual UI test with a built game folder.
