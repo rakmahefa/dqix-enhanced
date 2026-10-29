@@ -1,34 +1,39 @@
-# Linux UI prototype — décision de migration SDL2
+# Linux UI launcher — SDL2
 
-> **Architecture cible révisée le 2026-10-29 : SDL2, sans Dear ImGui et sans Vulkan dans la première phase.**  
-> Le prototype décrit par une partie de ce répertoire a été commencé en SDL3 + Dear ImGui + Vulkan. Il est désormais historique et doit être remplacé avant d’être considéré comme base du launcher. Ce README documente l’écart entre le code présent et la cible décidée.
+**Architecture target:** SDL2 + SDL_Renderer, with a small UI layer maintained in this project. Dear ImGui, SDL3, Vulkan and external UI toolkits are not dependencies of the target.
 
-Référence d’architecture et plan : plan-spec.md à la racine du dépôt. Suivi de session : session_handoff.md.
+## Implementation state
 
-## État actuel (code non encore migré)
+- The launcher source has been migrated from the earlier SDL3/ImGui/Vulkan prototype to a minimal SDL2 application.
+- ui/launcher_main.cpp draws controls and text with SDL_Renderer and a compact embedded 5x7 bitmap font.
+- The settings model in settings/ remains independent of SDL and graphics, and can be tested without a window or ROM.
+- CLI help is available. The self-test opens a hidden SDL2 window with the software renderer under SDL's dummy video driver and renders one frame.
+- The UI currently edits a subset of audited settings, checks for dqix, data/dqix.nds and data/code/, and can launch the existing game binary. Keyboard, mouse and basic gamepad navigation are supported.
+- Controls remapping and free-form editing of player/server text fields are not implemented. A saved setting does not guarantee the game renderer can apply it.
+- The actual CI configure/build/CTest result is **not yet verified** by inspecting a completed run and its logs.
+- The launcher is not yet connected to the builder Tk Play/launch action or included in the published AppImage. The in-game menu/bridge is not implemented.
 
-- CMakeLists.txt requiert encore SDL3, Vulkan et Dear ImGui via FetchContent.
-- ui/launcher_main.cpp est encore le prototype SDL3/Vulkan/ImGui.
-- Le modèle dans settings/ est indépendant de SDL/UI et demeure réutilisable.
-- Le prototype n’est pas le launcher SDL2 visé, n’est pas intégré au bouton Play du builder Tk et n’est pas empaqueté comme launcher dans l’AppImage publiée.
-- Les résultats de compilation/CTest ne sont pas confirmés comme réussis dans cette note.
+## Build and test
 
-Les commandes de build actuelles ne valident que le prototype historique :
+Install SDL2 development files, CMake, Ninja, a C++17 compiler and pkg-config, then run:
 
     cmake -S third_party/extra/linux -B build-linux-ui -G Ninja -DCMAKE_BUILD_TYPE=Debug
     cmake --build build-linux-ui --verbose
     ctest --test-dir build-linux-ui --output-on-failure
 
-## Cible de remplacement
+CTest checks settings-model/runtime schema parity, CLI help and an SDL2 software-renderer smoke test. The smoke test needs no Vulkan device, desktop session or ROM.
 
-- SDL2 comme dépendance commune avec le runtime existant.
-- SDL2 + SDL_Renderer pour le launcher pré-Play.
-- Pas de Dear ImGui, SDL3, SDL_ttf ni Vulkan dans le chemin cible initial.
-- Couche de widgets légère, propre au projet, avec navigation clavier/manette et focus visible.
-- Le modèle settings/ doit rester testable sans fenêtre, GPU ni ROM.
-- Les nouveaux sources natifs Linux restent sous third_party/extra/linux/.
-- Le menu in-game est hors de la première étape et bloqué tant qu’un point d’intégration réel n’est pas démontré sans modifier le build Windows.
+## CLI
 
-## Règles de test
+    dqix-linux-ui-launcher --game-dir /absolute/path/to/game
+    dqix-linux-ui-launcher --help
+    dqix-linux-ui-launcher --self-test
 
-Ne pas déclarer un test passé sans consulter sa sortie réelle. Un test ignoré faute d’environnement n’est pas un succès. La CI temporaire actuelle doit elle-même migrer de SDL3/Vulkan vers SDL2 avant de valider la cible révisée.
+The selected directory must contain an executable dqix, data/dqix.nds and data/code/ before Play is enabled. No game binary, ROM, save or game asset is included in this source tree.
+
+## Next work
+
+1. Inspect the actual temporary CI logs and fix any compiler or test failures.
+2. Improve settings path/migration coverage and safely add missing UI controls only when their behavior is implemented.
+3. Prove a Linux-only runtime integration path for the in-game menu without touching Windows sources or shared build configuration.
+4. Connect the launcher to the builder and AppImage only after standalone behavior has been validated.

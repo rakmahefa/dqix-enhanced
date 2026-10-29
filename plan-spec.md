@@ -1,249 +1,189 @@
-# Plan-spec — Linux v32 : launcher et menu in-game SDL2
+# Plan-spec — Linux v32: SDL2 launcher and future in-game menu
 
-**Statut :** décision d’architecture révisée le 2026-10-29. La cible est SDL2, sans nouvelle bibliothèque UI et sans Vulkan dans la première phase. Les prototypes déjà présents en SDL3/ImGui/Vulkan sont historiques et ne valident pas cette nouvelle direction.  
-**Base de travail :** ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a sur main.  
-**Branche :** plan/v32-linux-launcher-settings.
+**Status (2026-10-29):** The architecture decision is SDL2, with no extra UI toolkit and no Vulkan in this phase. The launcher, CMake target and temporary CI have been migrated away from SDL3/ImGui/Vulkan. The real CI configure/build/CTest result still needs to be inspected.  
+**Base:** main at ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a.  
+**Work branch:** plan/v32-linux-launcher-settings.
 
-## 0. Règle primordiale : préserver l’upstream Windows
+## 0. Prime directive: preserve the Windows upstream path
 
-**Ne modifier ni les sources Windows existantes, ni leur configuration de compilation.** Cette contrainte est absolue.
+**Do not modify existing Windows sources or Windows build configuration.**
 
-- Ne pas modifier runtime/menu_win32.c, ses ressources, ses dialogues, les fichiers spécifiques à Windows, ou toute source/configuration partagée dont le comportement ou la compilation Windows serait affecté.
-- Tous les nouveaux fichiers source natifs Linux (C, C++, headers, adaptateurs, tests spécifiques, code de rendu et glue code) restent sous **third_party/extra/linux/**.
-- Les scripts et workflows exclusivement Linux peuvent rester dans leurs répertoires existants, mais ne doivent pas modifier le chemin de build Windows.
-- **build.mk** et **tools/build-game.sh** sont partagés par les builds Windows et Linux : ne pas les changer dans le cadre de ce plan. Ne pas ajouter de shim ou symlink sous runtime/ pour contourner cette règle.
-- L’intégration au runtime doit utiliser un point d’extension existant ou une chaîne de build Linux autonome et isolée. Si aucun raccordement propre n’existe, consigner le blocage plutôt que d’altérer les sources protégées.
-- Avant une PR, auditer le diff et démontrer que les sources et le comportement du build Windows n’ont pas été touchés.
+- Leave runtime/menu_win32.c, resources/dialogs and any source/configuration used by Windows unchanged.
+- All new native Linux C/C++ sources, headers, adapters and tests belong under third_party/extra/linux/.
+- Linux-only CI/packaging may live in the existing Linux-specific locations.
+- build.mk and tools/build-game.sh are shared by Windows and Linux and are out of scope. No source shim or symlink may be added under runtime/.
+- Integration must use a real extension point or a standalone Linux-only build path. If neither is possible without modifying protected files, document the blocker instead of bypassing the rule.
+- Before a PR, inspect the diff against main and prove protected Windows paths remain unchanged.
 
-**Critère de rejet :** simplifier le port Linux au prix d’une modification des sources Windows ou de leur configuration de build est inacceptable.
+## 1. Architecture decision
 
-## 1. Décision d’architecture
+1. SDL2 is the shared multimedia dependency for the Linux launcher and existing game runtime.
+2. Do not add Dear ImGui or another UI toolkit. Implement only the small set of widgets the project needs.
+3. Do not add Vulkan in this phase. The launcher uses SDL2 + SDL_Renderer and must run without a Vulkan device.
+4. Do not add SDL_ttf or another font library by default; use an embedded bitmap font or suitable existing resources.
+5. Separate the settings model, action/capability layer, UI page state and drawing code.
+6. The launcher is a separate pre-Play process. SDL2 alone does not share the game's window, event queue, OpenGL context or pause/tick state.
+7. Vulkan may be reconsidered later only with a measured requirement, feasibility proof, dependency analysis and migration plan.
 
-### Choix retenu
+The former source was an SDL3 + Dear ImGui + Vulkan prototype. It has now been replaced with an initial SDL2 + SDL_Renderer launcher. **This change has not yet been verified by an observed CI run.**
 
-1. **SDL2 est le socle multimédia commun** au launcher Linux, au runtime existant et aux nouvelles interfaces Linux. Réutiliser au maximum la bibliothèque et les conventions déjà employées dans le dépôt et son packaging.
-2. **Ne pas introduire Dear ImGui ni une autre bibliothèque de widgets.** Construire une couche UI SDL2 petite et limitée aux besoins du projet : panneaux, boutons, listes, sliders, cases à cocher, navigation clavier/manette, focus visible et dialogues simples.
-3. **Ne pas ajouter Vulkan dans cette phase.** Le renderer gameplay existant utilise SDL2/OpenGL avec un chemin de repli SDL_Renderer/logiciel. Le launcher peut utiliser SDL2 + SDL_Renderer sans créer un second backend graphique.
-4. **Pas de nouvelle dépendance de rendu ou de texte par défaut.** Réutiliser les ressources typographiques existantes lorsqu’elles conviennent ; sinon préférer une petite police bitmap dans le code Linux isolé. Ne pas ajouter SDL_ttf ou une autre bibliothèque sans besoin démontré et décision explicite.
-5. **Séparer modèle, actions, widgets et rendu.** Les pages doivent appeler le même modèle typé de paramètres et les mêmes contrats d’actions. La logique de navigation et d’état UI ne doit pas être dupliquée pour chaque fenêtre ou renderer.
-6. **Le launcher est d’abord un processus pré-Play autonome.** Le menu in-game est un chantier distinct : SDL2 commun ne signifie pas que les fenêtres, événements, contexte OpenGL, pause et cycle de vie du moteur sont déjà partagés.
-7. **Vulkan reste une option future**, uniquement si une exigence concrète et mesurée ne peut être satisfaite raisonnablement avec les chemins présents. Toute proposition future devra avoir sa propre justification, preuve de faisabilité et analyse des dépendances.
+## 2. Audited runtime facts
 
-### Conséquences pour le prototype existant
-
-Le prototype présent sous third_party/extra/linux utilise encore SDL3 + Dear ImGui + Vulkan, et le workflow temporaire installe ces dépendances. Ils sont **hors de la nouvelle cible**. Cette révision ne change pas encore le code du prototype ; l’implémentation suivante devra le remplacer ou le réduire explicitement. Ne pas présenter son build/smoke test comme validation du launcher SDL2 cible.
-
-La cible devra consommer SDL2 depuis l’environnement Linux existant, avec une détection reproductible via pkg-config ou les outils SDL2 déjà disponibles. Aucun FetchContent, vendoring ni téléchargement d’ImGui/Vulkan ne doit subsister dans le nouveau chemin.
-
-## 2. Constats techniques déjà établis
-
-| Zone | Constat | Conséquence |
+| Area | Current fact | Consequence |
 |---|---|---|
-| runtime/frontend.h | Expose frontend_init(), frontend_frame() et frontend_shutdown(). | Respecter le cycle de vie du frontend. |
-| runtime/frontend_sdl.c | Le jeu utilise SDL2 ; gère fenêtres, événements, rythme des frames, pause et présentation. Le renderer OpenGL est optionnel. | Réutiliser le comportement existant, mais ne pas supposer qu’un processus launcher peut contrôler la boucle. |
-| runtime/gl_render.c | Renderer gameplay OpenGL existant. | Le launcher ne doit pas remplacer ni réécrire le renderer gameplay. |
-| runtime/controls.c | Définit actions, raccourcis et mappings clavier/manette ; F5 correspond au changement Classic/Enhanced. | Réutiliser les conventions d’actions ; vérifier les effets et les conflits de focus. |
-| runtime/menu.h / runtime/menu_win32.c | Le menu et plusieurs dialogues dépendent de Win32. | Ne pas compiler ce menu comme UI Linux ni modifier son code. |
-| build.mk | Sélectionne le frontend via un chemin sous runtime/ et ajoute les unités historiques en mode SDL. | Aucun point d’injection actuel ne choisit directement un frontend sous third_party/extra/linux/. Ne pas changer ce fichier partagé. |
-| tools/build-game.sh | Sert aux builds Windows et Linux. | L’orchestration Linux dédiée doit être ailleurs. |
-| packaging/linux/gui.py | Fenêtre Tk pour ROM/workspace/build et lancement ; stdout/stderr du jeu peuvent être redirigés vers DEVNULL. | Conserver le flux de build, mais rendre les logs accessibles. |
-| runtime/frontend_sdl.c — settings | Les paramètres dépendent du répertoire courant et sont sauvegardés depuis l’état en mémoire. | Définir des chemins explicites et éviter l’écrasement silencieux. |
+| runtime/frontend.h | frontend_init(), frontend_frame(), frontend_shutdown() define the frontend lifecycle. | Respect that lifecycle boundary. |
+| runtime/frontend_sdl.c | SDL2 owns the runtime window, input, frame pacing, pause and presentation. OpenGL is available on supported systems with an SDL/software fallback. | Reuse runtime semantics, but do not assume a separate process can control it. |
+| runtime/gl_render.c | Existing gameplay OpenGL renderer. | Do not rewrite it for the launcher. |
+| runtime/controls.c | Existing key/gamepad mappings and actions; F5 requests Classic/Enhanced. | Reuse action semantics only when a real runtime bridge exists. |
+| runtime/menu_win32.c | Menu and dialogs include Win32-specific behavior. | Keep unchanged; implement a Linux-specific UI. |
+| build.mk | Frontend source paths are selected under runtime/. | There is no current direct injection point for third_party/extra/linux/. Do not change this shared file. |
+| tools/build-game.sh | Used by both Windows and Linux. | Keep new launcher build orchestration Linux-only. |
+| packaging/linux/gui.py | Tk builder handles ROM/workspace/build and launch; its current launch action suppresses output. | Keep the build flow initially; make logs visible in future integration. |
+| settings | Runtime paths depend on the working directory and state is saved from runtime memory. | Define explicit paths/migration and avoid silently overwriting user preferences. |
 
-Les constats décrivent le code audité ; la cause exacte des symptômes F5/Enhanced sur une machine donnée reste à confirmer avec des logs d’une exécution reproductible.
+## 3. Feature audit (v32)
 
-## 3. Matrice fonctionnelle v32 à auditer
+Having a key in settings.ini does not prove the runtime applies it. Track requested value, required capability, action, observed effect and persistence separately.
 
-La présence d’une clé dans settings.ini ne prouve ni qu’elle est appliquée, ni que le renderer courant la prend en charge. Pour chaque option, mesurer la valeur demandée, la capacité requise, l’action, l’effet observé et la persistance.
-
-| Famille | Éléments à vérifier | Exigence |
+| Area | Audit focus | Acceptance |
 |---|---|---|
-| Mode/renderer | Classic, Enhanced, résolution 3D/Auto | Distinguer préférence demandée, renderer effectif et limitation OpenGL ; aucun retour silencieux à Classic. |
-| Qualité graphique | Textures lissées, outlines, shadows/glows, smooth shading | Ne montrer que les effets réellement appliqués par le chemin actif. |
-| HD text | HD text, ombres/contours | Signaler les prérequis et l’effet réel. |
-| Présentation des écrans | Stacked, side-by-side, corner, widescreen, two windows, HUD | Réutiliser les capacités du frontend ; identifier les options nécessitant un redémarrage. |
-| Échelle/fenêtre | Taille, fullscreen, integer scaling, actual size, swap, single screen | Garder valeurs et focus cohérents avec les raccourcis existants. |
-| Filtre DS Lite/console | Couleurs LCD, grille, ghosting, backlight, coque/skin, gap | Désactiver ou expliquer les effets indisponibles selon le renderer. |
-| Mods texture | Packs, upscale, dump/reload, comparaison, chemins | Confirmer assets, opérations, progression et erreurs. |
-| Mods musique | OGG/FLAC/WAV, reload, noms, volume, export | Réutiliser les services existants ; afficher les opérations longues et leurs résultats. |
-| Langue/DLC | Langues EUR, DLC | Tenir compte de la région et du moment d’application. |
-| Contrôles | Clavier, second binding, gamepad, commandes DS | Capture clavier/manette, focus, conflits et annulation par Escape. |
-| Sauvegarde/session | Import/export, wireless, serveur, host/join, nom/port | Valider chemins et paramètres ; parcours Linux isolés pour remplacer les dialogues Win32. |
-| Utilitaires | Pause, fast-forward, screenshots, rapports, update, Discord, volume | Réutiliser les actions existantes ; expliciter toute indisponibilité. |
+| Mode/graphics | Classic/Enhanced, 3D resolution, texture filtering, outlines, shadows, HD text | Separate requested/effective mode; only claim effects supported by the active renderer. |
+| Display | Layouts, widescreen, multiple windows, scaling, fullscreen, DS Lite filter/shell | Reuse runtime capabilities and mark restart requirements. |
+| Audio/music | Volume, mute, music packs, song names, export | Reuse existing services and expose operation status. |
+| Language/DLC | European languages and downloadable content | Respect ROM region and application timing. |
+| Controls | Keyboard/controller mapping and DS actions | Capture, focus, conflict resolution and Escape cancellation. |
+| Mods | Texture packs, upscale/dump/reload and music assets | Check assets and report results. |
+| Wireless/session | Server, player name, port, host/join and save transfer | Validate inputs and implement Linux alternatives to Win32 dialogs. |
+| Utilities | Pause, fast forward, screenshots, reports, update, Discord | Provide an actual action or a clearly explained unsupported state. |
 
-## 4. Architecture cible SDL2
+## 4. Target architecture: SDL2
 
-### 4.1 Launcher pré-Play
+### 4.1 Standalone pre-Play launcher
 
-- Application Linux native distincte utilisant **SDL2 + SDL_Renderer** pour dessiner les contrôles et le texte. Pas d’ImGui, Vulkan, SDL3 ou SDL_ttf par défaut.
-- Pages prévues : Game, Graphics, Screen & Display, Audio & Music, Controls, Mods, Wireless & Online et System. Les implémenter progressivement ; une page n’est pas réputée fonctionnelle tant que son action sous-jacente n’est pas testée.
-- Page Game : chemin du jeu, build/fichiers requis, état des paramètres, lancement, statut du processus et accès aux logs/configurations.
-- Le bouton Play ne s’active que lorsque l’exécutable et les données attendues existent. Le launcher lance le jeu avec un répertoire de travail défini et des arguments contrôlés ; erreurs visibles et journalisées.
-- Une seule logique de paramètres et d’actions doit alimenter le launcher et le futur menu. Ne pas dupliquer les règles de validation dans les widgets.
-- La fenêtre Tk reste celle de construction ROM/workspace au premier jalon ; elle pourra lancer le launcher SDL2 après le build.
-- Aucun GPU Vulkan n’est requis. Tester le chemin SDL_Renderer logiciel en CI.
+- Use SDL2 + SDL_Renderer with a small project-owned UI layer. No ImGui, SDL3, Vulkan, SDL_ttf or other UI toolkit is part of the initial target.
+- Planned pages: Game, Graphics, Screen/Display, Audio/Music, Controls, Mods, Wireless/Online and System.
+- Game page reports game directory, file readiness, settings status, launch status and log path. Play is available only when dqix, data/dqix.nds and data/code/ exist.
+- Launch using a known working directory and explicit arguments; capture runtime output and process status in launcher.log.
+- Preserve the current Tk build window initially. Connect its Play/launch action to this native launcher only after the standalone target and packaging are tested.
+- Use a small bitmap font when necessary to avoid adding a font dependency. Provide keyboard, mouse and gamepad navigation with visible focus.
+- Controls remapping and free-form text editing are not implemented until they actually validate and persist input.
+- Keep the settings model independent of SDL and graphics so it can be tested without ROM/window/GPU.
 
-### 4.2 Couche UI minimale
+### 4.2 UI rules
 
-- Composants de base : bouton, checkbox, slider, liste/choix, champ texte simple, barre latérale, groupe de paramètres, confirmation et bannière de diagnostic.
-- Navigation clavier/manette avec ordre de tabulation stable, indicateur de focus visible, activation/annulation cohérente et capture de touche qui ne déclenche pas simultanément une action du jeu.
-- États explicites : normal, focus, désactivé, en cours, succès et erreur. Une capacité absente doit être expliquée plutôt que cachée.
-- Pas de travail lourd dans la boucle de rendu. Les opérations longues affichent une progression et ne doivent pas geler l’interface.
-- Séparer le modèle et le layout des primitives SDL2. Les pages et la logique peuvent ainsi être partagées même si le launcher et l’overlay ont besoin de couches de dessin différentes.
+- Keep components limited: button, checkbox/toggle, stepper, choice list, basic field, navigation list, confirmation and status/error message.
+- Distinguish normal, focused, disabled, busy, success and error states.
+- Avoid expensive work in the render loop; report progress for long operations.
+- Once in-game integration exists, UI focus must prevent events from also becoming gameplay commands.
+- Writing a setting is not proof that the game has applied it. Clearly label startup-only options and capability limitations.
 
-### 4.3 Menu in-game : porte technique bloquante
+### 4.3 In-game menu integration gate — blocked
 
-Un processus SDL2 autonome ne peut pas dessiner dans la fenêtre du runtime, consommer sa file d’événements ni suspendre la boucle de jeu. Partager SDL2 ne suffit pas.
+A separate SDL2 process cannot draw into the runtime's window, share its event queue or suspend the game tick simply because both link SDL2.
 
-Avant de construire le menu, un prototype limité doit démontrer :
+Before P3, prove all of the following on a Linux-only integration path:
 
-1. un point d’entrée Linux isolé permettant à l’UI de rejoindre les cycles d’événements et de rendu du jeu ;
-2. l’ouverture/fermeture avec Escape sans déclencher une commande DS, ainsi que capture de touches et navigation manette ;
-3. une pause/reprise vérifiable du tick du jeu ;
-4. un dessin correct sur le chemin OpenGL et un comportement défini en fallback SDL_Renderer/logiciel ;
-5. une fermeture propre et une gestion cohérente du fullscreen ;
-6. aucune modification des sources ou de la configuration de build Windows.
+1. A real hook joins the runtime event/render lifecycle without changing Windows sources or shared Windows build configuration.
+2. Escape opens/closes the UI without also triggering a DS action; keyboard/gamepad focus and capture work.
+3. Pause/resume demonstrably stops/restarts game tick processing.
+4. The UI renders with OpenGL and behavior is defined for the SDL/software fallback path.
+5. Fullscreen, shutdown and error handling are correct.
+6. No shim or symlink is added under runtime/.
 
-Le rendu UI in-game peut nécessiter un adaptateur vers le contexte OpenGL existant et un chemin séparé pour le fallback. Ne pas inférer sa faisabilité à partir du launcher. Si le hook exige une modification partagée interdite, documenter le blocage et réévaluer P3 ; aucun shim ne doit être ajouté sous runtime/.
+If this cannot be achieved under the boundary, document the blocker and propose an explicit new architecture decision. A working standalone launcher does not prove in-game feasibility.
 
-## 5. Contrats de paramètres et actions
+## 5. Settings and diagnostics
 
-### 5.1 Modèle de paramètres
+- Keep settings/settings_model.cpp independent of SDL/UI. Preserve comments, order, duplicate entries and unknown keys; validate known keys and atomically replace the file.
+- Maintain a schema parity test against keys read/written by runtime/frontend_sdl.c.
+- Resolve settings.ini and controls.ini paths explicitly, independent of implicit working-directory assumptions; provide a safe migration and test override.
+- Report missing, loaded, partially invalid and error states distinctly. Do not overwrite unreadable settings silently.
+- Keep requested preference separate from renderer-effective state. Missing OpenGL capability must not silently persist Classic if Enhanced was requested.
+- Log SDL init/renderer errors, settings I/O errors and child process status. Never put ROM/save contents or protected assets in logs/artifacts.
+- The launcher may report its SDL2 UI renderer, but gameplay renderer capability is owned by the runtime and must be validated separately.
+- F5, Escape, pause and in-game actions are not claimed as integrated without a tested bridge.
 
-- Continuer le modèle typé Linux sous third_party/extra/linux/settings/, indépendant de SDL2 et des widgets.
-- Maintenir la parité avec les clés réellement lues/écrites par runtime/frontend_sdl.c.
-- Préserver commentaires, ordre, clés inconnues et entrées non modifiées ; valider plages et formats des clés connues.
-- Définir un chemin explicite pour settings.ini et controls.ini, indépendant du répertoire courant, avec migration sans perte et override de test.
-- Le statut de lecture doit distinguer absent, chargé, partiellement invalide et erreur. Aucun fichier non valide ne doit être remplacé silencieusement.
-- Écrire dans un temporaire du même répertoire, vérifier les erreurs, puis remplacer atomiquement la destination ; préserver les permissions si possible.
-- Ne jamais enregistrer un état effectif temporaire comme nouvelle préférence quand une capacité manque.
-- Le modèle ne doit importer ni SDL2 ni du code Windows et doit être testé sans ROM, fenêtre ou GPU.
+## 6. Execution plan
 
-### 5.2 Renderer et diagnostics
+### Temporary development CI
 
-Le launcher et la page System affichent séparément :
+The temporary workflow is for reproducible scripts, tests, diagnostics and logs without building the full AppImage every iteration. It is now configured for SDL2.
 
-- version SDL2 et renderer UI réellement utilisé ;
-- renderer gameplay effectif (OpenGL ou fallback) et capacités pertinentes ;
-- mode demandé et mode effectivement appliqué ;
-- chemins settings, contrôles et logs ;
-- résultats de lecture, validation, sauvegarde et lancement ;
-- raisons des actions ou options indisponibles.
+- Trigger for relevant changes on the work branch and allow manual runs.
+- Install SDL2 dev files, compiler, CMake/Ninja, pkg-config and diagnostic tools.
+- Record OS/architecture/dependency versions and configuration/build/CTest logs.
+- Upload logs with if: always(), including when compilation/tests fail.
+- Enforce protected Windows/shared-path boundaries and placement of new native Linux sources.
+- Build and run targeted tests by default; the larger semantic/package checks stay opt-in.
+- Keep the permanent AppImage workflow unchanged for now, then run the full relevant checks before final packaging/PR.
 
-Les logs ne doivent contenir ni ROM, ni sauvegarde, ni contenu privé. Ne pas supprimer stdout/stderr sans conserver les erreurs pertinentes.
+### P0 — SDL2 build and CI proof
 
-### 5.3 F5, Escape et actions
+1. Configure SDL2 with pkg-config; compile without network fetch, ImGui or Vulkan.
+2. Run CLI help and hidden dummy-video software-renderer smoke tests, neither requiring ROM or desktop GPU.
+3. Inspect the first actual workflow run/log artifacts; fix real compiler/test errors and rerun.
+4. Confirm the settings schema parity test executes in CTest.
+5. Reproduce F5/Enhanced and fallback behavior with logs; separate requested preference from effective renderer.
+6. Document a Linux-only build/packaging path without modifying build.mk or tools/build-game.sh.
 
-- F5 envoie une demande au contrat d’action du runtime et affiche le résultat effectif.
-- Si Enhanced est impossible, expliquer la raison sans écraser la préférence demandée.
-- Escape ne contrôle le menu in-game qu’après validation du bridge. En capture de touche, Escape annule la capture.
-- Quand l’UI a le focus, ses événements ne déclenchent pas les commandes DS.
-- Les actions longues (dump texture, export audio, rapport) affichent progression, succès ou erreur. Pas de faux succès.
+P0 exit: observed CI shows successful configure, build, relevant CTest tests and source-boundary check.
 
-## 6. Plan d’exécution
+### P1 — settings reliability
 
-### CI temporaire de développement
+1. Test parse/validation, missing and unwritable files, unknown entries, migration and atomic writes.
+2. Verify parity against runtime read/write keys.
+3. Show capabilities and requested/effective states distinctly.
+4. Keep tests free of ROM/window/GPU requirements.
 
-Le workflow .github/workflows/linux-dev-sandbox.yml a été créé pour exécuter scripts/tests, conserver les diagnostics et éviter un build AppImage complet à chaque petite itération. **Il est actuellement configuré pour SDL3/Vulkan et doit être réaligné avant de valider le nouveau prototype.**
+P1 exit: safe persistence and visible capability failures without silent preference loss.
 
-- Garder un workflow temporaire dédié à la branche de travail, lançable manuellement, sans AppImage complète par défaut.
-- Installer SDL2 et les outils C/C++/CMake/Ninja/pkg-config ; enlever les contrôles Vulkan de la validation cible.
-- Enregistrer OS, architecture, versions SDL2/compilateur, commandes de configuration/build/test et logs.
-- Conserver les logs comme artefact même en cas d’échec ; un test ignoré n’est pas réussi.
-- Vérifier la frontière Windows et l’emplacement de tous les nouveaux sources natifs Linux.
-- Prévoir un profil sans GPU et sans ROM qui compile/teste le modèle et le launcher SDL2.
-- Tests généraux et build AppImage complet restent optionnels pour les petites itérations, mais deviennent nécessaires avant une intégration finale pertinente.
-- Réévaluer ou retirer la CI temporaire lorsque ses contrôles utiles sont fusionnés dans la CI permanente.
+### P2 — full standalone launcher
 
-### P0 — Nettoyer la cible et prouver le socle
+1. Refine the SDL2 widgets/pages incrementally.
+2. Add free-form fields/controls remapping only after capture, validation and persistence are tested.
+3. Test readiness checks, process arguments, working directory, log path and child status using a simulated game folder.
+4. Connect the launcher to the Tk builder only after the standalone target passes.
+5. Package SDL2 consistently with the AppImage and verify cold/warm startup and resolved libraries.
+6. Keep the existing Tk build flow until launch and packaging have been verified.
 
-1. Confirmer les dépendances SDL2 déjà requises et les limites de la fenêtre Tk/AppImage.
-2. Remplacer la cible SDL3/ImGui/Vulkan existante. Supprimer de la cible les exigences FetchContent, vendor ImGui et Vulkan.
-3. Compiler un probe SDL2 qui ouvre une fenêtre, dessine via SDL_Renderer et se termine proprement. Tester aussi l’aide et le chemin sans fenêtre.
-4. Tester la CI mise à jour et consulter ses logs ; ne pas inférer un succès sans run réel.
-5. Définir le build Linux isolé sans modifier build.mk ni tools/build-game.sh.
-6. Reproduire F5/Enhanced avec logs sur OpenGL et fallback.
+P2 exit: launcher tests pass and AppImage launches it correctly.
 
-**Sortie P0 :** probe SDL2 confirmé, CI ciblée fonctionnelle et procédure de build Linux isolée documentée.
+### P3 — in-game menu/overlay
 
-### P1 — Paramètres fiables et renderer explicable
+1. Start only after the integration gate in 4.3 passes.
+2. Add a Linux-only runtime/build integration point without editing Windows sources or build.mk.
+3. Share settings/actions/navigation with the standalone launcher.
+4. Test Escape, focus, pause/resume, Quit, OpenGL and fallback paths.
+5. Audit every v32 setting and explain or disable unsupported capabilities.
 
-**État actuel :** un premier modèle de paramètres Linux et un test de parité existent. L’exécution CI n’est pas confirmée.
+P3 exit: actual runtime integration is proven, otherwise the blocker and reduced scope are documented.
 
-1. Stabiliser lecture, validation, chemins, sauvegarde atomique et migration.
-2. Confirmer la parité entre le schéma et les clés lues/écrites par le runtime.
-3. Tester fichier absent/non inscriptible, entrées invalides/inconnues, préservation et changements partiels.
-4. Exposer capacités, renderer et différence entre préférence demandée et état effectif.
-5. Garder le modèle autonome, sans dépendance SDL2.
+### P4 — packaging and upstream review
 
-**Sortie P1 :** paramètres fiables et diagnostic testable sans ROM ni fenêtre.
+- Test settings/actions/focus/fallback; run the relevant AppImage checks and inspect logs.
+- Verify no ROM/save/assets are present in CI/AppImage artifacts.
+- Review the diff against main to ensure protected Windows paths are unchanged.
+- Update Linux/AppImage docs and perform a manual test with a user-provided ROM locally only.
 
-### P2 — Launcher SDL2 pré-Play
+## 7. Acceptance checklist
 
-**État actuel :** ui/launcher_main.cpp reste un prototype SDL3/ImGui/Vulkan ; son build ne valide pas la cible SDL2.
+- [ ] No protected Windows source or shared Windows build configuration changes.
+- [ ] New native Linux sources are under third_party/extra/linux/.
+- [ ] Launcher uses SDL2 + SDL_Renderer only; no ImGui/SDL3/Vulkan build dependency.
+- [ ] Smoke tests need neither ROM nor Vulkan device/desktop GPU.
+- [ ] Temporary CI uploads logs on failure and skips full AppImage packaging by default.
+- [ ] Settings schema parity tests run and match runtime keys.
+- [ ] Launcher reports folder readiness, settings path, launch result and errors.
+- [ ] No UI action claims runtime effect merely because a file was written.
+- [ ] Builder/AppImage integration follows successful standalone validation.
+- [ ] In-game menu is not claimed without actual integration tests.
+- [ ] CI/AppImage contains no ROM/save/protected asset.
+- [ ] Windows upstream path remains clean.
 
-1. Le remplacer par un launcher SDL2 + SDL_Renderer et la couche UI minimale.
-2. Réutiliser le modèle de paramètres et les contrats d’action.
-3. Ajouter les pages progressivement ; marquer comme indisponible toute action non reliée au runtime.
-4. Tester l’exécutable, les arguments, le répertoire de travail et les logs de lancement.
-5. Tester sans ROM, avec une arborescence simulée et sur un Linux utilisant le renderer logiciel.
-6. Après validation seulement, raccorder le launcher au bouton Play de packaging/linux/gui.py et au packaging AppImage ; documenter les bibliothèques réellement résolues.
-7. Garder la fenêtre Tk de build ROM/workspace.
+## 8. Out of scope
 
-**Sortie P2 :** launcher SDL2 compilé/testé, sans ImGui/Vulkan ni dépendance UI additionnelle.
-
-### P3 — Menu in-game Escape
-
-1. Ne commencer qu’après réussite de la porte technique en 4.3.
-2. Résoudre l’intégration dans une entrée de build/frontend Linux isolée, sans modifier les sources Windows ou build.mk.
-3. Partager modèle de paramètres, actions, navigation et états de contrôle avec le launcher.
-4. Tester Escape, focus, pause/reprise et Quit sur les chemins graphiques pris en charge.
-5. Parcourir la matrice v32 ; toute option sans effet réel doit avoir une raison et ne pas être présentée comme opérationnelle.
-
-**Sortie P3 :** intégration in-game démontrée sur Linux ; sinon blocage et périmètre réduit documentés.
-
-### P4 — Tests, documentation, packaging et upstream
-
-1. Tests du modèle : parsing, limites, migration, permissions, atomicité et état demandé/effectif.
-2. Tests navigation/actions : clavier, manette, focus, F5, Escape et annulation de capture.
-3. Test SDL2 minimal et tests de fenêtre via Xvfb si l’environnement le prend en charge.
-4. Vérifier AppImage, bibliothèques SDL2 résolues, logs, lancement après build et cache froid/chaud. Pas d’assets protégés dans les artefacts.
-5. Garder la CI de développement légère ; lancer la validation complète avant PR ou modification de packaging.
-6. Comparer avec main et vérifier les sources/configurations Windows protégées.
-7. Mettre à jour docs/LINUX-APPIMAGE.md, README et le présent handoff.
-8. Test manuel sous Linux avec ROM personnelle : premier lancement, paramètres, effets réellement supportés, sauvegarde, wireless, arrêt et redémarrage.
-
-## 7. Critères d’acceptation
-
-- [ ] Aucun fichier source Windows existant et aucune configuration de build Windows protégée n’est modifié.
-- [ ] Tous les nouveaux fichiers sources natifs Linux sont sous third_party/extra/linux/.
-- [ ] Le launcher cible compile avec SDL2 et n’introduit ni Dear ImGui, ni SDL3, ni Vulkan, ni autre bibliothèque UI.
-- [ ] Le launcher utilise SDL_Renderer et fonctionne sans device Vulkan.
-- [ ] La CI temporaire installe/teste SDL2, conserve les logs en cas d’échec et n’exécute pas le build AppImage complet par défaut.
-- [ ] Le modèle de paramètres est testé indépendamment de l’UI et reste en parité avec les clés du runtime.
-- [ ] Les logs distinguent renderer UI/gameplay et préférence/état appliqué.
-- [ ] Les chemins settings/controls ne dépendent plus silencieusement du répertoire courant.
-- [ ] Le bouton Play/packaging n’est raccordé qu’après les tests du launcher.
-- [ ] Escape/in-game n’est annoncé que si un raccordement réel a été prouvé.
-- [ ] Les fonctions non prises en charge sont désactivées avec explication ; aucun faux succès ou changement silencieux.
-- [ ] Pas de ROM, sauvegarde ou asset protégé dans CI ou AppImage.
-- [ ] Le diff final préserve l’upstream Windows et son chemin de build.
-
-## 8. Hors périmètre du premier cycle
-
-- Remplacer le renderer gameplay par Vulkan ou introduire Vulkan pour le launcher sans besoin démontré.
-- Introduire Dear ImGui, SDL3, SDL_ttf ou une autre dépendance UI dans la cible initiale.
-- Réécrire le runtime Windows ou modifier son build pour faciliter Linux.
-- Promettre Enhanced ou des effets graphiques si le renderer actif ne les prend pas en charge.
-- Remplacer la fenêtre Tk de build avant stabilisation du launcher.
-- Considérer un launcher SDL2 comme preuve que le menu in-game est intégré.
-
-## 9. Références
-
-- Cycle frontend et settings : runtime/frontend.h, runtime/frontend_sdl.c.
-- Rendu gameplay : runtime/gl_render.c.
-- Actions clavier/manette : runtime/controls.c, runtime/controls.h.
-- Menu Windows à préserver : runtime/menu_win32.c, runtime/menu.h.
-- Build partagé à préserver : build.mk, tools/build-game.sh.
-- Builder Linux : packaging/linux/gui.py.
-- Matrice v32 : release-notes/v32.md.
-- Inspirations UI et modèle de paramètres : https://github.com/rakmahefa/letsgo-recomp/blob/main/runtime/ui/launcher_lg.mm et https://github.com/rakmahefa/letsgo-recomp/blob/main/runtime/ui/settings_ui.mm.
+- Replacing gameplay renderer with Vulkan.
+- Adding Dear ImGui, SDL3, SDL_ttf or another UI toolkit in this phase.
+- Modifying Windows sources/shared build configuration to simplify Linux integration.
+- Claiming Enhanced/graphics features work when the active renderer lacks capability.
+- Replacing the Tk builder before the standalone launcher is stable.
