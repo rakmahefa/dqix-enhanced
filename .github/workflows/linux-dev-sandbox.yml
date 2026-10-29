@@ -1,7 +1,7 @@
 name: Linux development diagnostics (temporary)
 
-# Temporary developer CI for the SDL3 + Dear ImGui + Vulkan prototype.
-# It deliberately avoids packaging the full AppImage on every iteration.
+# Small, repeatable SDL2 checks for the Linux-only implementation.
+# The full AppImage workflow remains separate to keep iterations fast.
 on:
   push:
     branches:
@@ -16,17 +16,12 @@ on:
   workflow_dispatch:
     inputs:
       require_linux_prototype:
-        description: Fail unless third_party/extra/linux/CMakeLists.txt exists and builds
+        description: Fail unless the SDL2 Linux prototype exists and builds
         type: boolean
         required: true
-        default: false
-      require_vulkan_device:
-        description: Fail unless vulkaninfo detects an accessible Vulkan device
-        type: boolean
-        required: true
-        default: false
+        default: true
       run_project_tests:
-        description: Also run the existing general source and semantic checks (slower)
+        description: Also run existing source, packaging and semantic checks (slower)
         type: boolean
         required: true
         default: false
@@ -35,18 +30,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: linux-dev-sandbox-${{ github.ref }}
+  group: linux-dev-sandbox-${ github.ref }
   cancel-in-progress: true
 
 jobs:
   diagnostics:
-    name: Linux prototype, Vulkan diagnostics, and logs
+    name: SDL2 prototype, tests and diagnostics
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
-      REQUIRE_LINUX_PROTOTYPE: ${{ inputs.require_linux_prototype || false }}
-      REQUIRE_VULKAN_DEVICE: ${{ inputs.require_vulkan_device || false }}
-      RUN_PROJECT_TESTS: ${{ inputs.run_project_tests || false }}
+      REQUIRE_LINUX_PROTOTYPE: ${ inputs.require_linux_prototype || false }
+      RUN_PROJECT_TESTS: ${ inputs.run_project_tests || false }
     steps:
       - name: Check out source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -65,7 +59,7 @@ jobs:
             date --utc --iso-8601=seconds
           } > "$RUNNER_TEMP/dqix-linux-dev-logs/run-context.txt"
 
-      - name: Install Linux UI and diagnostics toolchain
+      - name: Install SDL2 and diagnostics toolchain
         shell: bash
         run: |
           set -euo pipefail
@@ -75,11 +69,10 @@ jobs:
             echo '$ sudo apt-get install --no-install-recommends ...'
             sudo apt-get install --no-install-recommends -y \
               build-essential clang lld cmake ninja-build pkg-config rsync \
-              libsdl3-dev libvulkan-dev libvulkan1 mesa-vulkan-drivers vulkan-tools \
-              xvfb python3 python3-pip
+              libsdl2-dev xvfb python3 python3-pip
           } 2>&1 | tee "$DEV_LOG_DIR/install-toolchain.log"
 
-      - name: Record platform, compiler, SDL3 and Vulkan details
+      - name: Record platform, compiler and SDL2 details
         shell: bash
         run: |
           set +e
@@ -103,17 +96,12 @@ jobs:
             ninja --version
             pkg-config --version
             echo
-            echo '=== Installed packages ==='
-            dpkg-query -W -f='${binary:Package} ${Version}\n' \
-              'libsdl3*' 'libvulkan*' 'mesa-vulkan-drivers' 'vulkan-tools' 2>&1
+            echo '=== Installed SDL2 packages ==='
+            dpkg-query -W -f='${binary:Package} ${Version}\n' 'libsdl2*' 2>&1
             echo
-            echo '=== SDL3 pkg-config ==='
-            pkg-config --modversion sdl3
-            pkg-config --cflags --libs sdl3
-            echo
-            echo '=== Vulkan pkg-config ==='
-            pkg-config --modversion vulkan
-            pkg-config --cflags --libs vulkan
+            echo '=== SDL2 pkg-config ==='
+            pkg-config --modversion sdl2
+            pkg-config --cflags --libs sdl2
           } > "$DEV_LOG_DIR/platform-and-dependencies.txt" 2>&1
           cat "$DEV_LOG_DIR/platform-and-dependencies.txt"
 
@@ -125,58 +113,35 @@ jobs:
           git diff --name-status origin/main...HEAD | tee "$DEV_LOG_DIR/changed-files.txt"
           git diff --name-only origin/main...HEAD > "$DEV_LOG_DIR/changed-paths.txt"
 
-          # These files/directories are shared with, or define, the Windows build.
-          # The Linux experiment must leave them byte-for-byte unchanged.
+          # Protected runtime and shared build paths must remain unchanged.
           if grep -E '^(runtime/|build\.mk$|build-windows\.sh$|BUILD\.bat$|tools/build-game\.sh$|\.github/workflows/.*windows.*|.*\.(bat|cmd|ps1|sln|vcxproj|rc|resx|manifest)$)' "$DEV_LOG_DIR/changed-paths.txt"; then
-            echo "::error::A protected runtime source or Windows/shared build configuration changed; keep the Linux work isolated." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
+            echo "::error::A protected runtime source or Windows/shared build path changed." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
             exit 1
           fi
           echo "Protected runtime and Windows/shared build paths are unchanged." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
 
-          # Newly added native source files must live under third_party/extra/linux/.
           git diff --diff-filter=A --name-only origin/main...HEAD > "$DEV_LOG_DIR/added-paths.txt"
           if grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|m|mm|glsl|vert|frag|comp)$' "$DEV_LOG_DIR/added-paths.txt" \
               | grep -v '^third_party/extra/linux/'; then
-            echo "::error::New native Linux sources must be placed under third_party/extra/linux/." | tee "$DEV_LOG_DIR/source-placement-check.txt"
+            echo "::error::New native Linux sources must live under third_party/extra/linux/." | tee "$DEV_LOG_DIR/source-placement-check.txt"
             exit 1
           fi
-          echo "Source-boundary and placement checks passed." | tee "$DEV_LOG_DIR/source-boundary-check.txt"
+          echo "Source-boundary and placement checks passed." | tee "$DEV_LOG_DIR/source-placement-check.txt"
 
-      - name: Probe Vulkan availability (diagnostic, not an implicit pass)
-        id: vulkan
-        shell: bash
-        run: |
-          set +e
-          vulkaninfo --summary > "$DEV_LOG_DIR/vulkaninfo-summary.txt" 2>&1
-          status=$?
-          if [ "$status" -eq 0 ] && grep -Eq 'deviceName|deviceType' "$DEV_LOG_DIR/vulkaninfo-summary.txt"; then
-            echo "device_status=available" >> "$GITHUB_OUTPUT"
-            echo "Vulkan device reported by vulkaninfo." | tee "$DEV_LOG_DIR/vulkan-status.txt"
-          else
-            echo "device_status=unavailable" >> "$GITHUB_OUTPUT"
-            echo "Vulkan device unavailable or not detected; see vulkaninfo-summary.txt." | tee "$DEV_LOG_DIR/vulkan-status.txt"
-            if [ "$REQUIRE_VULKAN_DEVICE" = "true" ]; then
-              echo "::error::A Vulkan device was required for this run but was not detected."
-              exit 1
-            fi
-            echo "::warning::No Vulkan device was validated in this run; this is not a Vulkan-rendering test."
-          fi
-
-      - name: Configure, build, and test Linux prototype when present
+      - name: Configure, build and test Linux prototype
         shell: bash
         run: |
           set -euo pipefail
           PROJECT_DIR="third_party/extra/linux"
           BUILD_DIR="$RUNNER_TEMP/dqix-linux-dev-build"
           if [ ! -f "$PROJECT_DIR/CMakeLists.txt" ]; then
-            echo "No $PROJECT_DIR/CMakeLists.txt yet; this run provides environment diagnostics only." | tee "$DEV_LOG_DIR/prototype-build.txt"
+            echo "No $PROJECT_DIR/CMakeLists.txt; diagnostic-only run." | tee "$DEV_LOG_DIR/prototype-build.txt"
             if [ "$REQUIRE_LINUX_PROTOTYPE" = "true" ]; then
-              echo "::error::A Linux prototype was required, but its CMakeLists.txt does not exist."
+              echo "::error::The SDL2 Linux prototype is required but is missing."
               exit 1
             fi
             exit 0
           fi
-
           cmake -S "$PROJECT_DIR" -B "$BUILD_DIR" -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             2>&1 | tee "$DEV_LOG_DIR/cmake-configure.log"
@@ -192,7 +157,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Run optional source, packaging, and semantic tests
+      - name: Run optional source, packaging and semantic tests
         if: env.RUN_PROJECT_TESTS == 'true'
         shell: bash
         run: |
@@ -217,9 +182,8 @@ jobs:
             echo "## Linux development diagnostics (temporary)"
             echo
             echo "- Commit: $GITHUB_SHA"
-            echo "- Vulkan device status: ${{ steps.vulkan.outputs.device_status || 'not-run' }}"
+            echo "- SDL2 version: $(pkg-config --modversion sdl2 2>/dev/null || echo unavailable)"
             echo "- Required prototype: $REQUIRE_LINUX_PROTOTYPE"
-            echo "- Required Vulkan device: $REQUIRE_VULKAN_DEVICE"
             echo "- Existing project tests requested: $RUN_PROJECT_TESTS"
             echo
             echo "Diagnostic logs are attached as an artifact, including on failure."
@@ -230,7 +194,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: linux-dev-diagnostics
-          path: ${{ runner.temp }}/dqix-linux-dev-logs/
+          path: ${ runner.temp }/dqix-linux-dev-logs/
           if-no-files-found: warn
           retention-days: 14
           compression-level: 6
