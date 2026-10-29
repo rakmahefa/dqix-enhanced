@@ -41,9 +41,9 @@ the temporary development workflow separately exposes this as a manual input.
 - Does not compile or modify any Windows source or build configuration.
 - Does not link to, pause, inject into, or control the existing DQIX runtime.
 - Does not claim that the game's renderer uses Vulkan.
-- Does not yet prove the feasibility of Escape, game pause/resume, in-game overlay,
-  settings persistence, or access to runtime state. Those require a separate
-  integration-boundary audit before implementation.
+- Does not yet provide an in-game Escape overlay, pause/resume bridge, or access to
+  live runtime state. Those require a separate integration-boundary decision.
+- Does not verify that every saved option is supported by the active gameplay renderer.
 
 ## Settings model (early P1)
 
