@@ -158,7 +158,10 @@ C
     [ -x "$LAUNCHER" ] || die "the bundled SDL2 launcher is missing or not executable"
     LAUNCHER_HELP="$("$LAUNCHER" --help)"
     printf '%s\n' "$LAUNCHER_HELP" | grep -F -- "--self-test" >/dev/null || die "the bundled launcher help check failed"
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "$LAUNCHER" --self-test
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "$LAUNCHER" \
+        --source-root "$BUNDLED_SOURCE" \
+        --default-workspace "$WORKSPACE" \
+        --version "$VERSION" --self-test
     printf 'AppImage toolchain and native SDL2 launcher self-tests passed.\n'
     exit 0
 fi
