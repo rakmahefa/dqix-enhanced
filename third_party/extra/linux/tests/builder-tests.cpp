@@ -1,11 +1,14 @@
 #include "build_job.hpp"
+#include "game_process.hpp"
 
 #include <filesystem>
+#include <cerrno>
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <string>
 #include <unistd.h>
+#include <sys/wait.h>
 
 namespace fs = std::filesystem;
 using dqix::linux_ui::BuildEvent;
@@ -126,6 +129,80 @@ echo "== Done."
     ok &= require(saw_failure, "non-zero child exit must emit Failed");
     ok &= require(fs::is_regular_file(failure_workspace / "launcher-build.log"),
                   "failed build diagnostics must be persisted");
+
+    // Exercise the production launch helper using synthetic stdout/stderr.
+    const fs::path game_workspace = temp / "game-log-workspace";
+    const fs::path game_dir = game_workspace / "game";
+    write_file(game_dir / "play.sh", R"script(#!/bin/bash
+set -eu
+printf 'synthetic-game-stdout-marker\\n'
+printf 'synthetic-game-stderr-marker\\n' >&2
+exit 0
+)script");
+    const auto launched_game = dqix::linux_ui::launch_game_process(
+        game_workspace, game_dir, game_dir / "launcher.log", "test-version");
+    ok &= require(launched_game.pid > 0, "synthetic game process should start: " + launched_game.error);
+    ok &= require(launched_game.devlog_enabled, "game output capture should open devlog.log");
+    ok &= require(launched_game.used_play_script, "production launch helper should prefer game/play.sh");
+    if (launched_game.pid > 0) {
+        int game_status = 0;
+        pid_t waited;
+        do { waited = ::waitpid(launched_game.pid, &game_status, 0); } while (waited < 0 && errno == EINTR);
+        ok &= require(waited == launched_game.pid, "synthetic game child should be reaped");
+        ok &= require(WIFEXITED(game_status) && WEXITSTATUS(game_status) == 0,
+                      "synthetic game child should exit successfully");
+        (void)dqix::linux_ui::append_devlog_message(launched_game.devlog_path, "[game] Game exited with code 0.");
+    }
+    std::ifstream game_devlog_stream(game_workspace / "devlog.log", std::ios::binary);
+    const std::string game_devlog((std::istreambuf_iterator<char>(game_devlog_stream)),
+                                  std::istreambuf_iterator<char>());
+    ok &= require(game_devlog.find("GAME SESSION START") != std::string::npos,
+                  "devlog should have an explicit game-session header");
+    ok &= require(game_devlog.find("[launcher] version=test-version") != std::string::npos,
+                  "devlog should identify the launcher version");
+    ok &= require(game_devlog.find("synthetic-game-stdout-marker") != std::string::npos,
+                  "game stdout must be captured in devlog.log");
+    ok &= require(game_devlog.find("synthetic-game-stderr-marker") != std::string::npos,
+                  "game stderr/renderer diagnostics must be captured in devlog.log");
+    ok &= require(game_devlog.find("[game] Game exited with code 0.") != std::string::npos,
+                  "game exit status should be appendable to devlog.log");
+
+    // A symlink at devlog.log must not be followed; fall back to game/launcher.log.
+    const fs::path fallback_workspace = temp / "game-log-fallback";
+    const fs::path fallback_game = fallback_workspace / "game";
+    const fs::path protected_log = temp / "protected-log.txt";
+    write_file(protected_log, "protected-sentinel\\n");
+    fs::create_directories(fallback_game);
+    fs::create_symlink(protected_log, fallback_workspace / "devlog.log", ec);
+    if (ec) {
+        ok &= require(false, "fallback test could not create a symlink: " + ec.message());
+        ec.clear();
+    } else {
+        write_file(fallback_game / "play.sh", R"script(#!/bin/bash
+printf 'fallback-game-output-marker\\n'
+)script");
+        const auto fallback_launch = dqix::linux_ui::launch_game_process(
+            fallback_workspace, fallback_game, fallback_game / "launcher.log", "test-version");
+        ok &= require(fallback_launch.pid > 0, "fallback game process should start: " + fallback_launch.error);
+        ok &= require(!fallback_launch.devlog_enabled && fallback_launch.fallback_log_enabled,
+                      "unsafe devlog symlink should force launcher.log fallback");
+        if (fallback_launch.pid > 0) {
+            int status = 0;
+            pid_t waited;
+            do { waited = ::waitpid(fallback_launch.pid, &status, 0); } while (waited < 0 && errno == EINTR);
+            ok &= require(waited == fallback_launch.pid, "fallback game child should be reaped");
+        }
+        std::ifstream fallback_stream(fallback_game / "launcher.log", std::ios::binary);
+        const std::string fallback_contents((std::istreambuf_iterator<char>(fallback_stream)),
+                                            std::istreambuf_iterator<char>());
+        ok &= require(fallback_contents.find("fallback-game-output-marker") != std::string::npos,
+                      "game stdout should fall back to launcher.log when devlog is unsafe");
+        std::ifstream protected_stream(protected_log, std::ios::binary);
+        std::string protected_contents;
+        std::getline(protected_stream, protected_contents);
+        ok &= require(protected_contents == "protected-sentinel",
+                      "devlog symlink fallback must not touch its target");
+    }
 
     // A pre-existing symlink in the user workspace must never redirect writes outside it.
     const fs::path link_source = temp / "source-link";

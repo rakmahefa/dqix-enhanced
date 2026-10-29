@@ -11,7 +11,7 @@ add_library(dqix-linux-settings STATIC settings/settings_model.cpp)
 target_include_directories(dqix-linux-settings PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/settings")
 target_compile_features(dqix-linux-settings PUBLIC cxx_std_17)
 
-add_library(dqix-linux-builder STATIC builder/build_job.cpp)
+add_library(dqix-linux-builder STATIC builder/build_job.cpp builder/game_process.cpp)
 target_include_directories(dqix-linux-builder PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/builder")
 target_compile_features(dqix-linux-builder PUBLIC cxx_std_17)
 target_link_libraries(dqix-linux-builder PUBLIC Threads::Threads)

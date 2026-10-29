@@ -177,7 +177,7 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 6. **Implemented:** synthetic dry-run tests exercise successful and failed child builds, output/log persistence, exit-status reporting and source exclusions without any real ROM or generated game data.
 7. **Implemented:** ROM type/readability and source/workspace overlap validation, non-empty workspace confirmation and destination-symlink write protection have coverage. Broader missing/unwritable and long-path interaction checks remain follow-up hardening.
 
-**P1 exit:** native build-job compilation and synthetic success/failure + symlink safety tests passed in the locked Conda SDL2 job. The user has confirmed the AppImage can build and launch a real game; the new devlog content still needs a manual check.
+**P1 exit:** native build-job compilation and synthetic build success/failure, game stdout/stderr capture, safe log fallback and symlink safety tests pass in the locked Conda SDL2 job. The user has confirmed Build/Play works with a real game; emitted renderer output still needs a quick manual log check.
 
 ### P2 — SDL2-only AppImage GUI entry point (implemented; temporary end-to-end packaging verified)
 

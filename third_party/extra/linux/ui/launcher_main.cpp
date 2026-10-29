@@ -2,6 +2,7 @@
 // No ImGui, SDL3, Vulkan, SDL_ttf or other UI library is required.
 #include "../settings/settings_model.hpp"
 #include "../builder/build_job.hpp"
+#include "../builder/game_process.hpp"
 #include <SDL.h>
 #include <algorithm>
 #include <array>
@@ -18,8 +19,6 @@
 #include <string_view>
 #include <system_error>
 #include <cstdarg>
-#include <ctime>
-#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -84,45 +83,6 @@ void log_message(const fs::path& path, const char* format, ...) {
         if (file) file << buffer;
     }
 }
-std::string local_timestamp() {
-    const std::time_t now = std::time(nullptr);
-    std::tm local{};
-    if (::localtime_r(&now, &local) == nullptr) return "time-unavailable";
-    char buffer[40]{};
-    if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S%z", &local) == 0)
-        return "time-unavailable";
-    return buffer;
-}
-
-bool write_all(int fd, const char* data, std::size_t size) {
-    while (size > 0) {
-        const ssize_t count = ::write(fd, data, size);
-        if (count < 0) {
-            if (errno == EINTR) continue;
-            return false;
-        }
-        if (count == 0) return false;
-        data += count;
-        size -= static_cast<std::size_t>(count);
-    }
-    return true;
-}
-
-bool write_devlog_fd(int fd, const std::string& message) {
-    std::string line = "[" + local_timestamp() + "] " + message;
-    if (line.empty() || line.back() != '\n') line.push_back('\n');
-    return write_all(fd, line.data(), line.size());
-}
-
-bool append_devlog_message(const fs::path& path, const std::string& message) {
-    if (path.empty()) return false;
-    const int fd = ::open(path.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC | O_NOFOLLOW, 0600);
-    if (fd < 0) return false;
-    const bool ok = write_devlog_fd(fd, message);
-    (void)::close(fd);
-    return ok;
-}
-
 fs::path absolute_path(const fs::path& path) {
     std::error_code ec;
     const fs::path result = fs::absolute(path, ec);
@@ -216,92 +176,37 @@ void launch_game(LauncherState& state) {
         state.message = "Game not ready: expected dqix, data/dqix.nds and data/code/.";
         state.message_is_error = true; return;
     }
-    const std::string executable = (state.game_dir / "dqix").string();
-    const std::string cwd = state.game_dir.string();
-    const fs::path play_script_path = state.game_dir / "play.sh";
-    std::error_code play_ec;
-    const bool use_play_script = fs::is_regular_file(play_script_path, play_ec) && !play_ec &&
-                                ::access(play_script_path.c_str(), R_OK) == 0;
-    const std::string play_script = play_script_path.string();
-    const std::string log_file = state.log_path.string();
     if (state.devlog_path.empty()) {
         const fs::path root = state.workspace.empty() ? state.game_dir : state.workspace;
         state.devlog_path = root / "devlog.log";
     }
 
-    // Open the log in the parent before fork(), so the child only needs async-signal-safe
-    // operations until exec. The runtime's existing SDL/OpenGL stderr diagnostics land here.
-    int output_fd = ::open(state.devlog_path.c_str(),
-                           O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC | O_NOFOLLOW, 0600);
-    const bool devlog_enabled = output_fd >= 0;
-    if (devlog_enabled) {
-        (void)write_devlog_fd(output_fd, "========== GAME SESSION START ==========");
-        (void)write_devlog_fd(output_fd, "[launcher] version=" + state.version);
-        (void)write_devlog_fd(output_fd, "[launcher] workspace=" +
-                              (state.workspace.empty() ? state.game_dir.string() : state.workspace.string()));
-        (void)write_devlog_fd(output_fd, "[launcher] game_dir=" + state.game_dir.string());
-        (void)write_devlog_fd(output_fd, "[launcher] executable=" + executable);
-        (void)write_devlog_fd(output_fd, "[launcher] invocation=" +
-                              std::string(use_play_script ? "game/play.sh" : "direct dqix fallback"));
-        (void)write_devlog_fd(output_fd,
-            "[launcher] following output is the game's stdout/stderr, including existing SDL/OpenGL renderer diagnostics");
-    } else {
-        const int saved_errno = errno;
-        log_message(state.log_path, "[devlog] cannot open %s: %s; falling back to launcher.log\n",
-                    state.devlog_path.c_str(), std::strerror(saved_errno));
-        output_fd = ::open(log_file.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC | O_NOFOLLOW, 0600);
-    }
-    const bool fallback_log_enabled = !devlog_enabled && output_fd >= 0;
-
-    const pid_t pid = ::fork();
-    if (pid < 0) {
-        const std::string error = "Could not start game: " + std::string(std::strerror(errno));
-        state.message = error;
+    const auto launched = dqix::linux_ui::launch_game_process(
+        state.workspace, state.game_dir, state.log_path, state.version);
+    if (launched.pid <= 0) {
+        state.message = launched.error.empty() ? "Could not start game." : launched.error;
         state.message_is_error = true;
-        log_message(state.log_path, "[launch] fork failed: %s\n", std::strerror(errno));
-        if (devlog_enabled) (void)write_devlog_fd(output_fd, "[launcher] fork failed: " + std::string(std::strerror(errno)));
-        if (output_fd >= 0) (void)::close(output_fd);
+        log_message(state.log_path, "[launch] %s\n", state.message.c_str());
         return;
     }
-    if (pid == 0) {
-        if (::chdir(cwd.c_str()) != 0) _exit(126);
-        if (output_fd >= 0) {
-            (void)::dup2(output_fd, STDOUT_FILENO);
-            (void)::dup2(output_fd, STDERR_FILENO);
-            if (output_fd > STDERR_FILENO) (void)::close(output_fd);
-        }
-        if (use_play_script) {
-            char* const play_args[] = {
-                const_cast<char*>("bash"), const_cast<char*>(play_script.c_str()), nullptr
-            };
-            ::execv("/bin/bash", play_args);
-            static constexpr char error[] = "[launcher] exec /bin/bash play.sh failed\n";
-            (void)::write(STDERR_FILENO, error, sizeof(error) - 1);
-            _exit(127);
-        }
-        // Compatibility fallback for workspaces that predate play.sh.
-        char* const args[] = {
-            const_cast<char*>(executable.c_str()), const_cast<char*>("data/dqix.nds"),
-            const_cast<char*>("data/code"), const_cast<char*>("0"), const_cast<char*>("1"),
-            const_cast<char*>("dqix.sav"), nullptr
-        };
-        ::execv(executable.c_str(), args);
-        static constexpr char error[] = "[launcher] exec dqix failed\n";
-        (void)::write(STDERR_FILENO, error, sizeof(error) - 1);
-        _exit(127);
-    }
 
-    if (output_fd >= 0) (void)::close(output_fd);
-    state.game_pid = pid; state.child_result.clear();
-    state.message = devlog_enabled
-        ? "Game started (PID " + std::to_string(pid) + "). Runtime output goes to workspace/devlog.log."
-        : fallback_log_enabled
-            ? "Game started (PID " + std::to_string(pid) + "). devlog.log unavailable; output goes to launcher.log."
-            : "Game started (PID " + std::to_string(pid) + "), but neither devlog.log nor launcher.log could be opened.";
-    state.message_is_error = !devlog_enabled;
-    log_message(state.log_path, "[launch] started game pid=%ld from %s\n", static_cast<long>(pid), cwd.c_str());
-    if (devlog_enabled)
-        (void)append_devlog_message(state.devlog_path, "[game] process started pid=" + std::to_string(pid));
+    state.game_pid = launched.pid;
+    state.child_result.clear();
+    if (launched.devlog_enabled) {
+        state.message = "Game started (PID " + std::to_string(launched.pid) +
+                        "). Runtime output goes to workspace/devlog.log.";
+        state.message_is_error = false;
+    } else if (launched.fallback_log_enabled) {
+        state.message = "Game started (PID " + std::to_string(launched.pid) +
+                        "). devlog.log unavailable; output goes to launcher.log.";
+        state.message_is_error = true;
+    } else {
+        state.message = "Game started (PID " + std::to_string(launched.pid) +
+                        "), but neither devlog.log nor launcher.log could be opened.";
+        state.message_is_error = true;
+    }
+    log_message(state.log_path, "[launch] started game pid=%ld from %s\n",
+                static_cast<long>(launched.pid), state.game_dir.c_str());
 }
 
 void update_child_status(LauncherState& state) {
@@ -319,7 +224,7 @@ void update_child_status(LauncherState& state) {
     else state.child_result = "Game process ended.";
     state.game_pid = -1; state.message = state.child_result; state.message_is_error = false;
     log_message(state.log_path, "[launch] %s\n", state.child_result.c_str());
-    (void)append_devlog_message(state.devlog_path, "[game] " + state.child_result);
+    (void)dqix::linux_ui::append_devlog_message(state.devlog_path, "[game] " + state.child_result);
 }
 
 

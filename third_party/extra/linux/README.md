@@ -28,7 +28,7 @@ The completed temporary E2E run [40823508014](https://github.com/rakmahefa/dqix-
 
 Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823508014/artifacts/12875252792) · [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823508014/artifacts/12874794549).
 
-The user has confirmed the previous AppImage builds and launches the game with a real ROM/workspace. The new log redirection has compile/CTest and AppImage-smoke coverage; one real game run should confirm the contents of the updated `devlog.log`. The fallback-reporting fix passed [40823840655](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823840655). The permanent production AppImage workflow has not yet been confirmed on an allowed trigger.
+The user has confirmed the previous AppImage builds and launches the game with a real ROM/workspace. The production game-launch helper has a synthetic child-process CTest for stdout/stderr capture and safe fallback from a `devlog.log` symlink. One real game run should still confirm the exact runtime renderer diagnostics emitted by the user's build. The fallback-reporting fix passed [40823840655](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823840655). The permanent production AppImage workflow has not yet been confirmed on an allowed trigger.
 
 ## Build and test locally
 
@@ -40,7 +40,7 @@ cmake --build build-linux-ui --verbose
 ctest --test-dir build-linux-ui --output-on-failure
 ```
 
-The four CTest cases cover builder dry-run success/failure and symlink protection, settings-model/runtime schema parity, launcher CLI help, and a hidden SDL2 software-renderer smoke test. They require no real ROM or desktop GPU.
+The four CTest cases cover builder dry-run success/failure, real synthetic game stdout/stderr capture and symlink-safe log fallback, settings-model/runtime schema parity, launcher CLI help, and a hidden SDL2 software-renderer smoke test. They require no real ROM or desktop GPU.
 
 ## Launcher arguments
 
