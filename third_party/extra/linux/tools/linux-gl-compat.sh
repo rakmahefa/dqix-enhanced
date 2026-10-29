@@ -53,6 +53,17 @@ _dqix_linux_gl_merge_paths() {
 }
 
 dqix_linux_gl_prepare() {
+    # The verified workaround needs an X11 display. Respect a caller that
+    # explicitly selected a different SDL backend, including headless tests.
+    case "${SDL_VIDEODRIVER-}" in
+        ""|x11) ;;
+        *) unset DQIX_LINUX_GL_OVERRIDE_DIR DQIX_LINUX_GL_PRELOAD; return 0 ;;
+    esac
+    if [ -z "${DISPLAY-}" ]; then
+        unset DQIX_LINUX_GL_OVERRIDE_DIR DQIX_LINUX_GL_PRELOAD
+        return 0
+    fi
+
     _dqix_lgl_override=${DQIX_LINUX_GL_OVERRIDE_DIR-}
     if [ -z "$_dqix_lgl_override" ]; then
         _dqix_lgl_cache_root=${XDG_CACHE_HOME-}
