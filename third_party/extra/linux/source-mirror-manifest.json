@@ -6,14 +6,15 @@
     "0002-linux-build-mirror.patch",
     "0003-linux-build-entrypoint.patch",
     "0004-linux-ingame-overlay.patch",
-    "0005-linux-settings-persistence.patch"
+    "0005-linux-settings-persistence.patch",
+    "0006-linux-overlay-aspect-fit.patch"
   ],
   "sources": [
     {
       "source_path": "runtime/frontend_sdl.c",
       "mirror_path": "third_party/extra/linux/src/runtime/frontend_sdl.c",
       "base_git_blob_sha1": "600d95d5d928d9b2158d05b0ef2754e754746f4f",
-      "mirror_git_blob_sha1": "92200467f85591e1dfe9f1d508d50f9dc48e9355"
+      "mirror_git_blob_sha1": "24c454915e219fe1f83f044189436ea94c994c85"
     },
     {
       "source_path": "build.mk",

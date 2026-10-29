@@ -13,7 +13,17 @@ int main(void) {
     dqix_linux_overlay_render_rgba(a, bytes, 0, 1, 0, 0, "software");
     dqix_linux_overlay_render_rgba(b, bytes, 1, 1, 0, 0, "software");
     int ok = 1;
-    ok &= pixel_is(a, 4, 4, 0, 0, 0, 118);
+    ok &= pixel_is(a, 4, 4, 0, 0, 0, 0);
+    {
+        int x = -1, y = -1, w = -1, h = -1;
+        ok &= dqix_linux_overlay_fit_rect(512, 768, &x, &y, &w, &h);
+        ok &= x == 0 && y == 0 && w == 512 && h == 768;
+        ok &= dqix_linux_overlay_fit_rect(1920, 1080, &x, &y, &w, &h);
+        ok &= x == 600 && y == 0 && w == 720 && h == 1080;
+        ok &= dqix_linux_overlay_fit_rect(1024, 768, &x, &y, &w, &h);
+        ok &= x == 256 && y == 0 && w == 512 && h == 768;
+        ok &= !dqix_linux_overlay_fit_rect(0, 768, &x, &y, &w, &h);
+    }
     ok &= pixel_is(a, 32, 130, 245, 190, 83, 255);
     const int x = DQIX_LINUX_OVERLAY_ROW_X + 6;
     const int y = DQIX_LINUX_OVERLAY_ROW0;

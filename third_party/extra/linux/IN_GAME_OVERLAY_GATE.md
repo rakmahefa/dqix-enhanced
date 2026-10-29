@@ -1,6 +1,6 @@
 # In-game SDL2 overlay integration gate
 
-**Status: Linux-only overlay event/pause wiring and GL/SDL_Renderer drawing paths are implemented in the patch-derived mirror. Source-mirror validation, Makefile-driven frontend/overlay object builds, five CTest cases and temporary AppImage E2E passed in run [40838643741](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741); live-game acceptance remains pending.**
+**Status: Linux-only overlay event/pause wiring, GL/SDL_Renderer drawing and aspect-fit presentation are implemented in the patch-derived mirror. The prior settings/packaging baseline passed run [40840985795](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40840985795); the current patch adds aspect-fit geometry tests and its CI run must pass before live-game acceptance.**
 
 ## Findings from the existing Linux build path
 
@@ -45,7 +45,7 @@ The patch-derived Linux frontend writes a `renderer-diagnostics` block to stderr
 
 ## Overlay rendering and runtime wiring (implementation added; acceptance pending)
 
-`overlay/linux_overlay.c` produces the transparent RGBA menu surface with a project-owned 5×7 bitmap font. The Linux-only frontend mirror now intercepts Escape, pauses via the existing runtime pause loop, captures keyboard/gamepad navigation and selection, and renders the surface through a dedicated OpenGL shader/texture helper or an SDL_Renderer streaming texture. The GL helper saves and restores the renderer state it changes. CMake compiles both overlay implementations and the existing ROM-free raster CTest remains in place.
+`overlay/linux_overlay.c` produces a transparent 512×768 RGBA menu canvas with a project-owned 5×7 bitmap font. The GL and SDL_Renderer paths dim the complete gameplay window independently, then draw the menu into a centered 2:3 aspect-fit rectangle to avoid stretching in fullscreen/widescreen windows. Mouse hit-testing maps through the same fitted rectangle. The GL helper restores the renderer state it changes. The ROM-free raster test now also checks fitted geometry for native, 16:9 and 4:3 viewports.
 
 The temporary CI run confirms source-mirror regeneration without fuzz, Makefile-driven compilation of the patched frontend plus both overlay objects, all five launcher/project CTest cases, and AppImage cold/warm startup and ELF audit. It does **not** link a game containing ROM-generated code or execute the in-game overlay. The required GL, software-renderer, input, focus, fullscreen, shutdown and real-game checks below must pass before this gate can be marked complete.
 
@@ -58,7 +58,7 @@ Do not mark this gate passed until all are checked:
 3. Escape opens/closes the overlay without triggering a DS action; keyboard/gamepad focus and input capture work.
 4. Pause/resume demonstrably stops/restarts game ticks.
 5. The overlay works with the OpenGL path and has correct behavior with the SDL/software fallback.
-6. Fullscreen, resize, focus loss, shutdown, error paths and ordinary gameplay with the overlay closed work.
+6. Fullscreen, resize, focus loss, shutdown, error paths and ordinary gameplay with the overlay closed work; the menu keeps its aspect ratio and click targets remain aligned after resizing.
 7. Synthetic/dry-run tests pass without a ROM; real-game validation happens locally only. No ROM, save or protected asset enters CI artifacts.
 
 ## Current development logging

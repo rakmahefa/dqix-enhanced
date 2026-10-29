@@ -14,7 +14,7 @@
 - Keep canonical Windows/shared files (`runtime/`, root `build.mk`, root `tools/build-game.sh`, and Win32 resources) unchanged. Ordered patches, manifest, checked-in mirrors and `tools/sync_linux_sources.py --check` now define the Linux-only build path.
 - BuildJob requires `third_party/extra/linux/src/tools/build-game.sh`; it selects the mirror makefile and frontend. Do not add a fallback to the canonical script.
 - The mirrored frontend emits a `renderer-diagnostics` block to stderr, captured in workspace `devlog.log`, with fallback state/reason and OpenGL or SDL_Renderer details. A real AppImage run is still needed to confirm the contents.
-- The Linux-only overlay is now wired into the patch-derived frontend mirror via ordered patch `0004-linux-ingame-overlay.patch`: Escape toggles the overlay, pauses via the runtime pause loop, keyboard/gamepad input is captured for navigation/selection, and presentation has an OpenGL helper plus an SDL_Renderer streaming-texture path. This is implementation, not runtime acceptance: the real-game input/focus/fullscreen/shutdown/renderer-fallback matrix is still pending.
+- The Linux-only overlay is wired into the patch-derived frontend mirror via ordered patches `0004-linux-ingame-overlay.patch` and `0006-linux-overlay-aspect-fit.patch`: Escape toggles the overlay, pauses through the runtime pause loop, and captures keyboard/gamepad navigation. GL and SDL_Renderer both dim the full window and draw the 512×768 menu into a centered aspect-fit rectangle; mouse hit-testing uses the same rectangle. Implementation is not live-game acceptance; input/focus/fullscreen/shutdown/renderer-fallback acceptance remains pending.
 
 ## 2. Implemented native SDL2 builder
 
@@ -30,9 +30,9 @@
 
 ## 3. Verification status
 
-Latest full temporary E2E run: [40838643741](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741), including the explicit Makefile-object smoke build. **All three jobs succeeded.**
+Latest completed full temporary E2E baseline: [40840985795](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40840985795). **All three jobs succeeded** for the settings/persistence changes; the current patch adds aspect-fit menu presentation and geometry tests, with its own CI run in progress.
 
-- Source mirror validation applied all four ordered patches without fuzz and confirmed the canonical input hashes and checked-in mirror hashes match.
+- Source mirror validation applied all five patches present at that revision without fuzz and confirmed the canonical input hashes and checked-in mirror hashes match. The current aspect-fit patch makes the series six patches.
 - The native Linux SDL2 job compiled the actual mirror/frontend objects using the staged-build Makefile rules: `frontend_sdl.o`, `linux_overlay.o` and `linux_overlay_gl.o`. It also compiled the SDL2 launcher and overlay helper and passed all five CTest cases. The locked Conda SDL2 launcher build passed.
 - The x86_64 AppImage assembled and passed cold/warm startup, the bundled SDL2 launcher self-test, payload checks and rejection of a corrupted toolchain archive. The ELF audit reported 718 ELF files and zero findings; the SBOM contains 96 components.
 - Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881643184), [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881926899), [SDL2 toolchain diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12882130883), [Linux development diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741/artifacts/12881449070).
@@ -63,7 +63,7 @@ See [`third_party/extra/linux/FEATURE_PARITY_AUDIT.md`](third_party/extra/linux/
 - [x] Source-boundary CI has verified no protected runtime/Windows/shared build paths changed.
 - [x] Builder dry-run tests cover success/failure, path rejection, staging exclusions, output logs and destination symlink safety (locked Conda SDL2 suite passed).
 - [x] Temporary CI AppImage assembly, cold/warm startup, bundled self-test, checksum-rejection test and ELF audit pass for the unified launcher (run 40838643741).
-- [x] Linux source mirrors regenerate with all four ordered patches and no fuzz (run 40838643741).
+- [x] Linux source mirrors regenerated with all five patches and no fuzz in baseline run 40840985795; patch 0006 now adds the aspect-fit presentation fix.
 - [x] Native Linux SDL2 CMake build and all five CTest cases pass, including the overlay raster test (run 40838643741).
 - [x] Makefile-driven smoke compilation passes for the mirrored frontend and both overlay objects without a ROM (run 40838643741).
 - [ ] Live overlay behavior on a real game accepted on both OpenGL and SDL_Renderer fallback paths.

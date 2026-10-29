@@ -59,6 +59,29 @@ static const char *glyph_bits(char c) {
     }
 }
 
+int dqix_linux_overlay_fit_rect(int viewport_width, int viewport_height,
+    int *x, int *y, int *width, int *height) {
+    int fit_width, fit_height;
+    if (!x || !y || !width || !height || viewport_width <= 0 || viewport_height <= 0)
+        return 0;
+    fit_width = viewport_width;
+    fit_height = viewport_height;
+    if ((int64_t)viewport_width * DQIX_LINUX_OVERLAY_HEIGHT >
+        (int64_t)viewport_height * DQIX_LINUX_OVERLAY_WIDTH) {
+        fit_width = (int)((int64_t)viewport_height * DQIX_LINUX_OVERLAY_WIDTH /
+                          DQIX_LINUX_OVERLAY_HEIGHT);
+    } else {
+        fit_height = (int)((int64_t)viewport_width * DQIX_LINUX_OVERLAY_HEIGHT /
+                           DQIX_LINUX_OVERLAY_WIDTH);
+    }
+    if (fit_width <= 0 || fit_height <= 0) return 0;
+    *x = (viewport_width - fit_width) / 2;
+    *y = (viewport_height - fit_height) / 2;
+    *width = fit_width;
+    *height = fit_height;
+    return 1;
+}
+
 static void fill(uint8_t *p, int x, int y, int w, int h, OverlayColor c) {
     if (x < 0) { w += x; x = 0; }
     if (y < 0) { h += y; y = 0; }
@@ -95,7 +118,6 @@ void dqix_linux_overlay_render_rgba(uint8_t *rgba, size_t capacity,
     if (selected < 0) selected = 0;
     if (selected > 3) selected = 3;
     memset(rgba, 0, need);
-    fill(rgba, 0, 0, DQIX_LINUX_OVERLAY_WIDTH, DQIX_LINUX_OVERLAY_HEIGHT, (OverlayColor){0,0,0,118});
     fill(rgba, 28, 126, 456, 520, (OverlayColor){12,21,37,246});
     fill(rgba, 28, 126, 456, 5, (OverlayColor){245,190,83,255});
     fill(rgba, 36, 136, 440, 2, (OverlayColor){48,71,98,255});

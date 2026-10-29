@@ -5,7 +5,7 @@
 **Work branch:** `plan/v32-linux-launcher-settings`  
 **Base:** `main` at `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.
 
-**Implementation update (2026-10-29):** the native SDL2 launcher replaces the former Tk builder and `AppRun` starts it directly. The Linux frontend/overlay integration is compiled from the patch-derived mirror; the source-mirror check, Makefile-driven frontend/overlay object build, five CTest cases and full temporary AppImage E2E passed in [run 40838643741](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741). This audit adds settings-schema parity against the exact mirror, fixes persistence of a custom `discord_app_id` in the Linux-only patch, and documents which runtime settings remain unexposed in the launcher plus Vulkan feasibility. Real-game behavior is not claimed verified; the remaining manual gates are listed in `third_party/extra/linux/FEATURE_PARITY_AUDIT.md` and `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
+**Implementation update (2026-10-29):** the native SDL2 launcher replaces the former Tk builder and `AppRun` starts it directly. The Linux frontend/overlay integration is compiled from the patch-derived mirror; run [40840985795](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40840985795) passed all three jobs after settings-schema parity and Discord ID validation fixes. Patch 0006 now adds aspect-fit overlay presentation with geometry assertions; the new revision must pass CI and live-game behavior remains unverified. See `third_party/extra/linux/FEATURE_PARITY_AUDIT.md` and `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
 
 
 
@@ -167,7 +167,7 @@ Before marking this complete, verify:
 3. Escape opens/closes the overlay without triggering a game action; keyboard/gamepad focus and capture work.
 4. Pause/resume demonstrably stops/restarts game tick processing.
 5. Rendering works with the OpenGL path and behavior is correct for the SDL/software fallback.
-6. Fullscreen, resize, focus loss, shutdown, error handling and no-overlay gameplay remain correct.
+6. Fullscreen, resize, focus loss, shutdown, error handling and no-overlay gameplay remain correct; specifically accept overlay aspect ratio and mouse-hit alignment on both renderers.
 7. Dry-run/synthetic tests still pass without a ROM; real gameplay validation is performed locally without placing ROM/save/protected assets in CI.
 
 A separate SDL2 launcher process still cannot control the game's event queue or pause state. The overlay is implemented only when this in-process integration gate passes.
@@ -232,13 +232,13 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 
 ### P4 — In-game menu/overlay through patch-derived Linux sources
 
-**Source/build groundwork implemented; overlay prototype started:** preserve canonical sources and compile a deterministic Linux-only source mirror. An independent C module now rasterizes a 512×768 transparent RGBA menu surface with a project-owned bitmap font, and a ROM-free test checks its backdrop, panel and selection rendering. This is only the painting foundation: it is not yet wired into the game frontend/event/pause lifecycle, and no complete in-game overlay is claimed.
+**Runtime integration implemented; live acceptance pending:** preserve canonical sources and compile a deterministic Linux-only source mirror. A Linux-only frontend patch wires Escape, pause/resume, keyboard/gamepad input capture and in-process presentation through GL and SDL_Renderer. The 512×768 transparent RGBA menu canvas is dimmed via a separate fullscreen pass and aspect-fitted into the viewport; mouse hit-testing follows the fitted rectangle. ROM-free CTest checks raster pixels and geometry, but a real game session has not yet verified the lifecycle.
 
 1. **Implemented:** the minimal mirrors cover `runtime/frontend_sdl.c`, `build.mk`, and `tools/build-game.sh` only.
 2. **Implemented:** ordered patches, source manifest and sync/check tool regenerate copies in a temporary directory and fail closed on upstream blob drift or patch failure.
 3. **Implemented:** the mirror build entry point preserves code generation/assembly and selects the mirrored makefile; Linux BuildJob calls it explicitly.
 4. **CI wired in this commit:** development CI checks mirror integrity and syntax-compiles the patched frontend; production workflow checks mirror integrity.
-5. Wire the standalone RGBA overlay painter into the mirrored Linux frontend: Escape/pause, input capture and navigation, draw after both the GL and SDL_Renderer output paths, and clean up resources. Do not introduce a second window, symbol interposition, `LD_PRELOAD`, ImGui, SDL3, Vulkan or another UI toolkit.
+5. [x] Wire the RGBA overlay painter into the mirrored Linux frontend: Escape/pause, input capture/navigation, GL and SDL_Renderer output, and resource cleanup. Patch 0006 preserves aspect ratio on resize/fullscreen. Do not introduce a second window, symbol interposition, `LD_PRELOAD`, ImGui, SDL3, Vulkan or another UI toolkit.
 6. Extend development CI with frontend syntax/build checks and runtime-focused tests; preserve dry-run/E2E diagnostics and verify canonical protected paths remain unchanged.
 7. Run the runtime acceptance matrix from Section 6.3 against the real game on Linux before claiming completion.
 

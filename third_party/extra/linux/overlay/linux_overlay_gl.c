@@ -32,6 +32,7 @@ typedef struct OverlayGlApi {
     void (*UseProgram)(GLuint);
     GLint (*GetUniformLocation)(GLuint, const char *);
     void (*Uniform1i)(GLint, GLint);
+    void (*Uniform4f)(GLint, GLfloat, GLfloat, GLfloat, GLfloat);
     void (*GenTextures)(GLsizei, GLuint *);
     void (*DeleteTextures)(GLsizei, const GLuint *);
     void (*ActiveTexture)(GLenum);
@@ -62,7 +63,7 @@ typedef struct OverlayGlApi {
 
 static OverlayGlApi g_api;
 static GLuint g_program, g_texture, g_vao, g_vbo;
-static GLint g_sampler = -1;
+static GLint g_sampler = -1, g_dim_only = -1, g_dim_color = -1;
 static int g_initialized, g_api_failed, g_init_failed;
 
 #define LOAD_GL(member, symbol) do { \
@@ -91,6 +92,7 @@ static int load_api(void) {
     LOAD_GL(UseProgram, "glUseProgram");
     LOAD_GL(GetUniformLocation, "glGetUniformLocation");
     LOAD_GL(Uniform1i, "glUniform1i");
+    LOAD_GL(Uniform4f, "glUniform4f");
     LOAD_GL(GenTextures, "glGenTextures");
     LOAD_GL(DeleteTextures, "glDeleteTextures");
     LOAD_GL(ActiveTexture, "glActiveTexture");
@@ -149,8 +151,10 @@ static int initialize_overlay(void) {
         "#version 330 core\n"
         "in vec2 uv;\n"
         "uniform sampler2D overlay_texture;\n"
+        "uniform int dim_only;\n"
+        "uniform vec4 dim_color;\n"
         "out vec4 out_color;\n"
-        "void main(){ out_color=texture(overlay_texture,uv); }\n";
+        "void main(){ out_color=dim_only != 0 ? dim_color : texture(overlay_texture,uv); }\n";
     static const float vertices[16] = {
         -1.0f, -1.0f, 0.0f, 1.0f,
          1.0f, -1.0f, 1.0f, 1.0f,
@@ -181,7 +185,9 @@ static int initialize_overlay(void) {
         goto fail;
     }
     g_sampler = g_api.GetUniformLocation(g_program, "overlay_texture");
-    if (g_sampler < 0) goto fail;
+    g_dim_only = g_api.GetUniformLocation(g_program, "dim_only");
+    g_dim_color = g_api.GetUniformLocation(g_program, "dim_color");
+    if (g_sampler < 0 || g_dim_only < 0 || g_dim_color < 0) goto fail;
 
     g_api.GetIntegerv(GL_VERTEX_ARRAY_BINDING, &old_vao);
     g_api.GetIntegerv(GL_ARRAY_BUFFER_BINDING, &old_buffer);
@@ -233,13 +239,16 @@ int dqix_linux_overlay_gl_draw(const uint8_t *rgba, int width, int height,
     int viewport_width, int viewport_height) {
     GLint old_program = 0, old_vao = 0, old_buffer = 0, old_active = GL_TEXTURE0;
     GLint old_texture = 0, old_viewport[4] = {0}, old_unpack = 4, old_draw_fbo = 0;
+    GLint fit_x = 0, fit_y = 0, fit_width = 0, fit_height = 0;
     GLint old_blend_src_rgb = GL_ONE, old_blend_dst_rgb = GL_ZERO;
     GLint old_blend_src_alpha = GL_ONE, old_blend_dst_alpha = GL_ZERO;
     GLint old_blend_eq_rgb = GL_FUNC_ADD, old_blend_eq_alpha = GL_FUNC_ADD;
     GLboolean blend_on, depth_on, cull_on, scissor_on;
     if (!rgba || width <= 0 || height <= 0 || viewport_width <= 0 || viewport_height <= 0) return 0;
     if (!initialize_overlay()) return 0;
-    if (width != 512 || height != 768) return 0;
+    if (width != DQIX_LINUX_OVERLAY_WIDTH || height != DQIX_LINUX_OVERLAY_HEIGHT) return 0;
+    if (!dqix_linux_overlay_fit_rect(viewport_width, viewport_height,
+                                     &fit_x, &fit_y, &fit_width, &fit_height)) return 0;
 
     g_api.GetIntegerv(GL_CURRENT_PROGRAM, &old_program);
     g_api.GetIntegerv(GL_VERTEX_ARRAY_BINDING, &old_vao);
@@ -275,6 +284,14 @@ int dqix_linux_overlay_gl_draw(const uint8_t *rgba, int width, int height,
     g_api.BindTexture(GL_TEXTURE_2D, g_texture);
     g_api.PixelStorei(GL_UNPACK_ALIGNMENT, 1);
     g_api.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+
+    /* Dim the entire gameplay window before drawing the menu at its native aspect ratio. */
+    g_api.Uniform4f(g_dim_color, 0.0f, 0.0f, 0.0f, 118.0f / 255.0f);
+    g_api.Uniform1i(g_dim_only, 1);
+    g_api.DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    g_api.Viewport(fit_x, fit_y, fit_width, fit_height);
+    g_api.Uniform1i(g_dim_only, 0);
     g_api.Uniform1i(g_sampler, 0);
     g_api.DrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 

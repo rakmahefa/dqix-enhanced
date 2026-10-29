@@ -4,7 +4,7 @@
 
 The native Linux launcher uses the project's SDL2 stack and SDL_Renderer with a small project-owned UI. It does not use Dear ImGui, SDL3, Vulkan, SDL_ttf, GTK, Qt or Tk as its GUI toolkit. The same SDL2 window provides setup/build, progress/logs, settings, diagnostics and Play.
 
-The in-game overlay is wired into the patch-derived Linux frontend: Escape, pause/resume, keyboard/gamepad navigation, and GL plus SDL_Renderer drawing paths are implemented. Live-game acceptance remains pending for input capture, focus loss, fullscreen, shutdown and both renderer paths; see `IN_GAME_OVERLAY_GATE.md`.
+The in-game overlay is wired into the patch-derived Linux frontend: Escape, pause/resume, keyboard/gamepad navigation, and GL plus SDL_Renderer drawing paths are implemented. The 512×768 menu canvas now preserves its aspect ratio on resize/fullscreen; a separate pass dims the whole window, and mouse clicks use the same fitted rectangle. Live-game acceptance remains pending for input capture, focus loss, fullscreen, shutdown and both renderer paths; see `IN_GAME_OVERLAY_GATE.md`.
 
 ## Implementation
 
@@ -19,9 +19,9 @@ The in-game overlay is wired into the patch-derived Linux frontend: Escape, paus
 
 ## Verification
 
-Latest full temporary E2E run [40838643741](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40838643741) passed all three jobs.
+Baseline full temporary E2E run [40840985795](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40840985795) passed all three jobs after settings-schema and Discord ID validation fixes. The current aspect-fit patch adds a new geometry regression test and is validated by the CI run triggered by this commit.
 
-- Source-mirror regeneration applies all four overlay/build patches without fuzz and confirms the canonical and mirror hashes match (the settings persistence patch is now added as the fifth patch and awaits this commit's CI).
+- The ordered Linux patch series now contains six patches. Source-mirror regeneration must apply all six without fuzz and confirm that canonical inputs and mirror hashes match.
 - The native SDL2 job compiles the patched frontend plus `linux_overlay.o` and `linux_overlay_gl.o` through the actual Linux Makefile rules and passes all five CTest cases.
 - The locked Conda SDL2 launcher build passes. The x86_64 AppImage passes cold/warm startup, integrated launcher self-test, corrupt-toolchain rejection and payload checks.
 - ELF audit: 718 ELF files, zero findings; SBOM: 96 Conda components.
@@ -42,7 +42,7 @@ cmake --build build-linux-ui --verbose
 ctest --test-dir build-linux-ui --output-on-failure
 ```
 
-The five CTest cases cover builder dry-run success/failure, overlay raster pixels, settings-model/runtime-mirror schema parity, launcher CLI help, and a hidden SDL2 software-renderer smoke test. They require no real ROM or desktop GPU and do not prove a ROM-backed game boots.
+The five CTest cases cover builder dry-run success/failure, overlay raster and aspect-fit geometry, settings-model/runtime-mirror schema parity, launcher CLI help, and a hidden SDL2 software-renderer smoke test. They require no real ROM or desktop GPU and do not prove a ROM-backed game boots.
 
 ## Launcher arguments
 
@@ -66,4 +66,4 @@ The builder requires `third_party/extra/linux/src/tools/build-game.sh`; it selec
 
 1. With the updated AppImage, check workspace-root `devlog.log` for the timestamped session header, the runtime's stdout/stderr, SDL/OpenGL messages and exit status. `devlog.log` records diagnostics the runtime already emits; it does not export every frame's in-memory performance counters.
 2. Confirm the production AppImage workflow on its intended trigger.
-3. Verify the renderer diagnostic block with the updated AppImage. Integrate the overlay raster module into the runtime, then validate Escape/pause, keyboard/gamepad input, GL and SDL_Renderer fallback before marking the gate passed.
+3. Verify the renderer diagnostic block with the updated AppImage. Validate Escape/pause, keyboard/gamepad input, aspect ratio on fullscreen/resized windows, GL and SDL_Renderer fallback before marking the gate passed.
