@@ -277,11 +277,17 @@ jobs:
             echo "SDL2 link flags: $(pkg-config --cflags --libs sdl2)"
 
             BUILD_DIR="$RUNNER_TEMP/dqix-conda-sdl2-build"
-            cmake -S third_party/extra/linux -B "$BUILD_DIR" -G Ninja \
-              -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+            env -u LDFLAGS -u CFLAGS -u CXXFLAGS -u CPPFLAGS cmake \
+              -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_SKIP_RPATH=ON
             cmake --build "$BUILD_DIR" --verbose
 
             export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            RPATH_TAGS="$(readelf -d "$BUILD_DIR/dqix-linux-ui-launcher" | grep -E '\(RPATH|RUNPATH\)' || true)"
+            printf "%s\n" "$RPATH_TAGS" | tee "$CONDA_LOG_DIR/launcher-rpath.txt"
+            if grep -F "$CONDA_PREFIX" <<< "$RPATH_TAGS"; then
+              echo "Launcher contains a non-portable build-time Conda RPATH." >&2
+              exit 1
+            fi
             ldd "$BUILD_DIR/dqix-linux-ui-launcher" | tee "$CONDA_LOG_DIR/launcher-ldd.txt"
             if grep -F "not found" "$CONDA_LOG_DIR/launcher-ldd.txt"; then
               echo "Launcher has unresolved dynamic dependencies." >&2
@@ -296,7 +302,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: appimage-sdl2-toolchain-diagnostics
-          path: ${ runner.temp }/dqix-conda-sdl2-logs/
+          path: ${{ runner.temp }}/dqix-conda-sdl2-logs/
           if-no-files-found: warn
           retention-days: 14
           compression-level: 6
