@@ -612,10 +612,11 @@ void render_ui(SDL_Renderer* renderer, LauncherState& state) {
             const auto& entry=state.browser_entries[i];
             const std::string prefix=entry.directory?"[DIR] ":"      ";
             const bool clicked=draw_button(renderer,state,30,row_y,930,40,
-                prefix+short_path(entry.path.filename(),100).string(),false);
+                prefix+short_path(entry.path.filename(),100),false);
             if(clicked) {
                 state.browser_selection=i;
                 activate_browser_entry(state,i);
+                break;
             }
             row_y+=46;
         }
