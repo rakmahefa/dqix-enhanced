@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -69,13 +70,38 @@ static ImGui_ImplVulkanH_Window g_MainWindowData;
 static uint32_t                 g_MinImageCount = 2;
 static bool                     g_SwapChainRebuild = false;
 
+static std::string g_dqix_log_path;
+
+static void launcher_log(const char* format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    va_list stderr_args;
+    va_copy(stderr_args, args);
+    std::vfprintf(stderr, format, stderr_args);
+    va_end(stderr_args);
+    std::fflush(stderr);
+
+    if (!g_dqix_log_path.empty()) {
+        if (FILE* file = std::fopen(g_dqix_log_path.c_str(), "a")) {
+            va_list file_args;
+            va_copy(file_args, args);
+            std::vfprintf(file, format, file_args);
+            std::fflush(file);
+            std::fclose(file);
+            va_end(file_args);
+        }
+    }
+    va_end(args);
+}
+
 static void check_vk_result(VkResult err)
 {
     if (err == VK_SUCCESS)
         return;
-    std::fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
+    launcher_log("[vulkan] Error: VkResult = %d\n", err);
     if (err < 0)
-        std::abort();
+        std::exit(EXIT_FAILURE);
 }
 
 #ifdef APP_USE_VULKAN_DEBUG_REPORT
@@ -159,11 +185,17 @@ static void SetupVulkan(ImVector<const char*> instance_extensions)
 
     // Select Physical Device (GPU)
     g_PhysicalDevice = ImGui_ImplVulkanH_SelectPhysicalDevice(g_Instance);
-    IM_ASSERT(g_PhysicalDevice != VK_NULL_HANDLE);
+    if (g_PhysicalDevice == VK_NULL_HANDLE) {
+        launcher_log("[vulkan] No compatible physical device was found. Check the host Vulkan driver/device.\n");
+        std::exit(EXIT_FAILURE);
+    }
 
     // Select graphics queue family
     g_QueueFamily = ImGui_ImplVulkanH_SelectQueueFamilyIndex(g_PhysicalDevice);
-    IM_ASSERT(g_QueueFamily != (uint32_t)-1);
+    if (g_QueueFamily == (uint32_t)-1) {
+        launcher_log("[vulkan] No graphics queue family is available on the selected Vulkan device.\n");
+        std::exit(EXIT_FAILURE);
+    }
 
     // Create Logical Device (with 1 queue)
     {
@@ -228,8 +260,8 @@ static void SetupVulkanWindow(ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface
     vkGetPhysicalDeviceSurfaceSupportKHR(g_PhysicalDevice, g_QueueFamily, surface, &res);
     if (res != VK_TRUE)
     {
-        std::fprintf(stderr, "Error no WSI support on physical device 0\n");
-        exit(-1);
+        launcher_log("[vulkan] Selected device cannot present to the SDL window surface (WSI unsupported).\n");
+        std::exit(EXIT_FAILURE);
     }
 
     // Select Surface Format
@@ -782,6 +814,7 @@ void draw_system_page(LauncherState& state, VkPhysicalDevice physical_device, fl
     draw_page_title("System & Diagnostics", "Diagnostics shown here describe the launcher process. They do not imply gameplay Vulkan support.");
     ImGui::TextWrapped("Game folder: %s", state.game_dir.string().c_str());
     ImGui::TextWrapped("Settings file: %s", state.settings_path.string().c_str());
+    ImGui::TextWrapped("Launcher log: %s", g_dqix_log_path.c_str());
     VkPhysicalDeviceProperties properties{};
     if (physical_device != VK_NULL_HANDLE) {
         vkGetPhysicalDeviceProperties(physical_device, &properties);
@@ -866,13 +899,22 @@ int main(int argc, char** argv)
         if (!argument_error.empty()) std::fprintf(stderr, "DQIX Launcher: %s\n", argument_error.c_str());
         return argument_error.empty() ? 0 : 2;
     }
+    g_dqix_log_path = (launcher.game_dir / "launcher.log").string();
+    {
+        std::error_code log_dir_error;
+        fs::create_directories(launcher.game_dir, log_dir_error);
+        launcher_log("[launcher] DQIX Enhanced Linux launcher preview starting.\n");
+        launcher_log("[launcher] Game directory: %s\n", launcher.game_dir.string().c_str());
+        launcher_log("[launcher] Log path: %s\n", g_dqix_log_path.c_str());
+    }
     load_settings(launcher);
+    if (launcher.message_is_error) launcher_log("[settings] %s\n", launcher.message.c_str());
 
     // Setup SDL
     // [If using SDL_MAIN_USE_CALLBACKS: all code below until the main loop starts would likely be your SDL_AppInit() function]
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     {
-        std::printf("Error: SDL_Init(): %s\n", SDL_GetError());
+        launcher_log("[sdl3] SDL_Init failed: %s\n", SDL_GetError());
         return 1;
     }
 
@@ -882,7 +924,8 @@ int main(int argc, char** argv)
     SDL_Window* window = SDL_CreateWindow("DQIX Enhanced - Linux Launcher", (int)(1280 * main_scale), (int)(800 * main_scale), window_flags);
     if (window == nullptr)
     {
-        std::printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
+        launcher_log("[sdl3] SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Quit();
         return 1;
     }
 
@@ -890,6 +933,12 @@ int main(int argc, char** argv)
     {
         uint32_t sdl_extensions_count = 0;
         const char* const* sdl_extensions = SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count);
+        if (!sdl_extensions || sdl_extensions_count == 0) {
+            launcher_log("[vulkan] SDL3 did not provide the Vulkan instance extensions required for a window surface: %s\n", SDL_GetError());
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 1;
+        }
         for (uint32_t n = 0; n < sdl_extensions_count; n++)
             extensions.push_back(sdl_extensions[n]);
     }
@@ -900,7 +949,10 @@ int main(int argc, char** argv)
     VkResult err;
     if (SDL_Vulkan_CreateSurface(window, g_Instance, g_Allocator, &surface) == 0)
     {
-        std::printf("Failed to create Vulkan surface.\n");
+        launcher_log("[vulkan] Failed to create SDL window surface: %s\n", SDL_GetError());
+        CleanupVulkan();
+        SDL_DestroyWindow(window);
+        SDL_Quit();
         return 1;
     }
 
@@ -932,7 +984,14 @@ int main(int argc, char** argv)
     style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
 
     // Setup Platform/Renderer backends
-    ImGui_ImplSDL3_InitForVulkan(window);
+    if (!ImGui_ImplSDL3_InitForVulkan(window)) {
+        launcher_log("[imgui] Could not initialize Dear ImGui's SDL3 platform backend.\n");
+        CleanupVulkanWindow(&g_MainWindowData);
+        CleanupVulkan();
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
     ImGui_ImplVulkan_InitInfo init_info = {};
     //init_info.ApiVersion = VK_API_VERSION_1_3;              // Pass in your value of VkApplicationInfo::apiVersion, otherwise will default to header version.
     init_info.Instance = g_Instance;
@@ -949,7 +1008,16 @@ int main(int argc, char** argv)
     init_info.PipelineInfoMain.Subpass = 0;
     init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     init_info.CheckVkResultFn = check_vk_result;
-    ImGui_ImplVulkan_Init(&init_info);
+    if (!ImGui_ImplVulkan_Init(&init_info)) {
+        launcher_log("[imgui] Could not initialize Dear ImGui's Vulkan renderer backend.\n");
+        ImGui_ImplSDL3_Shutdown();
+        ImGui::DestroyContext();
+        CleanupVulkanWindow(&g_MainWindowData);
+        CleanupVulkan();
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
 
     // Load Fonts
     // - If fonts are not explicitly loaded, Dear ImGui will select an embedded font: either AddFontDefaultVector() or AddFontDefaultBitmap().
