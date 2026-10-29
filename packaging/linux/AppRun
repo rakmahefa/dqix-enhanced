@@ -158,7 +158,13 @@ C
         die "the SDL smoke executable has unresolved dynamic dependencies"
     fi
     "$smoke_dir/sdl-smoke"
-    printf 'AppImage builder self-test passed.\n'
+
+    LAUNCHER="$PACKAGE_DIR/dqix-linux-ui-launcher"
+    [ -x "$LAUNCHER" ] || die "the bundled SDL2 launcher is missing or not executable"
+    LAUNCHER_HELP="$("$LAUNCHER" --help)"
+    printf '%s\n' "$LAUNCHER_HELP" | grep -F -- "--self-test" >/dev/null || die "the bundled launcher help check failed"
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "$LAUNCHER" --self-test
+    printf 'AppImage builder and SDL2 launcher self-tests passed.\n'
     exit 0
 fi
 
@@ -166,7 +172,8 @@ if [ "$ACTION" = "gui" ]; then
     exec "$ENV_DIR/bin/python3" "$BUNDLED_SOURCE/packaging/linux/gui.py" \
         --source "$BUNDLED_SOURCE" \
         --default-workspace "$WORKSPACE" \
-        --version "$VERSION"
+        --version "$VERSION" \
+        --launcher "$PACKAGE_DIR/dqix-linux-ui-launcher"
 fi
 
 # Non-interactive/terminal fallback for automation and advanced users.

@@ -61,4 +61,4 @@
 - [ ] Settings schema tests run and their output is inspected.
 - [ ] No ROM, save or protected game assets enter CI/AppImage artifacts.
 - [ ] No in-game menu support is claimed before integration tests pass.
-- [ ] AppImage/builder integration is independently tested.
+- [ ] AppImage/builder integration is independently tested (workflow changes are implemented; validation still pending).

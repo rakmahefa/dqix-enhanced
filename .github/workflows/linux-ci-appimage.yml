@@ -67,7 +67,7 @@ jobs:
       - name: Install AppImage packaging utilities
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y desktop-file-utils libfuse2 rsync squashfs-tools
+          sudo apt-get install --no-install-recommends -y cmake ninja-build desktop-file-utils libfuse2 rsync squashfs-tools
 
       - name: Verify committed Conda lock checksum
         run: sha256sum --check packaging/linux/conda-linux-64.lock.sha256
@@ -139,6 +139,26 @@ jobs:
           cp packaging/linux/dqix-enhanced-builder.svg \
             "$APPDIR/usr/share/icons/hicolor/scalable/apps/dqix-enhanced-builder.svg"
           cp "$RUNNER_TEMP/toolchain.tar.gz" "$PACKAGE_DIR/toolchain.tar.gz"
+
+          # Build the launcher against the same locked Conda SDL2 that is
+          # bundled in this AppImage. Keep compiler objects outside the AppDir.
+          LAUNCHER_BUILD_DIR="$RUNNER_TEMP/dqix-linux-launcher-build"
+          echo "Building SDL2 launcher against Conda SDL2 $(pkg-config --modversion sdl2)"
+          cmake -S third_party/extra/linux -B "$LAUNCHER_BUILD_DIR" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build "$LAUNCHER_BUILD_DIR" --target dqix-linux-ui-launcher --verbose
+          export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" --help
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" --self-test
+          LAUNCHER_LDD="$(ldd "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher")"
+          printf '%s\n' "$LAUNCHER_LDD" > "$RUNNER_TEMP/dqix-linux-launcher-ldd.txt"
+          if grep -F "not found" <<< "$LAUNCHER_LDD"; then
+            echo "SDL2 launcher has unresolved dynamic dependencies." >&2
+            exit 1
+          fi
+          install -m 0755 "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" \
+            "$PACKAGE_DIR/dqix-linux-ui-launcher"
 
           VERSION="$(awk -F '"' '/DQIX_VERSION / {print $2; exit}' runtime/version.h)"
           test -n "$VERSION"

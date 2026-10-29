@@ -57,11 +57,12 @@ def stage_from_output(line: str, current: int) -> tuple[int, str]:
 
 
 class BuilderApp:
-    def __init__(self, root: tk.Tk, source: Path, default_workspace: Path, version: str) -> None:
+    def __init__(self, root: tk.Tk, source: Path, default_workspace: Path, version: str, launcher: Path | None = None) -> None:
         self.root = root
         self.source = source.resolve()
         self.default_workspace = default_workspace.expanduser()
         self.version = version
+        self.launcher_path = launcher.expanduser().resolve() if launcher is not None else None
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
         self.worker: threading.Thread | None = None
         self.running = False
@@ -116,7 +117,7 @@ class BuilderApp:
         actions.pack(fill="x", pady=(0, 12))
         self.build_button = ttk.Button(actions, text="Build", command=self._start_build, style="Accent.TButton")
         self.build_button.pack(side="left")
-        self.launch_button = ttk.Button(actions, text="Launch game", command=self._launch_game, state="disabled")
+        self.launch_button = ttk.Button(actions, text="Open launcher" if self.launcher_path else "Launch game", command=self._launch_game, state="disabled")
         self.launch_button.pack(side="left", padx=(10, 0))
         self.progress_text = tk.StringVar(value="Ready — choose a ROM and a workspace.")
         ttk.Label(actions, textvariable=self.progress_text).pack(side="right", anchor="e")
@@ -348,7 +349,7 @@ class BuilderApp:
                     messagebox.showinfo(
                         "Build complete",
                         f"The game was built successfully.\n\nGame directory:\n{self.workspace_path / 'game'}\n\n"
-                        'Use "Launch game" to start.',
+                        "Use the launch button to open the launcher or start the game.",
                         parent=self.root,
                     )
                 elif kind == "failure":
@@ -368,21 +369,37 @@ class BuilderApp:
 
     def _launch_game(self) -> None:
         workspace = Path(self.workspace_var.get()).expanduser().resolve()
-        play_script = workspace / "game" / "play.sh"
-        if not play_script.is_file():
-            messagebox.showerror("Game not found", "No compiled game was found in this workspace.", parent=self.root)
-            return
+        game_dir = workspace / "game"
+        play_script = game_dir / "play.sh"
+
+        if self.launcher_path is not None:
+            if not self.launcher_path.is_file() or not os.access(self.launcher_path, os.X_OK):
+                messagebox.showerror(
+                    "Launcher not found",
+                    f"The bundled SDL2 launcher is missing or not executable:\n{self.launcher_path}",
+                    parent=self.root,
+                )
+                return
+            command = [str(self.launcher_path), "--game-dir", str(game_dir)]
+            error_title = "Unable to open launcher"
+        else:
+            if not play_script.is_file():
+                messagebox.showerror("Game not found", "No compiled game was found in this workspace.", parent=self.root)
+                return
+            command = ["bash", str(play_script)]
+            error_title = "Unable to launch game"
+
         try:
             subprocess.Popen(
-                ["bash", str(play_script)],
-                cwd=str(workspace / "game"),
+                command,
+                cwd=str(game_dir),
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
         except OSError as exc:
-            messagebox.showerror("Unable to launch game", str(exc), parent=self.root)
+            messagebox.showerror(error_title, str(exc), parent=self.root)
 
 
 def main() -> int:
@@ -392,10 +409,12 @@ def main() -> int:
     parser.add_argument("--source", required=True, help="source root bundled in the AppImage")
     parser.add_argument("--default-workspace", required=True, help="initial workspace suggested to the user")
     parser.add_argument("--version", default="unknown")
+    parser.add_argument("--launcher", help="optional bundled native SDL2 launcher executable")
     args = parser.parse_args()
 
     root = tk.Tk()
-    BuilderApp(root, Path(args.source), Path(args.default_workspace), args.version)
+    launcher = Path(args.launcher) if args.launcher else None
+    BuilderApp(root, Path(args.source), Path(args.default_workspace), args.version, launcher)
     root.mainloop()
     return 0
 

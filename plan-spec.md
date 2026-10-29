@@ -1,6 +1,6 @@
 # Plan-spec — Linux v32: SDL2 launcher and future in-game menu
 
-**Status (2026-10-29):** The architecture decision is SDL2, with no extra UI toolkit and no Vulkan in this phase. The launcher, CMake target and temporary CI have been migrated away from SDL3/ImGui/Vulkan. The actual workflow run [40810860108](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40810860108) on commit `b1bc1d7c47fd62db725c33fe4844607d43087d0c` completed successfully: configure/build succeeded and all three CTest cases passed.  
+**Status (2026-10-29):** SDL2-only launcher and development CI are implemented, and P0 standalone CI passed in run [40810860108](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40810860108) (`b1bc1d7c47fd62db725c33fe4844607d43087d0c`, 3/3 CTest passed). The builder/AppImage integration source changes are now staged in this branch but the permanent AppImage workflow has not yet been observed passing.  
 **Base:** main at ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a.  
 **Work branch:** plan/v32-linux-launcher-settings.
 
