@@ -200,6 +200,8 @@ Le développement a besoin d'un environnement reproductible pour exécuter de pe
 
 **État d'implémentation au 2026-10-29 :** un premier shell pré-Play est présent dans `third_party/extra/linux/ui/launcher_main.cpp`. Il propose une sidebar avec Game, Graphics, Screen & Display, Audio & Music, Controls, Mods, Wireless & Online et System ; charge/sauvegarde `settings.ini` via le modèle Linux ; affiche le device Vulkan de l'UI séparément du renderer gameplay ; détecte la présence des fichiers du jeu et lance `dqix` depuis le répertoire choisi quand ils sont présents. La page Controls est explicitement non connectée au runtime. L'interface reste une preview tant que compilation, CTest et lancement sous Linux ne sont pas observés.
 
+**Gaps actuels :** la cible `dqix-linux-ui-prototype` est seulement intégrée à la CI temporaire de développement. Elle n'est pas encore incluse dans `linux-ci-appimage.yml` et le bouton Play de `packaging/linux/gui.py` n'est pas raccordé au nouveau binaire. Avant le packaging final, choisir une stratégie reproductible pour SDL3 dans l'AppImage sans embarquer de pilote Vulkan propriétaire ; le loader Vulkan et le pilote restent une frontière à diagnostiquer sur l'hôte. Ne pas présenter le launcher comme disponible dans l'AppImage publiée tant que cette intégration n'a pas été réalisée et testée.
+
 
 1. Ajouter SDL3, Dear ImGui et Vulkan à la toolchain Linux/AppImage par un mécanisme épinglé et reproductible ; enregistrer les licences.
 2. Implémenter sous `third_party/extra/linux/ui/` le shell de l'application, la sidebar et les pages du launcher.
