@@ -24,8 +24,8 @@ By default, opens the native SDL2 launcher where you select your ROM (.nds),
 choose a workspace folder, build the game, inspect settings and press Play.
 
 Usage:
-  $0                       Open the graphical builder
-  $0 --gui                 Open the graphical builder
+  $0                       Open the native SDL2 launcher
+  $0 --gui                 Open the native SDL2 launcher
   $0 --self-test           Check the bundled Python/compiler toolchain and native SDL2 launcher
   $0 --build-only ROM.nds  Build from ROM without launching the game
   $0 --rebuild [ROM.nds]   Rebuild from the ROM or the local workspace copy
