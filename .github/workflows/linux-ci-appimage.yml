@@ -144,13 +144,20 @@ jobs:
           # bundled in this AppImage. Keep compiler objects outside the AppDir.
           LAUNCHER_BUILD_DIR="$RUNNER_TEMP/dqix-linux-launcher-build"
           echo "Building SDL2 launcher against Conda SDL2 $(pkg-config --modversion sdl2)"
-          cmake -S third_party/extra/linux -B "$LAUNCHER_BUILD_DIR" -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          env -u LDFLAGS -u CFLAGS -u CXXFLAGS -u CPPFLAGS cmake \
+            -S third_party/extra/linux -B "$LAUNCHER_BUILD_DIR" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DCMAKE_SKIP_RPATH=ON
           cmake --build "$LAUNCHER_BUILD_DIR" --target dqix-linux-ui-launcher --verbose
           export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" --help
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
             "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" --self-test
+          LAUNCHER_RPATH="$(readelf -d "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher" | grep -E '\(RPATH|RUNPATH\)' || true)"
+          printf '%s\n' "$LAUNCHER_RPATH" > "$RUNNER_TEMP/dqix-linux-launcher-rpath.txt"
+          if grep -F "$CONDA_PREFIX" <<< "$LAUNCHER_RPATH"; then
+            echo "SDL2 launcher contains a non-portable build-time Conda RPATH." >&2
+            exit 1
+          fi
           LAUNCHER_LDD="$(ldd "$LAUNCHER_BUILD_DIR/dqix-linux-ui-launcher")"
           printf '%s\n' "$LAUNCHER_LDD" > "$RUNNER_TEMP/dqix-linux-launcher-ldd.txt"
           if grep -F "not found" <<< "$LAUNCHER_LDD"; then
