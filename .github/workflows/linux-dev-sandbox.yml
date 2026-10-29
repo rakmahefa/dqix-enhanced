@@ -152,7 +152,17 @@ jobs:
           python3 third_party/extra/linux/tools/sync_linux_sources.py --check 2>&1 | tee "$DEV_LOG_DIR/source-mirror-check.log"
           cc -std=gnu11 -fsyntax-only -Wno-unused-parameter $(pkg-config --cflags sdl2) -Iruntime -I. \
             third_party/extra/linux/src/runtime/frontend_sdl.c 2>&1 | tee "$DEV_LOG_DIR/patched-runtime-syntax.log"
-          echo "SDL2-only GUI entry point, patched runtime mirror and packaging hooks passed."
+
+          # Compile the exact mirror/frontend and its overlay objects through the Makefile
+          # used by the ROM-driven build. This is intentionally ROM-free; no link/game data.
+          RUNTIME_OBJ_DIR="$RUNNER_TEMP/dqix-linux-mirror-objects"
+          make --no-print-directory -f third_party/extra/linux/src/build.mk \
+            FRONTEND=sdl OBJ="$RUNTIME_OBJ_DIR" \
+            "$RUNTIME_OBJ_DIR/rt/frontend_sdl.o" \
+            "$RUNTIME_OBJ_DIR/rt/linux_overlay.o" \
+            "$RUNTIME_OBJ_DIR/rt/linux_overlay_gl.o" \
+            2>&1 | tee "$DEV_LOG_DIR/patched-runtime-objects.log"
+          echo "SDL2-only GUI, regenerated source mirror, and Linux frontend/overlay object builds passed."
 
       - name: Configure, build and test Linux prototype
         shell: bash
