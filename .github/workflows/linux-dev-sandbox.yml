@@ -552,9 +552,16 @@ jobs:
             --version "$(awk -F '"' '/DQIX_VERSION / {print $2; exit}' runtime/version.h)" \
             --timestamp "$SOURCE_TIMESTAMP" \
             --out-dir "$GITHUB_WORKSPACE/dist"
-          (cd dist && sha256sum --check DIAGNOSTICS-SHA256SUMS)
-          sha256sum dist/DQIX-Enhanced-Builder-x86_64.AppImage dist/build-info.txt > dist/SHA256SUMS
-          (cd dist && sha256sum --check SHA256SUMS)
+          {
+            echo "Working directory after ELF audit: $PWD"
+            ls -lah "$GITHUB_WORKSPACE/dist"
+          } | tee "$APPIMAGE_LOG_DIR/post-audit-dist-inventory.txt"
+          (
+            cd "$GITHUB_WORKSPACE/dist"
+            sha256sum --check DIAGNOSTICS-SHA256SUMS
+            sha256sum DQIX-Enhanced-Builder-x86_64.AppImage build-info.txt > SHA256SUMS
+            sha256sum --check SHA256SUMS
+          )
 
       - name: Upload complete AppImage artifact
         if: success()
