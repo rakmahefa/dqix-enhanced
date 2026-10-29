@@ -12,10 +12,10 @@ No in-game overlay is claimed: a separate pre-Play process does not share the ga
 - The Game page offers ROM and workspace selection via an in-app file/folder browser with path entry, plus build status/progress, scrollable recent output and Play Now.
 - `builder/build_job.cpp` validates ROM/workspace paths, confirms merging non-empty unmarked workspaces, stages project sources while excluding generated/private output, and protects against writes through destination symlinks.
 - Source staging and compilation run outside the SDL render/event loop. `BuildJob` captures combined build output, sends events to the UI and persists the raw build transcript at `launcher-build.log`. It also mirrors timestamped build messages into workspace-root `devlog.log`.
-- After a successful build, the launcher validates the generated game layout and launches via `game/play.sh` when present, with a direct-executable fallback. Game stdout/stderr are appended to workspace-root `devlog.log` under a timestamped session header. Existing SDL/OpenGL messages (renderer name, shader/link errors and other diagnostics emitted by the runtime) are captured there; `game/launcher.log` remains the launcher/settings log. If `devlog.log` cannot be opened, output falls back to `launcher.log` and the UI reports the fallback.
+- After a successful build, the launcher validates the generated game layout and launches via `game/play.sh` when present, with a direct-executable fallback. Game stdout/stderr are appended to workspace-root `devlog.log` under a timestamped session header. The patched Linux frontend emits a structured `renderer-diagnostics` block with fallback state/reason, SDL/video/window/display details, OpenGL vendor/renderer/version/context attributes or SDL_Renderer name/capabilities/formats/errors/output size and texture details. `game/launcher.log` remains the launcher/settings log. If `devlog.log` cannot be opened, output falls back to `launcher.log` and the UI reports the fallback.
 - Graphics/display/audio/controls/mods/wireless/system pages remain. Some controls are still explicitly informational or not implemented (notably controls remapping and free-form text editing); saving a setting does not guarantee that the runtime applies it.
 - `packaging/linux/AppRun` checks the bundled toolchain as before and starts the SDL2 launcher directly. The former Tk app `packaging/linux/gui.py` is deleted from the branch and excluded by the AppImage payload policy. The build toolchain still contains Python for code generation/build/package tasks; this does not create a Tk UI.
-- No Windows/runtime source, `build.mk` or `tools/build-game.sh` was modified. Native Linux code and tests are under `third_party/extra/linux/`.
+- Canonical Windows/runtime sources, root `build.mk` and root `tools/build-game.sh` remain unchanged. Ordered patches, `source-mirror-manifest.json`, `tools/sync_linux_sources.py` and checked-in mirrors under `src/` define the Linux-only build path.
 
 ## Verification
 
@@ -56,8 +56,12 @@ dqix-linux-ui-launcher --self-test
 
 The integrated AppImage path passes the first group of arguments automatically. Before Play, the game directory must contain an executable `dqix`, `data/dqix.nds` and `data/code/`. No game binary, ROM, save or generated game asset is bundled.
 
+## Patch-derived Linux source mirror
+
+The builder requires `third_party/extra/linux/src/tools/build-game.sh`; it selects the mirrored makefile and frontend with no fallback to root scripts. Use `python3 third_party/extra/linux/tools/sync_linux_sources.py --sync` during development, then commit mirrors, patches and updated manifest together. CI runs `--check`; the AppImage consumes reviewed checked-in copies and never writes into its read-only source tree.
+
 ## Remaining manual checks
 
 1. With the updated AppImage, check workspace-root `devlog.log` for the timestamped session header, the runtime's stdout/stderr, SDL/OpenGL messages and exit status. `devlog.log` records diagnostics the runtime already emits; it does not export every frame's in-memory performance counters.
 2. Confirm the production AppImage workflow on its intended trigger.
-3. The selected architecture is a patch-derived Linux source mirror under `third_party/extra/linux/src/`; do not claim the overlay is implemented until the runtime acceptance gate in `IN_GAME_OVERLAY_GATE.md` passes.
+3. Verify the renderer diagnostic block with the updated AppImage. The overlay remains unimplemented until `IN_GAME_OVERLAY_GATE.md` acceptance tests pass.
