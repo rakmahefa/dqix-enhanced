@@ -11,15 +11,16 @@
 
 ## 0. Prime directive — preserve the Windows upstream path
 
-**Do not modify existing Windows sources or Windows build configuration.**
+**Keep canonical Windows/upstream files pristine; Linux may compile patch-derived copies under `third_party/extra/linux/src/`.**
 
-- Leave `runtime/menu_win32.c`, resources/dialogs and any source/configuration used by Windows unchanged.
-- All new native Linux C/C++ sources, headers, adapters and tests belong under `third_party/extra/linux/`.
-- Linux-only CI and packaging changes may live in their existing Linux-specific locations.
-- `build.mk` and `tools/build-game.sh` are shared by Windows and Linux and are out of scope: do not edit either file. The Linux launcher may invoke `tools/build-game.sh` from the user's staged workspace.
-- Do not add source shims or symlinks under `runtime/`.
-- Integration must use a genuine extension point or a standalone Linux-only build path. If neither is possible within these constraints, document the blocker rather than bypassing the rule.
-- Before a PR, inspect the complete diff against `main` and prove protected Windows paths remain unchanged.
+- Do not edit canonical `runtime/` sources, Win32 menus/resources, root `build.mk`, or root `tools/build-game.sh` in place to implement Linux-only behavior. Windows/MSYS2 continues using those originals.
+- All Linux-specific runtime code, adapters, scripts, tests and patch definitions belong under `third_party/extra/linux/`.
+- Store ordered, named unified patches under `third_party/extra/linux/patches/`. A patch must be applied **only to a copy** of its canonical input, never to the original checkout file.
+- Materialize the required upstream files at matching relative paths under `third_party/extra/linux/src/` (for example `src/runtime/frontend_sdl.c`, `src/build.mk` and `src/tools/build-game.sh`) and apply the patch series to those copies. The Linux game build must explicitly compile/use those copies; no silent fallback to the canonical file is allowed.
+- Keep the mirrored set minimal. Preserve upstream copyright/license headers and record the source revision or SHA-256 of each base input. If an upstream update makes a patch fail or a mirror stale, fail closed and require deliberate rebase/regeneration.
+- Use Linux-only preparation/build entry points from `third_party/extra/linux/`; the copies of `build.mk` and `tools/build-game.sh` exist only to redirect the Linux build to the patched mirror and must retain the canonical build's code-generation, assembly and validation behavior.
+- Do not add source shims or symlinks under canonical `runtime/`.
+- Before a PR, verify the canonical Windows/shared paths are unchanged against the base, prove which mirrored source was compiled, and run the Linux patch/sync checks.
 
 ## 1. Product decision — one SDL2 graphical application
 
@@ -41,7 +42,7 @@ After implementation, the normal AppImage launch path must **not open Tk, spawn 
 - Do not introduce Dear ImGui, SDL3, Vulkan, SDL_ttf, GTK, Qt, Tk or another UI toolkit for the launcher.
 - Because SDL2 does not provide native file/folder dialogs, implement a small in-app file browser/path selector for ROM and workspace selection. Include keyboard text entry/editing for paths and visible keyboard/mouse/gamepad focus; do not silently rely on a new external dialog library.
 - Keep the existing embedded bitmap font or another already-available project-owned approach. Ensure paths, logs, status and errors remain readable even if the current bitmap font only has limited glyph coverage.
-- Do not start the in-game overlay work as part of this task. A standalone pre-Play window is not an in-game menu.
+- Treat the in-game overlay as a separate runtime phase (P4), not as another screen in the pre-Play launcher. A standalone launcher window is not an in-game menu.
 
 ## 2. Audited runtime and packaging facts
 
@@ -51,12 +52,12 @@ After implementation, the normal AppImage launch path must **not open Tk, spawn 
 | `packaging/linux/gui.py` | The former Tk builder behavior has been ported into the SDL2 launcher; `gui.py` has been removed and no second graphical frontend is packaged. | This is the behavioral reference for migration; port the needed behavior into the SDL2 app and retire Tk from the user-facing launch path. |
 | `packaging/linux/AppRun` | Verifies the bundled toolchain, then runs the native SDL2 GUI for the default and `--gui` entry points; terminal build/rebuild actions remain available. | Switch the default graphical entry point to the bundled SDL2 executable and pass explicit source/workspace/version configuration. Preserve supported CLI modes. |
 | `runtime/frontend.h` | `frontend_init()`, `frontend_frame()` and `frontend_shutdown()` define the frontend lifecycle. | Respect this lifecycle boundary. |
-| `runtime/frontend_sdl.c` | SDL2 owns runtime window, input, frame pacing, pause and presentation. OpenGL may have an SDL/software fallback. | Reuse known runtime semantics only where proven; the separate launcher cannot directly control the game's event queue or pause state. |
+| `runtime/frontend_sdl.c` | SDL2 owns runtime window, input, frame pacing, pause and presentation. OpenGL may have an SDL/software fallback. | Keep this canonical file unchanged; a Linux-only patched copy under `third_party/extra/linux/src/runtime/` may host the narrow integration hook and must be the source compiled by the Linux build. |
 | `runtime/gl_render.c` | Existing gameplay OpenGL renderer. | Do not rewrite it for the launcher. |
 | `runtime/controls.c` | Existing key/gamepad mappings and actions; F5 requests Classic/Enhanced. | Reuse action semantics only when an actual runtime bridge exists. |
 | `runtime/menu_win32.c` | Menu/dialog implementation includes Win32 behavior. | Keep unchanged; any future in-game Linux UI must be Linux-only. |
-| `build.mk` | Frontend source paths are selected under `runtime/`; no safe direct injection point for the new native Linux UI has been established. | Do not edit this shared file or add shims under `runtime/`. |
-| `tools/build-game.sh` | Shared by Windows and Linux. The native SDL2 builder runs it from the staged workspace and passes the selected ROM. | Invoke it from the workspace; do not change the script in this plan. |
+| `build.mk` | It selects `runtime/frontend_$(FRONTEND).c` and has object rules rooted under `runtime/`. | The canonical makefile stays untouched. A patch-derived copy under `third_party/extra/linux/src/build.mk` must select the Linux mirror explicitly. |
+| `tools/build-game.sh` | Shared by Windows and Linux; it calls the root `build.mk` directly. | Keep the canonical script unchanged. Route Linux builds through a patch-derived copy under `third_party/extra/linux/src/tools/`, with an explicit workspace root and Linux makefile selection. |
 | AppImage toolchain | AppRun validates the bundled toolchain archive and prepares a cached Conda environment used by build tools. | Keep toolchain integrity/environment setup working when AppRun switches to SDL2. Python may remain a build-tool dependency; it must no longer be the graphical UI runtime. |
 | Settings | Runtime paths can depend on working directory and values are saved from runtime memory. | Define explicit paths/migration and avoid silently overwriting user preferences. |
 
@@ -130,21 +131,47 @@ A small, project-owned browser is required because the dependency policy forbids
 - Keep requested preference separate from renderer-effective state. Missing OpenGL capability must not silently persist Classic if Enhanced was requested.
 - Log SDL initialization/renderer errors, settings I/O errors, workspace staging/build errors and child process status. Do not put ROM/save contents or protected assets in logs/artifacts.
 
-## 6. In-game menu integration gate — still blocked and separate
+## 6. In-game menu integration — patch-derived Linux source mirror
 
-A separate SDL2 process cannot draw into the runtime's window, share its event queue or suspend the game tick simply because both link SDL2.
+The in-game menu/overlay is feasible, and the selected architecture is a **Linux-only mirror generated from narrowly patched copies of upstream source files**. This permits a real integration into the game's existing SDL2 window/event/render/pause lifecycle without changing the canonical Windows path.
 
-Before starting any in-game overlay work, prove all of the following through a Linux-only integration path:
+### 6.1 Feasibility and trade-offs
 
-1. A real hook joins the runtime event/render lifecycle without changing Windows sources or shared Windows build configuration.
-2. Escape opens/closes the UI without also triggering a DS action; keyboard/gamepad focus and capture work.
-3. Pause/resume demonstrably stops/restarts game tick processing.
-4. The UI renders with OpenGL and behavior is defined for the SDL/software fallback.
-5. Fullscreen, shutdown and error handling are correct.
-6. No shim or symlink is added under `runtime/`.
+The current build is not extensible by adding an object alone: root `build.mk` selects `runtime/frontend_$(FRONTEND).c`, maps runtime objects through rules rooted at `runtime/`, and `tools/build-game.sh` invokes that root makefile directly. Copying only `frontend_sdl.c` would therefore leave the Linux build compiling the original file.
 
-If this cannot be achieved within the prime directive, document the blocker and propose an explicit architecture decision. A unified pre-Play launcher does not prove in-game integration feasibility.
+The Linux-only build path must explicitly use patch-derived copies of every shared file that truly needs a change. The expected starting set is:
+- `runtime/frontend_sdl.c`: the narrow lifecycle hook into the existing runtime window, event handling, pause and active render path.
+- `build.mk`: object/source selection that compiles the copied Linux frontend and links Linux-only overlay code.
+- `tools/build-game.sh`: an entry-point copy that keeps the current code-generation/assembly workflow but invokes the mirrored makefile and uses an explicit workspace root.
 
+Do not duplicate the entire repository or create a free-standing frontend fork. Mirror only files that need patching; overlay implementation, interfaces and tests stay native/Linux-only under `third_party/extra/linux/`. Preserve the original source headers and license notices in all copies.
+
+**Why this is worthwhile:** canonical Windows files and upstream PR diffs remain clean, the game overlay shares the real runtime lifecycle, and patch-sized changes are reviewable. **Main cost:** mirrored files can drift as upstream changes. The patch application and mirror verification must therefore be deterministic and required in CI. If the necessary changes spread across many shared files or require a large divergence from upstream, stop and reassess before growing the mirror.
+
+### 6.2 Source-copy and patch contract
+
+1. Keep ordered patches in `third_party/extra/linux/patches/`; each patch has a stable name and a stated upstream input path.
+2. A Linux-only sync/preparation tool copies each relevant canonical input into `third_party/extra/linux/src/` at its mirrored relative path, then applies patches to the copy only. Patch application must be strict and non-interactive; failure, fuzz/ambiguous application, or an unexpected input hash stops the build.
+3. Store a manifest recording each upstream path, base revision/hash, patch order and resulting hash. A check mode regenerates into a temporary directory and verifies that committed/materialized mirrors exactly match the canonical input plus patch series.
+4. The Linux launcher/build wrapper invokes the mirrored `src/tools/build-game.sh`; that copy selects `src/build.mk`, and the patched makefile selects `src/runtime/frontend_sdl.c` and links only the Linux overlay objects. Pass the workspace root explicitly rather than deriving it from the mirrored script's nested directory.
+5. The existing code generation and final `game/` assembly must remain equivalent to the original script. Keep generated game data/objects in the selected workspace, never in the AppImage's read-only source directory.
+6. Never modify originals in place and never replace the canonical Windows source with a symlink, include shim or conditional behavior change. The normal Windows build must continue to consume the same canonical files as before.
+
+### 6.3 Runtime and acceptance gate
+
+The copied frontend hook must integrate with the **active runtime renderer**, not try to create a second SDL window/renderer on top of the game's window. Keep all overlay code under `third_party/extra/linux/`; no new UI toolkit, SDL3 or Vulkan is introduced.
+
+Before marking this complete, verify:
+1. CI proves canonical Windows/shared files are unchanged and verifies the copied/patch-derived source is the one compiled.
+2. Patch apply, source-mirror hash/sync check and Linux build work from a clean checkout/workspace.
+3. Escape opens/closes the overlay without triggering a game action; keyboard/gamepad focus and capture work.
+4. Pause/resume demonstrably stops/restarts game tick processing.
+5. Rendering works with the OpenGL path and behavior is correct for the SDL/software fallback.
+6. Fullscreen, resize, focus loss, shutdown, error handling and no-overlay gameplay remain correct.
+7. Dry-run/synthetic tests still pass without a ROM; real gameplay validation is performed locally without placing ROM/save/protected assets in CI.
+
+A separate SDL2 launcher process still cannot control the game's event queue or pause state. The overlay is implemented only when this in-process integration gate passes.
+ 
 ## 7. Execution plan
 
 ### Temporary development CI
@@ -165,7 +192,7 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 - Configure SDL2 through pkg-config without network fetch, ImGui, SDL3, Vulkan or a new UI toolkit.
 - Keep `--help` and a hidden dummy-video SDL2 software-renderer smoke test.
 - Preserve settings schema parity and test output.
-- Keep Linux-only build orchestration outside `build.mk` and `tools/build-game.sh`.
+- Keep Linux orchestration in Linux-only tooling. Root `build.mk` and `tools/build-game.sh` stay unchanged; only the patch-derived copies under `third_party/extra/linux/src/` may select the Linux runtime mirror.
 
 ### P1 — Native SDL2 builder integration (implemented; verification ongoing)
 
@@ -201,23 +228,19 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 
 **P3 exit:** Build/Play status and settings behavior remain truthful, log paths are visible, build output has automated coverage, and a real run confirms the new game-output log on the user's AppImage.
 
-### P4 — In-game menu/overlay: integration gate not yet satisfied
+### P4 — In-game menu/overlay through patch-derived Linux sources
 
-The runtime has internal lifecycle functions (`frontend_init`, `frontend_frame`, `frontend_shutdown`), its own event handler/present path, an existing pause loop, and an OpenGL-to-SDL-renderer fallback. Those are internal implementation points, not a Linux-only extension API.
+**Architecture decision accepted:** preserve canonical sources, derive a minimal Linux source mirror under `third_party/extra/linux/src/`, and compile that mirror only for Linux.
 
-Audit findings:
-- `build.mk` constructs the runtime list by selecting `runtime/frontend_$(FRONTEND).c`; the SDL build compiles `runtime/frontend_sdl.c` and includes other shared runtime/menu sources. Its object rules are rooted under `runtime/`.
-- `tools/build-game.sh` invokes `build.mk` with `FRONTEND=sdl`. There is no documented callback/plugin argument to add a separate Linux-only overlay module to the frame/event/pause lifecycle.
-- A `RES` object is documented as an extra object for the program; it is not a supported callback into the runtime frame loop.
-- `runtime/frontend_sdl.c` is used by the Windows/MSYS2 build too. Editing it, editing `build.mk` or `tools/build-game.sh`, or adding a shim under `runtime/` would break the current strict source-boundary rule.
+1. Audit the smallest source set required for a lifecycle hook; expected starting points are `runtime/frontend_sdl.c`, root `build.mk`, and `tools/build-game.sh`. Do not copy unrelated runtime files.
+2. Add ordered patches under `third_party/extra/linux/patches/` and a sync/check tool that copies upstream inputs and applies patches only to their mirrored copies. Record base hashes and resulting hashes; fail closed on drift.
+3. Add a Linux-only game-build entry point that uses the patched copies and preserves the existing ROM extraction, region selection, ARM9/ARM7 code generation, compilation, and game folder assembly semantics.
+4. Wire the Linux builder/AppRun paths to that entry point; Windows/MSYS2 and shared root scripts must continue to use canonical files.
+5. Implement the in-game overlay with the runtime's active render path, event lifecycle and pause state. Do not introduce a second window, SDL symbol interposition, `LD_PRELOAD`, ImGui, SDL3, Vulkan or another UI toolkit.
+6. Extend temporary development CI with patch/sync validation, source-selection checks, Linux build/CTest and the existing dry-run/E2E diagnostics. Confirm canonical protected paths remain unchanged.
+7. Run the runtime acceptance matrix from Section 6.3 against the real game on Linux before calling the overlay complete.
 
-**Decision:** do not fake an in-game overlay by launching another SDL process, by interposing SDL symbols/using `LD_PRELOAD`, or by permanently copying/forking the full SDL frontend. Those approaches do not provide a reliable supported hook for keyboard capture, pause, OpenGL/SDL fallback and shutdown.
-
-The next architecture decision is one of:
-1. **Keep the strict rule:** design a dedicated Linux runtime build/integration path that does not alter Windows/shared sources. This fits the current constraint but needs a deliberate build-design step before implementation.
-2. **Approve a narrow common-source extension:** add a small Linux-only callback in the shared SDL frontend, guarded so Windows behavior is unchanged, with the overlay implementation staying under `third_party/extra/linux/`. This is technically cleaner but modifies a shared source file and therefore needs an explicit change to the current strict boundary.
-
-The runtime already has pause/settings/menu functionality; the target here would be an additional overlay, not a replacement for that working code. Do not mark the gate passed until Escape/focus, gamepad capture, pause/resume, OpenGL and software fallback, fullscreen and shutdown are exercised against the real runtime.
+**P4 exit:** mirrors reproducibly derive from declared upstream inputs and patch series; the Linux build demonstrably compiles the mirrored runtime source; root Windows/shared files remain unchanged; overlay lifecycle, input, pause, renderer fallback, fullscreen and shutdown tests pass.
 
 ### P5 — Final packaging and upstream review
 
@@ -246,7 +269,10 @@ The runtime already has pause/settings/menu functionality; the target here would
 - [x] User manually confirmed Build/Play work with a real ROM/workspace before devlog capture was added.
 - [ ] Manually confirm the updated AppImage's `devlog.log` contains actual game stdout/stderr and expected renderer diagnostics.
 - [x] AppImage payload policy rejects ROM/save/protected assets and the retired Tk GUI (run 40818245989).
-- [x] Windows/upstream path remains clean according to source-boundary CI.
+- [x] Canonical Windows/upstream path remains clean according to source-boundary CI.
+- [ ] Ordered Linux-only patch series and mirror manifest exist under `third_party/extra/linux/`; sync/check proves mirrored sources equal declared upstream copies plus patches.
+- [ ] Linux build compiles the mirrored `third_party/extra/linux/src/runtime/frontend_sdl.c` using the mirrored Linux makefile/build entry point, with no fallback to canonical sources.
+- [ ] Temporary CI verifies patch application/source hashes and proves `runtime/`, root `build.mk` and root `tools/build-game.sh` remain unchanged.
 - [x] In-game overlay is not claimed without a supported Linux-only runtime hook; current audit and options are documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
 
 ## 9. Out of scope
@@ -254,6 +280,6 @@ The runtime already has pause/settings/menu functionality; the target here would
 - Replacing the gameplay renderer with Vulkan.
 - Adding Dear ImGui, SDL3, SDL_ttf or any other UI toolkit for the native launcher.
 - Keeping Tk as a second graphical app or spawning it from the SDL2 launcher.
-- Modifying Windows sources, shared Windows build configuration, `build.mk` or `tools/build-game.sh`.
+- Directly modifying canonical Windows/shared source files, root `build.mk` or root `tools/build-game.sh` for Linux-only behavior (patch-derived copies under `third_party/extra/linux/src/` are the approved exception).
 - Claiming Enhanced/graphics features work when the active renderer lacks the necessary capability.
 - Implementing an in-game overlay before the runtime integration gate passes.
