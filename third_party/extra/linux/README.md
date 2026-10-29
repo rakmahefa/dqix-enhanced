@@ -10,7 +10,7 @@
 - CLI help is available. The self-test opens a hidden SDL2 window with the software renderer under SDL's dummy video driver and renders one frame.
 - The UI currently edits a subset of audited settings, checks for dqix, data/dqix.nds and data/code/, and can launch the existing game binary. Keyboard, mouse and basic gamepad navigation are supported.
 - Controls remapping and free-form editing of player/server text fields are not implemented. A saved setting does not guarantee the game renderer can apply it.
-- Development CI run [40812361377](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40812361377) completed successfully on `131293700095f9d27948b5fde09e4153b0ef54a6`: both system SDL2 and locked Conda SDL2 2.32.56 configure/build/test jobs passed (3/3 CTest each), as did AppImage payload/safety checks and the Windows/shared-path boundary check. The full permanent AppImage artifact and `AppRun --self-test` are still not validated end-to-end.
+- Development CI run [40812634530](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40812634530) completed successfully on `f030dddabc8f64c70aa11ef25f4f489a0e131908`: both system SDL2 and locked Conda SDL2 2.32.56 configure/build/test jobs passed (3/3 CTest each), as did AppImage payload/safety tests, launcher/AppRun packaging-hook checks and the Windows/shared-path boundary check. The full permanent AppImage artifact and `AppRun --self-test` are still not validated end-to-end.
 - The Tk builder and AppRun are now wired to the native launcher in the source branch, and the permanent AppImage workflow builds/packages it against the locked Conda SDL2. That packaging path still needs a completed AppImage CI run. The in-game menu/bridge is not implemented.
 
 ## Build and test

@@ -1,6 +1,6 @@
 # Plan-spec — Linux v32: SDL2 launcher and future in-game menu
 
-**Status (2026-10-29):** SDL2-only launcher, builder entrypoint and AppImage build wiring are implemented. Development workflow run [40812361377](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40812361377) (`131293700095f9d27948b5fde09e4153b0ef54a6`) passed both jobs: system SDL2 and locked Conda SDL2 2.32.56 builds, 3/3 CTest tests per job, AppImage payload/safety checks and the Windows/shared-path boundary check. The full permanent AppImage assembly and bundled AppRun self-test are still awaiting end-to-end validation.  
+**Status (2026-10-29):** SDL2-only launcher, builder entrypoint and AppImage build wiring are implemented. Development workflow run [40812634530](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40812634530) (`f030dddabc8f64c70aa11ef25f4f489a0e131908`) passed both jobs: system SDL2 and locked Conda SDL2 2.32.56 builds, 3/3 CTest tests per job, AppImage payload/safety checks, the launcher-package/AppRun static guards, and the Windows/shared-path boundary check. The full permanent AppImage assembly and bundled AppRun self-test are still awaiting end-to-end validation.  
 **Base:** main at ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a.  
 **Work branch:** plan/v32-linux-launcher-settings.
 
@@ -25,7 +25,7 @@
 6. The launcher is a separate pre-Play process. SDL2 alone does not share the game's window, event queue, OpenGL context or pause/tick state.
 7. Vulkan may be reconsidered later only with a measured requirement, feasibility proof, dependency analysis and migration plan.
 
-The former source was an SDL3 + Dear ImGui + Vulkan prototype. It has been replaced with an initial SDL2 + SDL_Renderer launcher. CI run 40812361377 verified system and locked-Conda SDL2 builds, 3/3 CTest cases in both jobs, AppImage payload/safety checks and the source boundary. This proves the standalone build paths and dependency resolution, not the full AppImage artifact or the in-game menu.
+The former source was an SDL3 + Dear ImGui + Vulkan prototype. It has been replaced with an initial SDL2 + SDL_Renderer launcher. CI run 40812634530 verified system and locked-Conda SDL2 builds, 3/3 CTest cases in both jobs, AppImage payload/safety checks and the source boundary. This proves the standalone build paths and dependency resolution, not the full AppImage artifact or the in-game menu.
 
 ## 2. Audited runtime facts
 
@@ -126,7 +126,7 @@ The temporary workflow is for reproducible scripts, tests, diagnostics and logs 
 5. Reproduce F5/Enhanced and fallback behavior with logs; separate requested preference from effective renderer.
 6. Document a Linux-only build/packaging path without modifying build.mk or tools/build-game.sh.
 
-P0 exit: **met for the standalone prototype** on CI run 40812361377: both system SDL2 and locked Conda SDL2 configure/build/tests succeeded, all 3 CTest tests passed in each job, packaging/static checks passed, and the Windows/shared-path boundary check passed. The permanent AppImage assembly/self-test and runtime integration gates remain open.
+P0 exit: **met for the standalone prototype** on CI run 40812634530: both system SDL2 and locked Conda SDL2 configure/build/tests succeeded, all 3 CTest tests passed in each job, packaging/static checks passed, and the Windows/shared-path boundary check passed. The permanent AppImage assembly/self-test and runtime integration gates remain open.
 
 ### P1 — settings reliability
 

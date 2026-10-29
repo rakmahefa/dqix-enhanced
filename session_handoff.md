@@ -23,7 +23,7 @@
 - third_party/extra/linux/tests/smoke-ui.sh runs the dummy-video software-renderer self-test without Vulkan or Xvfb.
 - .github/workflows/linux-dev-sandbox.yml now installs SDL2 and runs CMake/CTest. It uploads logs even on failure.
 - README and the plan were updated to distinguish implemented controls from unfinished Controls remapping/free-form text editing.
-- **Latest CI proof:** workflow run [40812361377](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40812361377), commit `131293700095f9d27948b5fde09e4153b0ef54a6`, completed successfully with both jobs green. The system-SDL2 job passed configure/build, all 3 CTest tests, static AppImage payload/safety tests and the Windows/shared-path boundary check. The second job verified the locked Conda environment, built against SDL2 2.32.56, found no unresolved shared libraries or build-time Conda RPATH, and passed all 3 CTest tests. The optional repository-wide/semantic tests were skipped. The permanent AppImage workflow has not yet completed on this branch, so final AppRun/AppImage assembly remains unverified.
+- **Latest CI proof:** workflow run [40812634530](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40812634530), commit `f030dddabc8f64c70aa11ef25f4f489a0e131908`, completed successfully with both jobs green. The system-SDL2 job passed configure/build, all 3 CTest tests, static AppImage payload/safety and launcher/AppRun packaging-hook checks, plus the Windows/shared-path boundary check. The second job verified the locked Conda environment, built against SDL2 2.32.56, found no unresolved shared libraries or build-time Conda RPATH, and passed all 3 CTest tests. The optional repository-wide/semantic tests were skipped. The permanent AppImage workflow has not yet completed on this branch, so final AppRun/AppImage assembly remains unverified.
 
 ## 3. Still not done
 
@@ -45,7 +45,7 @@
 
 ## 5. Next steps
 
-1. P0 standalone and locked-Conda SDL2 proof is confirmed by workflow run 40812361377: both build/test jobs passed, each 3/3 CTest, plus static AppImage safety/payload and source-boundary checks. The optional broad semantic/package suite remains skipped.
+1. P0 standalone and locked-Conda SDL2 proof is confirmed by workflow run 40812634530: both build/test jobs passed, each 3/3 CTest, plus static AppImage safety/payload and source-boundary checks. The optional broad semantic/package suite remains skipped.
 3. Add tests for missing/unwritable settings files, key/schema parity and persistence. Do not claim that writing a setting guarantees runtime support.
 4. Integrate the launcher with the builder and AppImage only after the standalone target is verified.
 5. Keep the in-game menu blocked until a Linux-only runtime integration proof covers events, focus, pause/resume, OpenGL and the software/SDL fallback.
