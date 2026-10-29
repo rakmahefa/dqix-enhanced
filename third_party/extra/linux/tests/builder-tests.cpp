@@ -46,7 +46,7 @@ int main() {
                   "non-.nds file must be rejected");
 
     const fs::path success_source = temp / "source-success";
-    write_file(success_source / "tools/build-game.sh", R"script(#!/bin/bash
+    write_file(success_source / "third_party/extra/linux/src/tools/build-game.sh", R"script(#!/bin/bash
 set -eu
 echo "== Checking the ROM"
 mkdir -p game/data/code
@@ -95,6 +95,8 @@ echo "== Done."
     ok &= require(saw_progress, "successful child should emit final progress");
     ok &= require(dqix::linux_ui::game_directory_ready(success_workspace / "game"),
                   "simulated game output should pass readiness checks");
+    ok &= require(fs::is_regular_file(success_workspace / "third_party/extra/linux/src/tools/build-game.sh"),
+                  "source staging must include the patch-derived Linux build entry point");
     ok &= require(fs::is_regular_file(success_workspace / "launcher-build.log"),
                   "build output should be persisted to launcher-build.log");
     ok &= require(fs::is_regular_file(success_workspace / "devlog.log"),
@@ -112,7 +114,7 @@ echo "== Done."
                   "source staging must exclude .git metadata");
 
     const fs::path failure_source = temp / "source-failure";
-    write_file(failure_source / "tools/build-game.sh",
+    write_file(failure_source / "third_party/extra/linux/src/tools/build-game.sh",
                "#!/bin/bash\nset -eu\necho 'simulated build failure'\nexit 7\n");
     const fs::path failure_workspace = temp / "workspace-failure";
     BuildRequest fail_request;
@@ -212,7 +214,7 @@ printf 'fallback-game-output-marker\n'
 
     // A pre-existing symlink in the user workspace must never redirect writes outside it.
     const fs::path link_source = temp / "source-link";
-    write_file(link_source / "tools/build-game.sh", "#!/bin/bash\nexit 0\n");
+    write_file(link_source / "third_party/extra/linux/src/tools/build-game.sh", "#!/bin/bash\nexit 0\n");
     write_file(link_source / "docs/private.txt", "bundled source text\n");
     const fs::path link_workspace = temp / "workspace-link";
     const fs::path outside = temp / "outside";
