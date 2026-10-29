@@ -333,7 +333,9 @@ void activate_browser_entry(LauncherState& state, std::size_t index) {
 }
 bool commit_browser_path(LauncherState& state) {
     std::error_code ec;
-    fs::path chosen = absolute_path(fs::path(state.path_edit_buffer));
+    fs::path typed(state.path_edit_buffer);
+    if (typed.is_relative()) typed = state.browser_dir / typed;
+    fs::path chosen = absolute_path(typed);
     if (state.browser_kind == BrowserKind::Rom && is_nds_path(chosen) &&
         fs::is_regular_file(chosen, ec) && !ec && ::access(chosen.c_str(), R_OK) == 0) {
         state.rom_path = chosen;
