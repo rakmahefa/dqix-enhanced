@@ -72,3 +72,11 @@ See [`third_party/extra/linux/FEATURE_PARITY_AUDIT.md`](third_party/extra/linux/
 - [x] User confirmed the AppImage build/launch flow works with a real ROM/workspace (before devlog capture).
 - [ ] Updated AppImage's `devlog.log` verified against a real gameplay session.
 - [x] Linux-only in-game overlay rendering/input/pause implementation is wired into the patch-derived mirror; the live-game acceptance gate remains open in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
+
+
+## 2026-10-29 — Live Enhanced-mode failure (Wayland/OpenGL)
+
+- Manual game test: the overlay appears, but choosing Enhanced reports “OpenGL required”.
+- `devlog.log` shows `video_driver=wayland`, `SDL_CreateWindow(SDL_WINDOW_OPENGL)` failing with `Invalid window`, followed by a successful ordinary window and `SDL_Renderer` named `vulkan`. This confirms that the game is using its software 3D fallback; the SDL Vulkan renderer shown here is the 2D presentation backend, not a Vulkan replacement for the custom OpenGL 3D renderer.
+- Linux-only correction added in patch `0007-linux-wayland-opengl-retry.patch`: preflight `SDL_GL_LoadLibrary` to capture loader errors directly; if GL window creation fails on auto-selected Wayland, `DISPLAY` is available and the user did not set `SDL_VIDEODRIVER`, reinitialize SDL's video subsystem on X11/XWayland and retry OpenGL. If that retry fails, restore Wayland and preserve the current SDL_Renderer fallback while recording both failure reasons.
+- Windows/upstream sources remain unchanged. CI compilation and a real AppImage retest are still required; Enhanced mode must not be considered fixed until `devlog.log` reports `game_renderer_fallback=false` / `render_path=OpenGL + gl_render`.

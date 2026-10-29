@@ -4,7 +4,7 @@
 
 The native Linux launcher uses the project's SDL2 stack and SDL_Renderer with a small project-owned UI. It does not use Dear ImGui, SDL3, Vulkan, SDL_ttf, GTK, Qt or Tk as its GUI toolkit. The same SDL2 window provides setup/build, progress/logs, settings, diagnostics and Play.
 
-The in-game overlay is wired into the patch-derived Linux frontend: Escape, pause/resume, keyboard/gamepad navigation, and GL plus SDL_Renderer drawing paths are implemented. The 512×768 menu canvas now preserves its aspect ratio on resize/fullscreen; a separate pass dims the whole window, and mouse clicks use the same fitted rectangle. Live-game acceptance remains pending for input capture, focus loss, fullscreen, shutdown and both renderer paths; see `IN_GAME_OVERLAY_GATE.md`.
+The in-game overlay is wired into the patch-derived Linux frontend: Escape, pause/resume, keyboard/gamepad navigation, and GL plus SDL_Renderer drawing paths are implemented. The 512×768 menu canvas now preserves its aspect ratio on resize/fullscreen; a separate pass dims the whole window, and mouse clicks use the same fitted rectangle. OpenGL library loading is diagnosed explicitly. When SDL auto-selects Wayland and GL-window creation fails, the frontend retries via X11/XWayland if `DISPLAY` exists and the user did not explicitly set `SDL_VIDEODRIVER`; it restores Wayland if the retry fails. Live-game acceptance remains pending for input capture, focus loss, fullscreen, shutdown and both renderer paths; see `IN_GAME_OVERLAY_GATE.md`.
 
 ## Implementation
 

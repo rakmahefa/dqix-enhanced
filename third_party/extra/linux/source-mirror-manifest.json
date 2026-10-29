@@ -7,14 +7,15 @@
     "0003-linux-build-entrypoint.patch",
     "0004-linux-ingame-overlay.patch",
     "0005-linux-settings-persistence.patch",
-    "0006-linux-overlay-aspect-fit.patch"
+    "0006-linux-overlay-aspect-fit.patch",
+    "0007-linux-wayland-opengl-retry.patch"
   ],
   "sources": [
     {
       "source_path": "runtime/frontend_sdl.c",
       "mirror_path": "third_party/extra/linux/src/runtime/frontend_sdl.c",
       "base_git_blob_sha1": "600d95d5d928d9b2158d05b0ef2754e754746f4f",
-      "mirror_git_blob_sha1": "24c454915e219fe1f83f044189436ea94c994c85"
+      "mirror_git_blob_sha1": "c11b7226d99679267492d96efd38c5d674a4f17d"
     },
     {
       "source_path": "build.mk",

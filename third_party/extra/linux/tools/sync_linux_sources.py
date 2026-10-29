@@ -40,7 +40,7 @@ def main()->int:
   for s in sources:
    data=(stage/s["source_path"]).read_bytes();blob=git_blob_sha1(data);target=root/s["mirror_path"];made.append((s,target,data,blob))
    if s["mirror_path"].endswith("/runtime/frontend_sdl.c"):runtime=data
-  for marker in [b"renderer-diagnostics: game_renderer_fallback=",b"renderer-diagnostics: fallback_reason=",b"renderer-diagnostics: gl.vendor=",b"renderer-diagnostics: gl.renderer=",b"renderer-diagnostics: gl.version=",b"renderer-diagnostics: sdl_renderer.name=",b"renderer-diagnostics: sdl_texture.format=",b"dqix_linux_overlay_render_rgba",b"linux_overlay_handle_event",b"dqix_linux_overlay_gl_draw",b'fprintf(f, "discord_app_id = %s\\n"',b"dqix_linux_overlay_fit_rect"]:
+  for marker in [b"renderer-diagnostics: game_renderer_fallback=",b"renderer-diagnostics: fallback_reason=",b"renderer-diagnostics: gl.vendor=",b"renderer-diagnostics: gl.renderer=",b"renderer-diagnostics: gl.version=",b"renderer-diagnostics: sdl_renderer.name=",b"renderer-diagnostics: sdl_texture.format=",b"dqix_linux_overlay_render_rgba",b"linux_overlay_handle_event",b"dqix_linux_overlay_gl_draw",b'fprintf(f, "discord_app_id = %s\\n"',b"dqix_linux_overlay_fit_rect",b"renderer-diagnostics: OpenGL retry via X11 succeeded"]:
    if marker not in runtime:fail(f"renderer diagnostic marker missing: {marker.decode()}")
   news=[];changed=False
   for s,target,data,blob in made:

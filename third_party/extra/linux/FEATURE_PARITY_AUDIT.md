@@ -8,7 +8,7 @@
 
 The Linux build selects the project's existing SDL2 gameplay frontend from `third_party/extra/linux/src/runtime/frontend_sdl.c`, produced by an ordered patch series. It does not replace the game renderer with a Linux-specific reimplementation. The runtime still attempts OpenGL 3.3 for Enhanced rendering and falls back to SDL_Renderer plus software 3D when OpenGL initialization is skipped or fails.
 
-The latest full temporary E2E run, [40842120096](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40842120096), passed all three jobs on the aspect-fit overlay revision. It verified all six source patches without fuzz, Makefile-driven frontend/overlay compilation, five CTest cases including aspect-fit geometry, the locked SDL2 build, AppImage cold/warm startup, toolchain corruption rejection and ELF audit (718 ELF files, zero findings). These checks still provide **no proof that every game feature works during a ROM-backed session**: CI intentionally does not package a real ROM or link/run a completed game build.
+The latest full temporary E2E run, [40842120096](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40842120096), passed all three jobs on the aspect-fit overlay revision. It verified the six source patches then present without fuzz, Makefile-driven frontend/overlay compilation, five CTest cases including aspect-fit geometry, the locked SDL2 build, AppImage cold/warm startup, toolchain corruption rejection and ELF audit (718 ELF files, zero findings). That run predates patch 0007 and does not validate the Wayland/X11 retry. These checks also provide **no proof that every game feature works during a ROM-backed session**: CI intentionally does not package a real ROM or link/run a completed game build.
 
 ## Runtime feature parity
 
@@ -25,7 +25,7 @@ The feature catalogue in the root README covers these existing runtime features.
 | Wireless and content | Built-in offline DQVC/DLC, community WFC server configuration, sessions/co-op/tag mode, custom player name and MAC | Network reachability, firewall/NAT, peer compatibility and local settings affect the result; CI does not run a live session. |
 | System/diagnostics | Settings persistence, update checks, quit confirmation, language/DLC preferences, renderer diagnostics and bug-report path | Must be checked with real `settings.ini` and `devlog.log`; CI does not execute the game runtime. |
 
-The Linux-only code changes add renderer diagnostics and the in-game overlay without modifying canonical root `runtime/`, root `build.mk`, or root `tools/build-game.sh`. The new overlay presentation keeps its fixed canvas ratio at any output size and dims the entire window in a separate pass. The source-boundary CI check and source-mirror check passed for the preceding revision; the current patch must pass CI, and every gameplay feature still needs live acceptance.
+The Linux-only code changes add renderer diagnostics and the in-game overlay without modifying canonical root `runtime/`, root `build.mk`, or root `tools/build-game.sh`. The new overlay presentation keeps its fixed canvas ratio at any output size and dims the entire window in a separate pass. The 2026-10-29 live test exposed a Wayland OpenGL-window creation failure (`SDL_CreateWindow(SDL_WINDOW_OPENGL): Invalid window`); patch `0007-linux-wayland-opengl-retry.patch` now adds an OpenGL loader preflight and a guarded X11/XWayland retry when SDL auto-selected Wayland. CI and a real AppImage retest remain required before Enhanced mode and the overlay can be marked accepted.
 
 ## Settings audit
 
