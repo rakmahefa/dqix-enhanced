@@ -278,6 +278,7 @@ jobs:
 
             BUILD_DIR="$RUNNER_TEMP/dqix-conda-sdl2-build"
             env -u LDFLAGS -u CFLAGS -u CXXFLAGS -u CPPFLAGS cmake \
+              -S third_party/extra/linux -B "$BUILD_DIR" -G Ninja \
               -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_SKIP_RPATH=ON
             cmake --build "$BUILD_DIR" --verbose
 
