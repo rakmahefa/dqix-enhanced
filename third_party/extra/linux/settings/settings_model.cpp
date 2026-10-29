@@ -340,6 +340,12 @@ bool IniDocument::save_atomic(const std::filesystem::path& path, std::string& er
         error = "could not allocate a unique temporary settings file beside '" + path.string() + "'";
         return false;
     }
+    if (::fchmod(fd, mode) != 0) {
+        error = system_error("cannot set temporary settings permissions", temporary);
+        ::close(fd);
+        ::unlink(temporary.c_str());
+        return false;
+    }
 
     const auto data = serialize();
     bool ok = write_all(fd, data);
