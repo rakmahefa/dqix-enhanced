@@ -259,10 +259,8 @@
          int mi = menu_command(&e);
          if (mi) { do_action(mi); continue; }
          switch (e.type) {
-@@ -2917,5 +3125,14 @@
-     }
- }
- 
+@@ -2920,1 +3128,10 @@
+-void frontend_shutdown(void) {}
 +void frontend_shutdown(void) {
 +#ifndef _WIN32
 +    if (g_gl && g_win && g_glctx) (void)SDL_GL_MakeCurrent(g_win, g_glctx);
@@ -273,8 +271,6 @@
 +    g_linux_overlay_rgba = NULL;
 +#endif
 +}
--void frontend_shutdown(void) {}
- 
 --- a/build.mk
 +++ b/build.mk
 @@ -35,7 +35,7 @@
