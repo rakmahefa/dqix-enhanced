@@ -220,6 +220,231 @@ void update_child_status(LauncherState& state) {
     log_message(state.log_path, "[launch] %s\n", state.child_result.c_str());
 }
 
+
+bool is_nds_path(const fs::path& path) {
+    std::string ext = path.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return ext == ".nds";
+}
+void refresh_browser_entries(LauncherState& state) {
+    state.browser_entries.clear();
+    std::error_code ec;
+    if (!fs::is_directory(state.browser_dir, ec) || ec) {
+        state.message = "Cannot open folder: " + state.browser_dir.string();
+        state.message_is_error = true;
+        return;
+    }
+    fs::directory_iterator it(state.browser_dir, fs::directory_options::skip_permission_denied, ec), end;
+    if (ec) {
+        state.message = "Cannot list folder: " + ec.message();
+        state.message_is_error = true;
+        return;
+    }
+    constexpr std::size_t kMaxEntries = 5000;
+    for (; it != end && state.browser_entries.size() < kMaxEntries; it.increment(ec)) {
+        if (ec) { ec.clear(); continue; }
+        std::error_code type_ec;
+        const auto status = it->symlink_status(type_ec);
+        if (type_ec || fs::is_symlink(status)) continue;
+        const bool directory = fs::is_directory(status);
+        if (state.browser_kind == BrowserKind::Rom && !directory && !is_nds_path(it->path())) continue;
+        if (!directory && !fs::is_regular_file(status)) continue;
+        state.browser_entries.push_back({it->path(), directory});
+    }
+    std::sort(state.browser_entries.begin(), state.browser_entries.end(),
+        [](const BrowserEntry& a, const BrowserEntry& b) {
+            if (a.directory != b.directory) return a.directory > b.directory;
+            return a.path.filename().native() < b.path.filename().native();
+        });
+    state.browser_scroll = 0;
+    state.browser_selection = 0;
+    state.message = state.browser_entries.size() >= kMaxEntries
+        ? "Showing the first 5000 entries in this folder."
+        : "Select a folder or .nds file.";
+    state.message_is_error = false;
+}
+void close_browser(LauncherState& state) {
+    if (state.path_editing) SDL_StopTextInput();
+    state.path_editing = false;
+    state.browser_kind = BrowserKind::None;
+    state.browser_entries.clear();
+}
+void open_browser(LauncherState& state, BrowserKind kind) {
+    state.browser_kind = kind;
+    state.path_editing = false;
+    fs::path start;
+    std::error_code ec;
+    if (kind == BrowserKind::Rom && !state.rom_path.empty())
+        start = state.rom_path.parent_path();
+    else if (kind == BrowserKind::Workspace && !state.workspace.empty() &&
+             fs::is_directory(state.workspace, ec))
+        start = state.workspace;
+    else if (kind == BrowserKind::Workspace && !state.workspace.empty())
+        start = state.workspace.parent_path();
+    if (start.empty()) {
+        const char* home = std::getenv("HOME");
+        start = home && *home ? fs::path(home) : fs::current_path(ec);
+    }
+    if (start.empty()) start = "/";
+    while (!start.empty() && !fs::is_directory(start, ec)) {
+        ec.clear();
+        const fs::path parent = start.parent_path();
+        if (parent == start) break;
+        start = parent;
+    }
+    if (start.empty()) start = "/";
+    state.browser_dir = absolute_path(start);
+    refresh_browser_entries(state);
+}
+void choose_workspace(LauncherState& state, const fs::path& path) {
+    state.workspace = absolute_path(path);
+    state.game_dir = state.workspace / "game";
+    state.settings_path = state.game_dir / "settings.ini";
+    state.log_path = state.game_dir / "launcher.log";
+    close_browser(state);
+    (void)load_settings(state);
+    state.message = "Workspace selected: " + state.workspace.string();
+    state.message_is_error = false;
+}
+void activate_browser_entry(LauncherState& state, std::size_t index) {
+    if (index >= state.browser_entries.size()) return;
+    const BrowserEntry entry = state.browser_entries[index];
+    if (entry.directory) {
+        state.browser_dir = entry.path;
+        refresh_browser_entries(state);
+        return;
+    }
+    if (state.browser_kind == BrowserKind::Rom && is_nds_path(entry.path)) {
+        state.rom_path = absolute_path(entry.path);
+        close_browser(state);
+        state.message = "ROM selected: " + state.rom_path.filename().string();
+        state.message_is_error = false;
+    }
+}
+bool commit_browser_path(LauncherState& state) {
+    std::error_code ec;
+    fs::path chosen = absolute_path(fs::path(state.path_edit_buffer));
+    if (state.browser_kind == BrowserKind::Rom && is_nds_path(chosen) &&
+        fs::is_regular_file(chosen, ec) && !ec && ::access(chosen.c_str(), R_OK) == 0) {
+        state.rom_path = chosen;
+        close_browser(state);
+        state.message = "ROM selected: " + state.rom_path.filename().string();
+        state.message_is_error = false;
+        return true;
+    }
+    ec.clear();
+    if (fs::is_directory(chosen, ec) && !ec) {
+        state.browser_dir = chosen;
+        state.path_editing = false;
+        SDL_StopTextInput();
+        refresh_browser_entries(state);
+        return true;
+    }
+    if (state.browser_kind == BrowserKind::Workspace && !chosen.empty() &&
+        chosen != fs::path("/") && chosen != absolute_path(std::getenv("HOME") ? std::getenv("HOME") : "/")) {
+        const fs::path parent = chosen.parent_path();
+        ec.clear();
+        if (!parent.empty() && fs::is_directory(parent, ec) && !ec) {
+            state.workspace = chosen;
+            state.game_dir = state.workspace / "game";
+            state.path_editing = false;
+            SDL_StopTextInput();
+            close_browser(state);
+            (void)load_settings(state);
+            state.message = "Workspace path selected. It will be created when you build.";
+            state.message_is_error = false;
+            return true;
+        }
+    }
+    state.message = "That path is not a readable .nds ROM or an accessible folder.";
+    state.message_is_error = true;
+    return false;
+}
+void begin_build(LauncherState& state, bool allow_merge) {
+    if (!state.integrated_builder || state.source_root.empty()) {
+        state.message = "Build setup is unavailable: the bundled source root was not supplied.";
+        state.message_is_error = true;
+        return;
+    }
+    std::string error;
+    if (!dqix::linux_ui::valid_rom_path(state.rom_path, error)) {
+        state.message = error; state.message_is_error = true; return;
+    }
+    if (!dqix::linux_ui::validate_workspace_path(state.source_root, state.workspace, error)) {
+        state.message = error; state.message_is_error = true; return;
+    }
+    if (dqix::linux_ui::workspace_needs_merge_confirmation(state.workspace) && !allow_merge) {
+        state.confirm_merge = true;
+        state.message = "Review the merge warning, then confirm to refresh matching project source files.";
+        state.message_is_error = true;
+        return;
+    }
+    dqix::linux_ui::BuildRequest request;
+    request.source_root = state.source_root;
+    request.workspace = state.workspace;
+    request.rom = state.rom_path;
+    request.allow_merge_unmarked = allow_merge;
+    if (!state.build_job) state.build_job = std::make_unique<dqix::linux_ui::BuildJob>();
+    if (!state.build_job->start(std::move(request), error)) {
+        state.message = error;
+        state.message_is_error = true;
+        return;
+    }
+    state.confirm_merge = false;
+    state.build_in_progress = true;
+    state.build_failed = false;
+    state.build_indeterminate = false;
+    state.build_percent = 1;
+    state.build_status = "Preparing workspace…";
+    state.build_lines.clear();
+    state.game_dir = state.workspace / "game";
+    state.settings_path = state.game_dir / "settings.ini";
+    state.log_path = state.game_dir / "launcher.log";
+    state.message = "Build started. The launcher will remain responsive; see Build output below.";
+    state.message_is_error = false;
+}
+void poll_build_events(LauncherState& state) {
+    if (!state.build_job) return;
+    for (auto& event : state.build_job->drain_events()) {
+        if (event.kind == dqix::linux_ui::BuildEvent::Kind::Log) {
+            std::string line = event.text;
+            while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
+            if (!line.empty()) {
+                state.build_lines.push_back(std::move(line));
+                if (state.build_lines.size() > 9) state.build_lines.erase(state.build_lines.begin());
+            }
+        } else if (event.kind == dqix::linux_ui::BuildEvent::Kind::Status ||
+                   event.kind == dqix::linux_ui::BuildEvent::Kind::Progress) {
+            state.build_status = event.text;
+            state.build_percent = std::max(state.build_percent, event.percent);
+            state.build_indeterminate = event.indeterminate;
+            state.message = event.text;
+            state.message_is_error = false;
+        } else if (event.kind == dqix::linux_ui::BuildEvent::Kind::Succeeded) {
+            state.build_in_progress = false;
+            state.build_failed = false;
+            state.build_indeterminate = false;
+            state.build_percent = 100;
+            state.build_status = event.text;
+            state.game_dir = state.workspace / "game";
+            state.settings_path = state.game_dir / "settings.ini";
+            state.log_path = state.game_dir / "launcher.log";
+            (void)load_settings(state);
+            state.message = "Build succeeded. Play Now is ready.";
+            state.message_is_error = false;
+        } else if (event.kind == dqix::linux_ui::BuildEvent::Kind::Failed) {
+            state.build_in_progress = false;
+            state.build_failed = true;
+            state.build_indeterminate = false;
+            state.build_status = event.text;
+            state.message = event.text;
+            state.message_is_error = true;
+        }
+    }
+}
+
 // Compact 5x7 bitmap font: no external text or UI dependency.
 const char* glyph_bits(char c) {
     static constexpr const char* blank = "00000""00000""00000""00000""00000""00000""00000";
