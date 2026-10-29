@@ -4,6 +4,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include <cstdio>
 #include <fstream>
 #include <stdexcept>
@@ -210,10 +211,23 @@ bool validate_workspace_path(const fs::path& source_root, const fs::path& worksp
         error = "The workspace path exists but is not a directory.";
         return false;
     }
-    fs::path writable_probe = fs::exists(target, ec) ? target : target.parent_path();
+    fs::path writable_probe = target;
+    if (!fs::exists(writable_probe, ec)) {
+        ec.clear();
+        writable_probe = target.parent_path();
+        while (!writable_probe.empty() && !fs::exists(writable_probe, ec)) {
+            if (ec) { ec.clear(); }
+            const fs::path parent = writable_probe.parent_path();
+            if (parent == writable_probe) break;
+            writable_probe = parent;
+        }
+    }
     if (writable_probe.empty()) writable_probe = ".";
-    if (!fs::exists(writable_probe, ec) || ec || ::access(writable_probe.c_str(), W_OK | X_OK) != 0) {
-        error = "The workspace or its parent directory is not writable.";
+    ec.clear();
+    if (!fs::exists(writable_probe, ec) || ec ||
+        !fs::is_directory(writable_probe, ec) || ec ||
+        ::access(writable_probe.c_str(), W_OK | X_OK) != 0) {
+        error = "The workspace or its nearest existing parent directory is not writable.";
         return false;
     }
     return true;
