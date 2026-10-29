@@ -137,7 +137,7 @@ jobs:
           python3 -c 'import ast; from pathlib import Path; ast.parse(Path("packaging/linux/gui.py").read_text(encoding="utf-8"))'
           bash -n packaging/linux/AppRun
           grep -F -- '--launcher "$PACKAGE_DIR/dqix-linux-ui-launcher"' packaging/linux/AppRun >/dev/null
-          grep -F -- 'cmake -S third_party/extra/linux' .github/workflows/linux-ci-appimage.yml >/dev/null
+          grep -F -- '-S third_party/extra/linux -B "$LAUNCHER_BUILD_DIR" -G Ninja' .github/workflows/linux-ci-appimage.yml >/dev/null
           git diff --check origin/main...HEAD -- .github/workflows/linux-dev-sandbox.yml .github/workflows/linux-ci-appimage.yml packaging/linux/gui.py packaging/linux/AppRun
           echo "Linux GUI syntax, AppRun syntax and launcher packaging hooks passed."
 
