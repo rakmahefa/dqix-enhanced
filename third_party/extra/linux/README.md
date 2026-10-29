@@ -10,7 +10,7 @@
 - CLI help is available. The self-test opens a hidden SDL2 window with the software renderer under SDL's dummy video driver and renders one frame.
 - The UI currently edits a subset of audited settings, checks for dqix, data/dqix.nds and data/code/, and can launch the existing game binary. Keyboard, mouse and basic gamepad navigation are supported.
 - Controls remapping and free-form editing of player/server text fields are not implemented. A saved setting does not guarantee the game renderer can apply it.
-- The actual CI configure/build/CTest result is **not yet verified** by inspecting a completed run and its logs.
+- CI run [40810860108](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40810860108) completed successfully on `b1bc1d7c47fd62db725c33fe4844607d43087d0c`: configuration/build succeeded and all 3 CTest cases passed, including settings/runtime schema parity and the SDL2 software-renderer smoke test. Optional project-wide/package/semantic checks were not run.
 - The launcher is not yet connected to the builder Tk Play/launch action or included in the published AppImage. The in-game menu/bridge is not implemented.
 
 ## Build and test

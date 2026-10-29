@@ -23,7 +23,7 @@
 - third_party/extra/linux/tests/smoke-ui.sh runs the dummy-video software-renderer self-test without Vulkan or Xvfb.
 - .github/workflows/linux-dev-sandbox.yml now installs SDL2 and runs CMake/CTest. It uploads logs even on failure.
 - README and the plan were updated to distinguish implemented controls from unfinished Controls remapping/free-form text editing.
-- **Important: code has been pushed, but CI is not yet confirmed.** Inspect the actual run and cmake-build.log/ctest.log; an empty status response does not prove success.
+- **CI proof:** workflow run [40810860108](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40810860108), commit `b1bc1d7c47fd62db725c33fe4844607d43087d0c`, completed successfully. CMake configuration and build passed; CTest passed `linux-settings-model-and-runtime-parity`, `linux-ui-launcher-help` and `linux-ui-sdl2-software-renderer-smoke` (3/3); the source-boundary check passed. The optional repository-wide/package/semantic test set was skipped, so those checks remain unverified.
 
 ## 3. Still not done
 
@@ -45,8 +45,8 @@
 
 ## 5. Next steps
 
-1. Inspect the actual workflow run triggered by the SDL2 migration; read install-toolchain.log, platform-and-dependencies.txt, cmake-configure.log, cmake-build.log, ctest.log and source-boundary-check.txt.
-2. Fix real compile/test failures, commit, and inspect a rerun. Do not label any test green until output confirms it.
+1. P0 standalone SDL2 proof is now confirmed by workflow run 40810860108 (3/3 CTest passed and source-boundary check passed). Keep the log artifact for diagnostics.
+2. Run optional repository-wide/package/semantic checks when appropriate; they were not part of that successful run.
 3. Add tests for missing/unwritable settings files, key/schema parity and persistence. Do not claim that writing a setting guarantees runtime support.
 4. Integrate the launcher with the builder and AppImage only after the standalone target is verified.
 5. Keep the in-game menu blocked until a Linux-only runtime integration proof covers events, focus, pause/resume, OpenGL and the software/SDL fallback.

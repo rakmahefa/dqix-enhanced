@@ -1,6 +1,6 @@
 # Plan-spec — Linux v32: SDL2 launcher and future in-game menu
 
-**Status (2026-10-29):** The architecture decision is SDL2, with no extra UI toolkit and no Vulkan in this phase. The launcher, CMake target and temporary CI have been migrated away from SDL3/ImGui/Vulkan. The real CI configure/build/CTest result still needs to be inspected.  
+**Status (2026-10-29):** The architecture decision is SDL2, with no extra UI toolkit and no Vulkan in this phase. The launcher, CMake target and temporary CI have been migrated away from SDL3/ImGui/Vulkan. The actual workflow run [40810860108](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40810860108) on commit `b1bc1d7c47fd62db725c33fe4844607d43087d0c` completed successfully: configure/build succeeded and all three CTest cases passed.  
 **Base:** main at ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a.  
 **Work branch:** plan/v32-linux-launcher-settings.
 
@@ -25,7 +25,7 @@
 6. The launcher is a separate pre-Play process. SDL2 alone does not share the game's window, event queue, OpenGL context or pause/tick state.
 7. Vulkan may be reconsidered later only with a measured requirement, feasibility proof, dependency analysis and migration plan.
 
-The former source was an SDL3 + Dear ImGui + Vulkan prototype. It has now been replaced with an initial SDL2 + SDL_Renderer launcher. **This change has not yet been verified by an observed CI run.**
+The former source was an SDL3 + Dear ImGui + Vulkan prototype. It has been replaced with an initial SDL2 + SDL_Renderer launcher. The successful CI run 40810860108 verified compilation and 3/3 CTest cases, including runtime/settings schema parity and the SDL2 software-renderer smoke test. This proves the standalone prototype's basic build path, not AppImage integration or the in-game menu.
 
 ## 2. Audited runtime facts
 
@@ -126,7 +126,7 @@ The temporary workflow is for reproducible scripts, tests, diagnostics and logs 
 5. Reproduce F5/Enhanced and fallback behavior with logs; separate requested preference from effective renderer.
 6. Document a Linux-only build/packaging path without modifying build.mk or tools/build-game.sh.
 
-P0 exit: observed CI shows successful configure, build, relevant CTest tests and source-boundary check.
+P0 exit: **met for the standalone prototype** on CI run 40810860108: configuration/build succeeded, all 3 CTest tests passed, and the Windows/shared-path boundary check passed. The permanent AppImage and runtime integration gates remain open.
 
 ### P1 — settings reliability
 
