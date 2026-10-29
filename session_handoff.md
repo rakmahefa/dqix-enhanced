@@ -5,8 +5,8 @@
 **Branche de travail :** `plan/v32-linux-launcher-settings`  
 **Branche de base :** `main`  
 **Commit de base connu :** `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`  
-**Dernier commit confirmé avant cette mise à jour de la note :** `f61e8cb61438b94eac691a8ae0c6225a9d129cc5`  
-**État fonctionnel :** CI temporaire, probe SDL3/Vulkan/ImGui et première couche settings Linux ajoutés ; compilation/CTest non confirmés. Le launcher DQIX, l'interface de settings et le bridge runtime ne sont pas implémentés.
+**Dernier commit confirmé avant cette mise à jour de la note :** `e22a2cd0e56be70fede7f0843688dbc3624b4c2b`  
+**État fonctionnel :** CI temporaire, modèle de settings et premier launcher pré-Play SDL3/Vulkan/ImGui ajoutés ; compilation/CTest et lancement Linux restent non confirmés. Le bridge runtime et le menu in-game ne sont pas implémentés.
 
 ## 1. Règles impératives
 
@@ -39,7 +39,8 @@ Constats P0/P1 ajoutés le 2026-10-29 :
 - Un processus SDL3/Vulkan distinct prouve uniquement que la stack de l'UI démarre ; il ne partage pas la fenêtre, les événements ou l'état de pause/tick du jeu. **Ne pas présenter le menu in-game Escape comme faisable** tant qu'un raccordement réel n'est pas démontré.
 - Le respect simultané de la règle « aucune source/configuration de build Windows modifiée » et le besoin d'un hook runtime in-game sont donc un point d'architecture bloquant. Il faut examiner une entrée de build Linux entièrement isolée ou décider explicitement d'une séparation de frontend Linux avant P3. Ne pas utiliser de source shim/symlink sous `runtime/` pour contourner le confinement.
 - Le runner du workflow de développement est désormais **Ubuntu 26.04**, car le probe utilise le paquet système `libsdl3-dev`, absent des résultats du dépôt Ubuntu 24.04 mais disponible sur 26.04. La CI AppImage permanente n'a pas été modifiée.
-- La couche `settings/settings_model.cpp` est ajoutée : parsing de type INI préservant commentaires/ordre/valeurs inconnues, validation stricte des clés connues et sauvegarde par fichier temporaire + flush + rename atomique. `settings_model_test.cpp` vérifie les plages et formats, le round-trip, la préservation d'entrées inconnues et la parité avec les clés lues/écrites par le runtime. Ces tests sont **ajoutés, non confirmés passants** tant que leur CTest n'est pas consulté.
+- La couche `settings/settings_model.cpp` est utilisée par un premier shell pré-Play dans `ui/launcher_main.cpp`. L'UI présente les pages Game, Graphics, Screen & Display, Audio & Music, Controls (non connectée), Mods, Wireless & Online et System. Elle édite `settings.ini`, vérifie la présence de `dqix`, `data/dqix.nds` et `data/code`, et lance le binaire depuis le dossier choisi. C'est une preview, pas une intégration in-game.
+- `settings_model_test.cpp` vérifie les plages/formats, le round-trip, la préservation d'entrées inconnues et la parité avec les clés lues/écrites par le runtime. Le CTest `linux-ui-launcher-help` teste `--help` sans ouvrir de fenêtre. Ces tests sont **ajoutés, non confirmés passants** tant que leur CTest n'est pas consulté.
 - Le statut CI reste non vérifié depuis le connecteur de cette session : il ne renvoie pas la liste des runs déclenchés par push pour le SHA courant. Une liste vide de statuts/runs retournés ne veut pas dire que le workflow a réussi. Consulter Actions et l'artefact avant de marquer le probe ou les tests settings verts.
 
 Le probe P0 est défini dans `third_party/extra/linux/CMakeLists.txt`. Il compile l'exemple officiel `example_sdl3_vulkan` de Dear ImGui v1.93.0 épinglé au commit `c1aaac65e896a45f81f47a4d68f9959e0f86c859`, sans copier/modifier de source upstream dans le dépôt. `tests/smoke-ui.sh` le lance sous Xvfb pendant 6 secondes ; si aucun device Vulkan n'est disponible, le test est marqué comme ignoré par défaut (et non réussi). Ce probe ne teste pas le runtime DQIX.
@@ -62,7 +63,7 @@ La CI existante [linux-ci-appimage.yml](https://github.com/rakmahefa/dqix-enhanc
 3. Vérifier en particulier le test settings : il doit comparer les 57 clés du schéma aux clés lues par `runtime/frontend_sdl.c`, et les clés de la fonction `settings_save()` à la même table. Si la regex source-parity casse à cause d'un changement du runtime, adapter le test sans modifier le runtime.
 4. Compléter le manifeste de build à partir de `build.mk`, de `tools/build-game.sh` et des objets réellement générés ; la CI protège désormais les chemins runtime et les configurations Windows partagées, mais la matrice complète de compilation Windows/Linux reste à démontrer.
 5. **Garder P3 bloqué.** Définir un chemin d'intégration qui ne change ni les sources ni la configuration Windows. Avant de coder un bridge, comparer deux choix honnêtes : launcher SDL3/Vulkan pré-Play seulement, ou build/frontend Linux entièrement isolé. Ne pas modifier `build.mk` partagé et ne pas ajouter de shim source dans `runtime/`.
-6. Après validation CTest, poursuivre la UI pré-Play : pages utilisant `IniDocument`, résolution explicite du workspace/chemin settings, diagnostics System/Troubleshooting et lancement du jeu depuis son répertoire de données. Indiquer clairement quelles options sont validées seulement dans le fichier et lesquelles ont été réellement appliquées.
+6. Après validation CTest, corriger les erreurs de compilation et smoke test du launcher. Tester sur Linux le chemin `--game-dir`, l'édition/lecture de `settings.ini`, le lancement du jeu et le retour d'état du processus. Vérifier que les erreurs Vulkan/SDL sont lisibles. Ne pas annoncer une option comme appliquée si elle n'a été enregistrée que dans le fichier.
 7. La fenêtre Tk de génération ROM/workspace reste en place ; ne pas la remplacer prématurément et ne pas construire l'AppImage complète à chaque itération.
 
 ## 5. Critères de validation à ne pas oublier
