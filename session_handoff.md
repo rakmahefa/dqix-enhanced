@@ -5,77 +5,53 @@
 **Branch:** `plan/v32-linux-launcher-settings`  
 **Base:** `main` at `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.
 
-## 1. Decisions that must be preserved
+## 1. Required architecture decisions
 
-- SDL2 is the shared multimedia base for the launcher and existing runtime.
-- Do not introduce Dear ImGui, SDL3, Vulkan, SDL_ttf, GTK, Qt, Tk or another UI toolkit for the launcher.
-- **Replace the Tk builder with the existing SDL2 launcher.** The launcher must become the one graphical AppImage application for ROM/workspace selection, building/progress/logs, settings, diagnostics and Play. Do not leave a separate Tk window or an “Open launcher” hand-off.
-- SDL2 has no built-in file picker, so implement a small in-app file/folder browser and path editor inside the SDL2 UI.
-- Build orchestration may run in a worker thread and a child process; the SDL2 application remains the sole graphical interface. UI rendering/input must stay responsive.
-- Do not modify existing Windows sources/configuration. All new native Linux sources, headers, adapters and tests remain under `third_party/extra/linux/`.
-- Do not modify `build.mk` or `tools/build-game.sh`; invoke the latter from a workspace staged by the Linux-only builder.
-- Do not add shims or symlinks under `runtime/`.
-- The in-game menu/overlay is a separate, blocked project phase. A standalone SDL2 launcher does not share the game's window/events/pause state.
+- SDL2 + SDL_Renderer is the launcher UI stack and shared multimedia base. No Dear ImGui, SDL3, Vulkan, SDL_ttf, GTK, Qt or other UI toolkit is added.
+- **The Tk builder has been replaced by the SDL2 launcher.** `packaging/linux/gui.py` is deleted, removed from AppImage payload allowlisting and explicitly forbidden by the payload test.
+- The one SDL2 window owns ROM selection, workspace selection, build progress/output, errors/logs, settings/diagnostics and Play. No second graphical app or hand-off should return.
+- Use a small in-app file/folder browser and path editor. Background source staging and compilation run outside SDL's render/event loop.
+- Do not modify Windows sources/configuration, `build.mk`, or `tools/build-game.sh`. New native Linux source/header/test code stays under `third_party/extra/linux/`; no shims or symlinks under `runtime/`.
+- The in-game overlay is separate and remains blocked until the runtime has a proven Linux-only event/render/pause integration point.
 
-The detailed specification is now in [plan-spec.md](https://github.com/rakmahefa/dqix-enhanced/blob/plan/v32-linux-launcher-settings/plan-spec.md).
+## 2. Implemented native SDL2 builder
 
-## 2. Current implementation (before the unified-builder work)
+- `third_party/extra/linux/ui/launcher_main.cpp` now supports AppImage configuration arguments `--source-root`, `--default-workspace`, `--version`, plus the existing `--game-dir`, `--rom`, `--help` and `--self-test` switches.
+- Game/Build page presents ROM and workspace paths, select buttons, build state, approximate stage progress, animated indeterminate progress during long phases, recent output with scrolling, and Play Now. Settings/graphics/display/audio/controls/mods/wireless/system pages remain.
+- In-app browser supports directory navigation, parent/home, `.nds` filtering, folder selection, text path entry and Ctrl+A/Ctrl+V. Directory scanning is capped to avoid unbounded enumeration on slow/large mounts.
+- `third_party/extra/linux/builder/build_job.cpp` stages source files using exclusions ported from the old builder, preserves generated/private `game/` and `build/` output directories, runs the staged `tools/build-game.sh ROM` child process in the workspace, streams combined output to a UI event queue and persistent `launcher-build.log`, maps known build stages to approximate progress and reports actual exit status.
+- Workspace/ROM validation rejects unsafe paths, checks merge confirmation for a non-empty unmarked workspace and blocks writes through destination symlinks. The builder cancels/reaps child work on launcher shutdown.
+- After a successful build, the launcher checks for the built executable, ROM and generated code before enabling Play. The game launches via `game/play.sh` when present, with the previous direct executable invocation as fallback.
+- `packaging/linux/AppRun` verifies/extracts the bundled toolchain as before and then execs the SDL2 launcher directly with source root, default workspace and version. Its self-test exercises the launcher in dummy-video/software-renderer mode with the same integrated configuration arguments. Existing CLI build/rebuild flows are retained.
+- `.github/workflows/linux-ci-appimage.yml` builds all SDL2 targets and runs CTest before packaging. The temporary diagnostics workflow asserts the native AppRun path, protected-source boundaries and Linux-only source placement.
+- The workspace builder is a native Linux-only extension: `build.mk`, `tools/build-game.sh` and Windows/runtime sources remain untouched.
 
-- `third_party/extra/linux/CMakeLists.txt` locates SDL2 through pkg-config. It does not fetch ImGui or require Vulkan/SDL3.
-- `third_party/extra/linux/ui/launcher_main.cpp` is an initial SDL2 + SDL_Renderer app with an embedded bitmap font, pages, keyboard/mouse/basic gamepad navigation, a hidden software-renderer self-test, settings access and game launch with `--game-dir`. It **does not yet** select a ROM/workspace or run the build itself.
-- `third_party/extra/linux/settings/settings_model.cpp` implements the settings model/persistence helpers.
-- `third_party/extra/linux/tests/smoke-ui.sh` runs the dummy-video software-renderer smoke test without Vulkan or Xvfb.
-- `.github/workflows/linux-dev-sandbox.yml` builds/tests the SDL2 prototype and uploads diagnostics/logs even on failure.
-- `packaging/linux/gui.py` is still the current Tk builder: it chooses a ROM and workspace, stages the source tree (excluding generated/private outputs), runs `tools/build-game.sh` in a worker thread, streams build output into a log/progress UI, and then offers an “Open launcher” button.
-- `packaging/linux/AppRun` still defaults to that Tk GUI after checking/preparing the bundled toolchain. Its CLI modes include help/version/self-test/build-only/rebuild/ROM-path flows. The default GUI path and Tk-oriented self-test must be migrated.
-- Current SDL2 launcher launch behavior uses `dqix` with explicit arguments and logs output. Compare this with the workspace's `game/play.sh` contract before porting the build button; do not accidentally bypass required environment or runtime setup.
-- `runtime/frontend.h` defines the runtime lifecycle; `runtime/frontend_sdl.c` owns SDL2 runtime events/rendering/pause; `runtime/menu_win32.c` remains protected. Do not edit these.
+## 3. Verification status
 
-## 3. CI status and evidence
+Latest relevant CI run: [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989) against implementation commit `4e41e34114d3a5a09a3792e8a8393625aabd80a5`.
 
-Temporary workflow run [40815344443](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40815344443), commit `7092d1920fbc529b6a5529e0cf3273a992431768`, passed all three jobs:
+- Locked Conda SDL2 launcher build and test job passed all four CTest cases: builder dry-run/symlink safety, settings-model/runtime schema parity, CLI help and hidden SDL2 software-renderer smoke test.
+- System-SDL2 build and payload-policy tests are in progress as of this handoff update.
+- The full AppImage assembly/cold-warm startup/checksum/ELF audit job has not yet been confirmed by this run. The older successful AppImage run [40815344443](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40815344443) predates the unified builder and is baseline evidence only.
+- No real user ROM or complete local gameplay session is run in CI. Manual validation with the user's own ROM and a successfully built workspace remains required before claiming end-to-end gameplay validation.
+- The permanent production AppImage workflow has not yet been confirmed on an allowed PR/main/workflow-dispatch event.
 
-- System SDL2 and locked Conda SDL2 2.32.56 builds passed their 3/3 CTest suites.
-- A real x86_64 AppImage was assembled; cold/warm startup, bundled launcher self-test, modified-toolchain archive rejection, checksums and ELF audit passed.
-- ELF audit reported 718 ELF files and zero findings; SBOM contained 96 components. Artifacts/diagnostics were uploaded.
+## 4. Known limitations and next work
 
-This is **pre-migration baseline evidence only**. It proves the existing SDL2 prototype and package can build, not that the full native builder has been implemented. After migration, rerun the relevant checks and update this handoff with the new commit/run. The permanent production AppImage workflow has not yet been confirmed on an allowed PR/main/workflow-dispatch event.
+1. Inspect the final result/artifacts of run [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989). If its AppImage package job passes, record the artifact/diagnostics and the exact checks reported.
+2. Manually exercise the interactive browser, confirm workspace-merge prompt, build/retry/error logs, settings path and Play action with a user-provided ROM and real workspace. No ROM belongs in CI or AppImage.
+3. Check controls/settings path migration and audit settings for unsupported/startup-only/runtime-dependent values. Writing a setting is not proof the runtime applies it.
+4. Run the permanent production workflow on an allowed event and review the complete diff against `main`.
+5. Keep the in-game menu blocked until Escape/focus capture, pause/resume, OpenGL/software fallback, fullscreen and shutdown are proven without protected Windows changes.
 
-## 4. Required unified behavior
+## 5. Final guard rails
 
-The first SDL2 screen should show setup/build when no valid game is present, or game readiness and Play when a game already exists. Inside that same window users need to:
-
-- Choose a `.nds` ROM and workspace through an in-app file browser.
-- Validate paths and confirm before merging into a non-empty, unmarked workspace; protect existing `build/`, `game/`, save and generated/private outputs during source staging.
-- Stage source from the AppImage into the workspace with behavior equivalent to the current Tk `source_ignore()`.
-- Run the staged `tools/build-game.sh` through a child process, stream stdout/stderr into a persistent log and UI queue, show approximate stage progress, and report the actual exit status.
-- Keep SDL event/render handling responsive through staging/building; update UI state only on the SDL thread.
-- Recheck the built game layout and provide Play/settings directly in the same app. Keep errors/logs available and allow retry.
-- Retain settings/graphics/display/audio/controls/mods/wireless/system pages, while honestly distinguishing saved preferences from runtime-effective capabilities.
-- Have no separate Tk window or native launcher's second GUI process.
-
-Use simulated/dry-run fixtures in CI for file staging and build-job success/failure/progress/log/cleanup. CI must not need or package a real ROM, save or protected game data.
-
-## 5. Next steps
-
-1. **P1 — Native builder core:** extend `launcher_main.cpp` and add small testable Linux-only modules under `third_party/extra/linux/` for app configuration, path selection/validation, source staging and build-job orchestration. Add the in-app file/folder browser, text entry, safe workspace handling and progress/log queue. Do not put blocking filesystem/process work in the render loop.
-2. Add tests for source-copy exclusions, workspace marker/overlap checks, missing/unwritable paths, ROM validation, simulated child success/failure, output streaming, exit status and child reaping. Keep the hidden SDL software-renderer test working.
-3. **P2 — AppRun cutover:** have no-argument and `--gui` paths exec the native SDL2 launcher with explicit source root/default workspace/version. Preserve toolchain archive verification and the build environment; keep supported CLI modes working. Replace the Tk import in `--self-test` with native launcher/software-renderer checks.
-4. Update `.github/workflows/linux-dev-sandbox.yml`, `.github/workflows/linux-ci-appimage.yml` and packaging assertions so they test the SDL2-only graphical path. Update desktop entry/icon/app labels. Once parity and tests pass, remove `gui.py` and Tk-only hooks if no references remain; don't remove Python from the toolchain until its use by build/code-generation tools is audited.
-5. Verify the actual game launch command against `game/play.sh` and test the full built-workspace path locally with a user-provided ROM. Never use a real ROM in CI.
-6. Run a real AppImage build, cold/warm startup, SDL self-test, simulated builder tests, toolchain-integrity rejection, checksum and ELF audits. Then try the permanent workflow on an allowed event and review the final diff against `main`.
-7. Keep the in-game overlay blocked until a Linux-only runtime integration proof covers event ownership, focus/capture, pause/resume, OpenGL and software fallback without protected Windows changes.
-
-## 6. Final guard rails
-
-- [ ] No protected Windows source or shared Windows build configuration changed.
-- [ ] New native Linux source/header/test files live under `third_party/extra/linux/`.
-- [ ] SDL2 + SDL_Renderer remains the only launcher UI stack; no ImGui/SDL3/Vulkan/font/toolkit dependency added.
-- [ ] One SDL2 window owns setup, build, logs, settings, diagnostics and Play.
-- [ ] Build and directory operations cannot freeze the UI.
-- [ ] Test fixtures/dry-run cover builder success and failure without a ROM.
-- [ ] Settings schema/persistence tests pass and output is inspected.
-- [ ] AppRun defaults to the native launcher; CLI modes and toolchain integrity remain tested.
-- [ ] No ROM/save/protected assets enter CI or AppImage artifacts.
-- [ ] Permanent AppImage workflow and real local built-workspace launch are verified.
-- [ ] No in-game overlay support is claimed without runtime integration tests.
+- [x] Tk GUI removed from source and AppImage payload; AppRun defaults to the SDL2 launcher.
+- [x] All new native Linux sources/headers/tests added under `third_party/extra/linux/`.
+- [x] No ImGui/SDL3/Vulkan/new UI-toolkit dependency added.
+- [x] Source-boundary CI has verified no protected runtime/Windows/shared build paths changed.
+- [x] Builder dry-run tests cover success/failure, path rejection, staging exclusions, output logs and destination symlink safety (locked Conda SDL2 suite passed).
+- [ ] Full AppImage assembly/self-test/checksum/ELF audit passes for the unified launcher.
+- [ ] Permanent production AppImage workflow passes on an allowed event.
+- [ ] Interactive real-Workspace build/launch tested locally with a user ROM.
+- [ ] No in-game overlay support claimed without runtime integration tests.
