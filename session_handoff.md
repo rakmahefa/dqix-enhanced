@@ -11,8 +11,9 @@
 - **The Tk builder has been replaced by the SDL2 launcher.** `packaging/linux/gui.py` is deleted, removed from AppImage payload allowlisting and explicitly forbidden by the payload test.
 - The one SDL2 window owns ROM selection, workspace selection, build progress/output, errors/logs, settings/diagnostics and Play. No second graphical app or hand-off should return.
 - Use a small in-app file/folder browser and path editor. Background source staging and compilation run outside SDL's render/event loop.
-- Do not modify Windows sources/configuration, `build.mk`, or `tools/build-game.sh`. New native Linux source/header/test code stays under `third_party/extra/linux/`; no shims or symlinks under `runtime/`.
-- The in-game overlay is separate and remains blocked until the runtime has a proven Linux-only event/render/pause integration point.
+- Keep canonical Windows/shared files (`runtime/`, root `build.mk`, root `tools/build-game.sh`, and Win32 resources) unchanged. The approved route is an ordered patch series under `third_party/extra/linux/patches/` that regenerates mirrored copies under `third_party/extra/linux/src/`; the Linux build must explicitly compile those copies.
+- Keep new Linux source/header/test code under `third_party/extra/linux/`; never add shims or symlinks under canonical `runtime/`.
+- The overlay is not implemented yet. The next architecture task is the patch/sync manifest and Linux-only build entry point; only then add the narrow runtime hook and validate input, pause, active renderer and shutdown.
 
 ## 2. Implemented native SDL2 builder
 
@@ -45,7 +46,7 @@ The permanent production AppImage workflow has not yet been confirmed on an allo
 1. Run the updated AppImage once with a real user ROM and check workspace-root `devlog.log` for its session header, game stdout/stderr, SDL/OpenGL renderer messages and exit record. No ROM belongs in CI or AppImage.
 2. Continue auditing settings path migration and unsupported/startup-only/runtime-dependent options. Saving a setting is not proof the runtime applies it.
 3. Run the permanent production workflow on an allowed event and review the complete diff against `main`.
-4. Keep the in-game overlay blocked until a Linux-only integration architecture is approved and Escape/focus, pause/resume, OpenGL/software fallback, fullscreen and shutdown can be tested.
+4. Implement the approved patch-derived source mirror: add ordered patches, base/result hashes and a sync `--check`; mirror only the required runtime/build files; route Linux builds through those mirrors; verify root Windows/shared files remain unchanged. Then run the overlay acceptance matrix (Escape/focus, pause/resume, OpenGL/software fallback, fullscreen and shutdown).
 
 ## 5. Final guard rails
 
@@ -58,4 +59,4 @@ The permanent production AppImage workflow has not yet been confirmed on an allo
 - [ ] Permanent production AppImage workflow passes on an allowed event.
 - [x] User confirmed the AppImage build/launch flow works with a real ROM/workspace (before devlog capture).
 - [ ] Updated AppImage's `devlog.log` verified against a real gameplay session.
-- [x] No in-game overlay support claimed; the shared-runtime build boundary and two architecture options are documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
+- [x] No in-game overlay support claimed; the selected patch-derived Linux mirror architecture and its acceptance gate are documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
