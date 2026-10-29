@@ -19,16 +19,16 @@ No in-game overlay is claimed: a separate pre-Play process does not share the ga
 
 ## Verification
 
-The completed temporary E2E run [40823508014](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823508014) passed all three jobs with the devlog capture code:
+Full temporary E2E run [40824893570](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570) passed all three jobs with the synthetic game-output capture test:
 
 - System SDL2: 4/4 CTest tests passed.
-- Locked Conda SDL2: 4/4 CTest tests passed, including timestamped build records in workspace `devlog.log`.
-- The x86_64 AppImage assembled and passed cold/warm startup, the integrated SDL2 software-renderer self-test, corrupted toolchain rejection, payload policy, checksums and ELF audit.
+- Locked Conda SDL2: 4/4 CTest tests passed, including real synthetic game stdout/stderr capture to `devlog.log`, log-symlink fallback, and appending the exit record to the active log.
+- The x86_64 AppImage assembled and passed cold/warm startup, the integrated SDL2 software-renderer self-test, corrupted-toolchain rejection, payload policy, checksums and ELF audit.
 - ELF audit: 718 ELF files, zero findings; SBOM: 96 Conda components.
 
-Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823508014/artifacts/12875252792) · [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823508014/artifacts/12874794549).
+Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570/artifacts/12876321813) · [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570/artifacts/12876371225) · [SDL2 diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570/artifacts/12876550365).
 
-The user has confirmed the previous AppImage builds and launches the game with a real ROM/workspace. The production game-launch helper has a synthetic child-process CTest for stdout/stderr capture and safe fallback from a `devlog.log` symlink. One real game run should still confirm the exact runtime renderer diagnostics emitted by the user's build. The fallback-reporting fix passed [40823840655](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823840655). The permanent production AppImage workflow has not yet been confirmed on an allowed trigger.
+The user has confirmed the AppImage builds and launches the game with a real ROM/workspace. The new capture has automated child-process coverage; one real game run should still confirm the precise renderer diagnostics emitted by the user's build. The permanent production AppImage workflow has not yet been confirmed on an allowed trigger.
 
 ## Build and test locally
 

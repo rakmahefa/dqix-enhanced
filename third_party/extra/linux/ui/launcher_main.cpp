@@ -183,6 +183,7 @@ void launch_game(LauncherState& state) {
 
     const auto launched = dqix::linux_ui::launch_game_process(
         state.workspace, state.game_dir, state.log_path, state.version);
+    if (!launched.output_log_path.empty()) state.devlog_path = launched.output_log_path;
     if (launched.pid <= 0) {
         state.message = launched.error.empty() ? "Could not start game." : launched.error;
         state.message_is_error = true;

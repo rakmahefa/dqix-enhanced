@@ -186,17 +186,23 @@ printf 'fallback-game-output-marker\n'
         ok &= require(fallback_launch.pid > 0, "fallback game process should start: " + fallback_launch.error);
         ok &= require(!fallback_launch.devlog_enabled && fallback_launch.fallback_log_enabled,
                       "unsafe devlog symlink should force launcher.log fallback");
+        ok &= require(fallback_launch.output_log_path == fallback_game / "launcher.log",
+                      "launch helper should report the active fallback log path");
         if (fallback_launch.pid > 0) {
             int status = 0;
             pid_t waited;
             do { waited = ::waitpid(fallback_launch.pid, &status, 0); } while (waited < 0 && errno == EINTR);
             ok &= require(waited == fallback_launch.pid, "fallback game child should be reaped");
         }
+        (void)dqix::linux_ui::append_devlog_message(
+            fallback_launch.output_log_path, "[game] fallback exited with code 0.");
         std::ifstream fallback_stream(fallback_game / "launcher.log", std::ios::binary);
         const std::string fallback_contents((std::istreambuf_iterator<char>(fallback_stream)),
                                             std::istreambuf_iterator<char>());
         ok &= require(fallback_contents.find("fallback-game-output-marker") != std::string::npos,
                       "game stdout should fall back to launcher.log when devlog is unsafe");
+        ok &= require(fallback_contents.find("[game] fallback exited with code 0.") != std::string::npos,
+                      "game exit status should be appended to the active fallback log");
         std::ifstream protected_stream(protected_log, std::ios::binary);
         std::string protected_contents;
         std::getline(protected_stream, protected_contents);

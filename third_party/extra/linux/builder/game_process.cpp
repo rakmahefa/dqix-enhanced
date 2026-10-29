@@ -53,7 +53,8 @@ int open_append_no_follow(const fs::path& path) {
 
 template <std::size_t N>
 void child_error(const char (&message)[N], int exit_code) {
-    (void)::write(STDERR_FILENO, message, N - 1);
+    const ssize_t written = ::write(STDERR_FILENO, message, N - 1);
+    (void)written;
     _exit(exit_code);
 }
 

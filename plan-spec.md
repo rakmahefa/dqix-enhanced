@@ -5,7 +5,7 @@
 **Work branch:** `plan/v32-linux-launcher-settings`  
 **Base:** `main` at `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.
 
-**Implementation update (2026-10-29):** the native SDL2 launcher replaces the former Tk builder, and `AppRun` starts that launcher directly. The user has confirmed that the AppImage builds and launches the game with a real ROM/workspace. This follow-up adds a workspace-root `devlog.log`: timestamped build lines are mirrored there, and the game's stdout/stderr (including existing SDL/OpenGL renderer diagnostics) are redirected there on Play. Full end-to-end run [40823508014](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823508014) passed system SDL2, locked-Conda SDL2 and AppImage assembly/cold-warm-start/toolchain-integrity/ELF checks. A small fallback-reporting fix is included in the current branch and passed CI run [40823840655](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823840655). The new log path has compile/CTest/AppImage-smoke coverage; one real gameplay run should confirm the exact renderer output produced by the user's build.
+**Implementation update (2026-10-29):** the native SDL2 launcher replaces the former Tk builder, and `AppRun` starts that launcher directly. The user has confirmed that the AppImage builds and launches the game with a real ROM/workspace. Workspace-root `devlog.log` now receives timestamped builder messages and the game's stdout/stderr, including renderer diagnostics already emitted by the runtime. A reusable Linux-only game-process helper is used by both the launcher and CTest; synthetic tests verify stdout/stderr capture, log symlink rejection/fallback and writing the exit record to the active log. Full E2E run [40824893570](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40824893570) passed system SDL2, locked-Conda SDL2 and AppImage assembly/cold-warm-start/toolchain-integrity/ELF checks (718 ELF files, zero findings; 96-component SBOM). The remaining manual check is to inspect this log with the user's actual game build and confirm the runtime's renderer messages appear as expected.
 
 
 
@@ -177,7 +177,7 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 6. **Implemented:** synthetic dry-run tests exercise successful and failed child builds, output/log persistence, exit-status reporting and source exclusions without any real ROM or generated game data.
 7. **Implemented:** ROM type/readability and source/workspace overlap validation, non-empty workspace confirmation and destination-symlink write protection have coverage. Broader missing/unwritable and long-path interaction checks remain follow-up hardening.
 
-**P1 exit:** native build-job compilation and synthetic build success/failure, game stdout/stderr capture, safe log fallback and symlink safety tests pass in the locked Conda SDL2 job. The user has confirmed Build/Play works with a real game; emitted renderer output still needs a quick manual log check.
+**P1 exit:** native build-job compilation and synthetic build success/failure, game stdout/stderr capture, safe log fallback and exit-record routing tests pass in the locked Conda SDL2 job. The user has confirmed Build/Play works with a real game; emitted renderer output still needs a quick manual log check.
 
 ### P2 — SDL2-only AppImage GUI entry point (implemented; temporary end-to-end packaging verified)
 
