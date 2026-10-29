@@ -178,6 +178,12 @@ void launch_game(LauncherState& state) {
     }
     const std::string executable = (state.game_dir / "dqix").string();
     const std::string cwd = state.game_dir.string();
+    const fs::path play_script_path = state.game_dir / "play.sh";
+    std::error_code play_ec;
+    const bool use_play_script = fs::is_regular_file(play_script_path, play_ec) && !play_ec &&
+                                ::access(play_script_path.c_str(), R_OK) == 0;
+    const std::string play_script = play_script_path.string();
+    const std::string log_file = state.log_path.string();
     const pid_t pid = ::fork();
     if (pid < 0) {
         state.message = "Could not start game: " + std::string(std::strerror(errno));
@@ -186,16 +192,16 @@ void launch_game(LauncherState& state) {
     }
     if (pid == 0) {
         if (::chdir(cwd.c_str()) != 0) _exit(126);
-        const int log_fd = ::open(state.log_path.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0600);
+        const int log_fd = ::open(log_file.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0600);
         if (log_fd >= 0) {
             (void)::dup2(log_fd, STDOUT_FILENO); (void)::dup2(log_fd, STDERR_FILENO);
             if (log_fd > STDERR_FILENO) ::close(log_fd);
         }
-        const fs::path play_script = state.game_dir / "play.sh";
-        std::error_code play_ec;
-        if (fs::is_regular_file(play_script, play_ec) && !play_ec &&
-            ::access(play_script.c_str(), R_OK) == 0) {
-            ::execl("/bin/bash", "bash", play_script.c_str(), static_cast<char*>(nullptr));
+        if (use_play_script) {
+            char* const play_args[] = {
+                const_cast<char*>("bash"), const_cast<char*>(play_script.c_str()), nullptr
+            };
+            ::execv("/bin/bash", play_args);
             _exit(127);
         }
         // Compatibility fallback for workspaces that predate play.sh.
