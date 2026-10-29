@@ -115,13 +115,13 @@ echo "== Done."
 
     // A pre-existing symlink in the user workspace must never redirect writes outside it.
     const fs::path link_source = temp / "source-link";
-    write_file(link_source / "tools/build-game.sh", "#!/bin/bash\\nexit 0\\n");
-    write_file(link_source / "docs/private.txt", "bundled source text\\n");
+    write_file(link_source / "tools/build-game.sh", "#!/bin/bash\nexit 0\n");
+    write_file(link_source / "docs/private.txt", "bundled source text\n");
     const fs::path link_workspace = temp / "workspace-link";
     const fs::path outside = temp / "outside";
-    write_file(outside / "private.txt", "must remain untouched\\n");
+    write_file(outside / "private.txt", "must remain untouched\n");
     fs::create_directories(link_workspace);
-    write_file(link_workspace / ".dqix-enhanced-appimage-workspace", "test marker\\n");
+    write_file(link_workspace / ".dqix-enhanced-appimage-workspace", "test marker\n");
     fs::create_directory_symlink(outside, link_workspace / "docs", ec);
     if (ec) {
         ok &= require(false, "test setup could not create a symlink: " + ec.message());
