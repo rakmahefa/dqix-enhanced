@@ -5,7 +5,7 @@
 **Work branch:** `plan/v32-linux-launcher-settings`  
 **Base:** `main` at `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.
 
-**Implementation update (2026-10-29):** the unified SDL2 builder path is now implemented in `third_party/extra/linux/builder/` and the SDL2 launcher. The former `packaging/linux/gui.py` Tk application has been deleted, and the AppImage payload policy explicitly excludes it. `AppRun` now starts the SDL2 launcher directly with source/workspace/version arguments. Latest verification run [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989) is testing this integrated state; the locked-Conda SDL2 build and all four CTest cases passed. The final AppImage packaging job has not yet been confirmed, and a real user-ROM/workspace run remains a manual validation item.
+**Implementation update (2026-10-29):** the unified SDL2 builder path is now implemented in `third_party/extra/linux/builder/` and the SDL2 launcher. The former `packaging/linux/gui.py` Tk application has been deleted, and the AppImage payload policy explicitly excludes it. `AppRun` now starts the SDL2 launcher directly with source/workspace/version arguments. Latest completed verification run [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989) succeeded across all three jobs: system SDL2 and locked-Conda SDL2 builds each passed 4/4 CTest cases, and a real x86_64 AppImage was assembled and tested with cold/warm startup, integrated launcher self-test, corrupted-toolchain rejection, payload policy, checksums and ELF audit (718 ELF files, zero findings; SBOM 96 components). The AppImage and diagnostic artifacts were uploaded. A follow-up run [40818570839](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818570839) is verifying the docs-only update that followed. A real user-ROM/workspace run and the permanent production workflow remain manual/trigger-dependent validation items.
 
 ## 0. Prime directive — preserve the Windows upstream path
 
@@ -177,7 +177,7 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 
 **P1 exit:** native build-job compilation and synthetic success/failure + symlink safety tests passed in the locked Conda SDL2 job. Real ROM/gameplay validation remains manual.
 
-### P2 — SDL2-only AppImage GUI entry point (implemented; packaging verification ongoing)
+### P2 — SDL2-only AppImage GUI entry point (implemented; temporary end-to-end packaging verified)
 
 1. **Implemented:** default and `--gui` AppRun paths exec the native launcher with source-root, workspace and version arguments.
 2. **Preserved:** toolchain checksum validation, cached extraction, compiler/build environment and CLI build/rebuild modes.
@@ -185,7 +185,7 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 4. **Implemented:** temporary CI checks the native entry point; the payload policy excludes and tests against `packaging/linux/gui.py`.
 5. **Implemented:** desktop labels now describe the Linux Launcher; handoff/spec docs have been refreshed.
 6. **Implemented:** `packaging/linux/gui.py` was deleted, and the AppImage source filter/payload test were updated accordingly.
-7. **In verification:** rerun full AppImage assembly, cold/warm startup, launcher self-test, toolchain-integrity rejection, checksums and ELF audit on the unified builder.
+7. **Verified in run 40818245989:** AppImage assembly, cold/warm startup, launcher self-test, toolchain-integrity rejection, checksums, payload policy and ELF audit all passed on the unified builder.
 
 **P2 exit:** the code-path cutover is implemented. Full AppImage packaging verification and manual use with a real workspace are still required before calling the product release-ready.
 
@@ -230,10 +230,10 @@ Start only after the separate integration gate in section 6 passes. Do not confl
 - [x] `AppRun` defaults to the native launcher and passes explicit paths/configuration; CLI automation modes are preserved.
 - [x] Native `--self-test` needs neither a real ROM nor a desktop GPU/Vulkan device.
 - [x] UI messages distinguish saved preferences from actual runtime support.
-- [ ] Full AppImage cold/warm startup, launcher smoke, toolchain-integrity rejection, checksums and ELF checks pass after this migration.
+- [x] Temporary CI AppImage cold/warm startup, launcher smoke, toolchain-integrity rejection, checksums and ELF checks passed after this migration (run 40818245989).
 - [ ] Permanent production AppImage workflow run is confirmed.
 - [ ] Manual local end-to-end test with a real user ROM/build workspace is complete.
-- [ ] Final AppImage includes no ROM/save/protected assets (latest package-policy run pending).
+- [x] AppImage payload policy rejects ROM/save/protected assets and the retired Tk GUI (run 40818245989).
 - [x] Windows/upstream path remains clean according to source-boundary CI.
 - [x] In-game menu is not claimed without actual runtime integration tests.
 
