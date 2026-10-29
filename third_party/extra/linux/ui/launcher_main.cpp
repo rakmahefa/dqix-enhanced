@@ -376,6 +376,7 @@ struct LauncherState {
     Page page = Page::Game;
     std::string message;
     bool message_is_error = false;
+    bool settings_load_ok = true;
     pid_t game_pid = -1;
     std::string child_result;
 };
@@ -402,12 +403,14 @@ void refresh_text_fields(LauncherState& state) {
 
 bool load_settings(LauncherState& state) {
     state.settings_path = state.game_dir / "settings.ini";
+    state.settings = IniDocument::parse("");
+    state.settings_load_ok = true;
     std::error_code ec;
     const bool exists = fs::exists(state.settings_path, ec);
     if (ec) {
         state.message = "Cannot inspect settings path '" + state.settings_path.string() + "': " + ec.message();
         state.message_is_error = true;
-        state.settings = IniDocument::parse("");
+        state.settings_load_ok = false;
         refresh_text_fields(state);
         return false;
     }
@@ -422,9 +425,11 @@ bool load_settings(LauncherState& state) {
     if (!state.settings.load_file(state.settings_path, error)) {
         state.message = error;
         state.message_is_error = true;
+        state.settings_load_ok = false;
         refresh_text_fields(state);
         return false;
     }
+    state.settings_load_ok = true;
     state.message = "Loaded existing settings.ini. Changes are saved atomically.";
     state.message_is_error = false;
     refresh_text_fields(state);
@@ -475,6 +480,11 @@ bool parse_arguments(int argc, char** argv, LauncherState& state, std::string& e
 }
 
 bool commit_setting(LauncherState& state, std::string_view key, std::string_view value) {
+    if (!state.settings_load_ok) {
+        state.message = "Settings cannot be edited because the selected settings.ini could not be read.";
+        state.message_is_error = true;
+        return false;
+    }
     const IniDocument previous = state.settings;
     std::string error;
     if (!state.settings.set_validated(key, value, error)) {
@@ -495,14 +505,14 @@ bool commit_setting(LauncherState& state, std::string_view key, std::string_view
         state.settings = previous;
         state.message = error;
         state.message_is_error = true;
-        refresh_text_fields(state);
+        if (key == "player_name" || key == "wfc_server") refresh_text_fields(state);
         return false;
     }
 
     state.message = "Saved " + std::string(key) + " to " + state.settings_path.string() +
                     ". Effective support depends on the game runtime.";
     state.message_is_error = false;
-    refresh_text_fields(state);
+    if (key == "player_name" || key == "wfc_server") refresh_text_fields(state);
     return true;
 }
 
@@ -752,14 +762,18 @@ void draw_wireless_page(LauncherState& state) {
     draw_page_title("Wireless & Online", "Network settings are saved for the existing runtime. Server reachability is not tested here.");
     checkbox_setting(state, "Enable wireless/network features", "wireless", true);
     ImGui::SetNextItemWidth(240.0f);
-    if (ImGui::InputText("WFC server or DNS", state.wfc_server.data(), state.wfc_server.size()))
-        state.child_result.clear();
+    if (ImGui::InputText("WFC server or DNS", state.wfc_server.data(), state.wfc_server.size())) {
+        state.message = "Server value changed in the editor; click Save server to persist it.";
+        state.message_is_error = false;
+    }
     if (ImGui::Button("Save server")) commit_setting(state, "wfc_server", state.wfc_server.data());
     ImGui::SameLine();
     ImGui::TextDisabled("e.g. builtin or a DNS hostname/address");
     ImGui::SetNextItemWidth(240.0f);
-    if (ImGui::InputText("Player name", state.player_name.data(), state.player_name.size()))
-        state.child_result.clear();
+    if (ImGui::InputText("Player name", state.player_name.data(), state.player_name.size())) {
+        state.message = "Player name changed in the editor; click Save player name to persist it.";
+        state.message_is_error = false;
+    }
     if (ImGui::Button("Save player name")) commit_setting(state, "player_name", state.player_name.data());
     slider_setting(state, "Host port", "session_port", 27900, 1, 65535);
 }
