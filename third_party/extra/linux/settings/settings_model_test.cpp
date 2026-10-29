@@ -89,8 +89,8 @@ void test_runtime_schema_parity(const std::filesystem::path& runtime_source) {
     require(static_cast<bool>(input), "cannot open runtime source for schema parity: " + runtime_source.string());
     const std::string source((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
 
-    const std::regex loader_key(R"(strcmp\(key,\s*"([a-z0-9_]+)"\))");
-    const std::regex writer_key(R"(fprintf\(f,\s*"([a-z0-9_]+)\s*=)");
+    const std::regex loader_key(R"REGEX(strcmp\(key,\s*"([a-z0-9_]+)"\))REGEX");
+    const std::regex writer_key(R"REGEX(fprintf\(f,\s*"([a-z0-9_]+)\s*=)REGEX");
     std::set<std::string> loaded;
     std::set<std::string> written;
 
