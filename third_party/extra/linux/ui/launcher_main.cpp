@@ -1,6 +1,7 @@
 // Minimal Linux-only launcher using the project's existing SDL2 stack.
 // No ImGui, SDL3, Vulkan, SDL_ttf or other UI library is required.
 #include "../settings/settings_model.hpp"
+#include "../builder/build_job.hpp"
 #include <SDL.h>
 #include <algorithm>
 #include <array>
@@ -11,6 +12,8 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <memory>
+#include <vector>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -27,12 +30,33 @@ constexpr int kWidth = 1280;
 constexpr int kHeight = 800;
 constexpr int kUiScale = 2;
 enum class Page { Game, Graphics, Display, Audio, Controls, Mods, Wireless, System };
+enum class BrowserKind { None, Rom, Workspace };
+struct BrowserEntry { fs::path path; bool directory = false; };
+constexpr std::size_t kBrowserVisibleRows = 9;
 constexpr std::array<const char*, 8> kPageNames = {
     "GAME", "GRAPHICS", "SCREEN / DISPLAY", "AUDIO / MUSIC",
     "CONTROLS", "MODS", "WIRELESS / ONLINE", "SYSTEM"
 };
 struct LauncherState {
     fs::path game_dir, settings_path, log_path;
+    fs::path source_root, workspace, rom_path;
+    std::string version = "unknown";
+    bool integrated_builder = false;
+    bool confirm_merge = false;
+    bool build_in_progress = false;
+    bool build_indeterminate = false;
+    bool build_failed = false;
+    int build_percent = 0;
+    std::string build_status = "Choose your ROM and workspace to build.";
+    std::vector<std::string> build_lines;
+    std::unique_ptr<dqix::linux_ui::BuildJob> build_job = std::make_unique<dqix::linux_ui::BuildJob>();
+    BrowserKind browser_kind = BrowserKind::None;
+    fs::path browser_dir;
+    std::vector<BrowserEntry> browser_entries;
+    std::size_t browser_scroll = 0;
+    std::size_t browser_selection = 0;
+    bool path_editing = false;
+    std::string path_edit_buffer;
     IniDocument settings;
     Page page = Page::Game;
     std::string message = "Choose a built game folder with --game-dir PATH.";
