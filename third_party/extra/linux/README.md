@@ -1,15 +1,23 @@
-# Linux P0 UI prototype
+# Linux SDL3/Vulkan launcher prototype
 
-This directory is a **standalone integration probe**, not yet the DQIX launcher or
-in-game menu. It validates that the target Linux toolchain can compile and run
-SDL3 + Dear ImGui + Vulkan together before any attempt to bridge the game runtime.
+This directory contains the **first pre-Play Linux launcher prototype** plus the
+settings model and the integration-boundary tests. It validates the SDL3 + Dear
+ImGui + Vulkan UI independently of the existing game runtime. The native launcher
+is still a preview: it is not an in-game overlay and does not yet control the game's
+SDL2 event loop or pause/tick state.
 
 ## What it builds
 
-- The unmodified official Dear ImGui SDL3 + Vulkan example.
-- Dear ImGui core and the SDL3/Vulkan backends at the pinned upstream commit below.
-- A CTest smoke test that starts the example under Xvfb and checks that it stays
-  alive long enough to enter its event/render loop.
+- A native sidebar with Game, Graphics, Screen & Display, Audio & Music, Controls,
+  Mods, Wireless & Online, and System pages.
+- An editable game-folder path, readiness checks, and a Play action that starts
+  the built `dqix` executable from the selected folder with the expected relative
+  ROM/code/save arguments.
+- Controls that read and write the existing `settings.ini` schema through
+  `IniDocument`, including explicit Save buttons for player name and WFC server.
+- A System page that identifies the launcher's Vulkan device while explaining
+  that gameplay still uses the existing SDL2/OpenGL or software renderer.
+- A non-graphical `--help` CTest and a graphical smoke test under Xvfb.
 
 Dear ImGui is fetched from its official repository at immutable commit
 `c1aaac65e896a45f81f47a4d68f9959e0f86c859` (release v1.93.0, MIT license).
@@ -53,3 +61,10 @@ existing runtime source. This test has been added but is **not yet confirmed pas
 This is a data layer only: it does not yet render launcher pages, start the game, migrate
 settings paths, or claim an in-game settings bridge exists. The runtime still resolves
 `settings.ini` relative to its working directory.
+
+## Launcher invocation
+
+Run `dqix-linux-ui-prototype --game-dir /absolute/path/to/game` (or set
+`DQIX_GAME_DIR`). The selected directory must contain the built `dqix` executable
+and the `data/dqix.nds` and `data/code/` paths before Play is enabled. No game
+binary, ROM, save, or game assets are included by this source prototype.
