@@ -5,7 +5,7 @@
 **Branche de travail :** `plan/v32-linux-launcher-settings`  
 **Branche de base :** `main`  
 **Commit de base connu :** `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`  
-**Dernier commit confirmé avant cette mise à jour de la note :** `705c5552e10700289f147c04fc5ca1a97932a822`  
+**Dernier commit confirmé avant cette mise à jour de la note :** `68c8b64222686df20c7a1c2b9df9308363d7890e`  
 **État fonctionnel :** CI temporaire, modèle de settings et premier launcher pré-Play SDL3/Vulkan/ImGui ajoutés ; compilation/CTest et lancement Linux restent non confirmés. Le launcher journalise les erreurs dans `launcher.log`. Il n'est pas encore intégré à l'AppImage ni au bouton Play du builder Tk. Le bridge runtime et le menu in-game ne sont pas implémentés.
 
 ## 1. Règles impératives
