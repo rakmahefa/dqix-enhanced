@@ -51,6 +51,7 @@ private:
     std::mutex events_mutex_;
     std::deque<BuildEvent> events_;
     std::filesystem::path log_path_;
+    std::filesystem::path devlog_path_;
 };
 
 bool valid_rom_path(const std::filesystem::path& rom, std::string& error);
