@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <unistd.h>
 
@@ -69,6 +70,10 @@ echo "== Done."
     write_file(merge / ".dqix-enhanced-appimage-workspace", "test marker\n");
     ok &= require(!dqix::linux_ui::workspace_needs_merge_confirmation(merge),
                   "marked workspace should not ask for merge confirmation");
+    const fs::path logs_only = temp / "logs-only-workspace";
+    write_file(logs_only / "devlog.log", "[test] previous build log\\n");
+    ok &= require(!dqix::linux_ui::workspace_needs_merge_confirmation(logs_only),
+                  "launcher-generated logs alone must not trigger a merge warning");
 
     BuildRequest request;
     request.source_root = success_source;
@@ -89,6 +94,15 @@ echo "== Done."
                   "simulated game output should pass readiness checks");
     ok &= require(fs::is_regular_file(success_workspace / "launcher-build.log"),
                   "build output should be persisted to launcher-build.log");
+    ok &= require(fs::is_regular_file(success_workspace / "devlog.log"),
+                  "combined build/game development log should be created in the workspace");
+    std::ifstream devlog_stream(success_workspace / "devlog.log", std::ios::binary);
+    const std::string devlog_contents((std::istreambuf_iterator<char>(devlog_stream)),
+                                      std::istreambuf_iterator<char>());
+    ok &= require(devlog_contents.find("[build] [builder] DQIX Enhanced native SDL2 build started") != std::string::npos,
+                  "devlog should contain timestamped builder session records");
+    ok &= require(devlog_contents.find("[build] == Checking the ROM") != std::string::npos,
+                  "devlog should mirror build-tool output");
     ok &= require(!fs::exists(success_workspace / "game/should-not-be-copied.txt"),
                   "source staging must preserve the game's generated output area");
     ok &= require(!fs::exists(success_workspace / ".git/config"),
