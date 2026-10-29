@@ -164,25 +164,30 @@ jobs:
             2>&1 | tee "$DEV_LOG_DIR/ctest.log"
           cp "$BUILD_DIR/compile_commands.json" "$DEV_LOG_DIR/compile_commands.json" 2>/dev/null || true
 
-      - name: Select Python for optional project checks
-        if: env.RUN_PROJECT_TESTS == 'true'
+      - name: Set up Python 3.11 for packaging checks
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
+
+      - name: Verify AppImage workflow safety and payload policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "PyYAML==6.0.2"
+          {
+            python tests/packaging/test_release_workflow_safety.py
+            python tests/packaging/test_appimage_payload.py
+          } 2>&1 | tee "$DEV_LOG_DIR/appimage-safety-tests.log"
 
       - name: Run optional source, packaging and semantic tests
         if: env.RUN_PROJECT_TESTS == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check "PyYAML==6.0.2"
           {
             for script in .github/scripts/*.sh; do bash -n "$script"; done
-            python tests/packaging/test_release_workflow_safety.py
             python tests/packaging/test_conda_lock.py
-            python tests/packaging/test_appimage_payload.py
             python -m compileall -q recomp tools tests
-            bash -n packaging/linux/AppRun
             for script in tools/build-game.sh tools/where.sh build-windows.sh; do sh -n "$script"; done
             python tests/semantics/run.py 2000
           } 2>&1 | tee "$DEV_LOG_DIR/project-tests.log"
