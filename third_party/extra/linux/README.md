@@ -36,3 +36,20 @@ the temporary development workflow separately exposes this as a manual input.
 - Does not yet prove the feasibility of Escape, game pause/resume, in-game overlay,
   settings persistence, or access to runtime state. Those require a separate
   integration-boundary audit before implementation.
+
+## Settings model (early P1)
+
+The Linux-only `settings/settings_model.cpp` layer can read and safely edit the existing
+`settings.ini` format without discarding comments, ordering, duplicate keys, or keys that
+the current UI does not know about. Edits through `set_validated()` are limited to an
+audited schema based on the keys parsed by `runtime/frontend_sdl.c`. Values are range- and
+format-checked before modification. Writes use a same-directory temporary file, flush it,
+and atomically replace the destination; existing file permissions are retained.
+
+CTest includes a no-ROM, no-window settings test. It exercises validation, preservation,
+round-tripping, atomic save, and compares the schema to the key names read/written by the
+existing runtime source. This test has been added but is **not yet confirmed passing in CI**.
+
+This is a data layer only: it does not yet render launcher pages, start the game, migrate
+settings paths, or claim an in-game settings bridge exists. The runtime still resolves
+`settings.ini` relative to its working directory.
