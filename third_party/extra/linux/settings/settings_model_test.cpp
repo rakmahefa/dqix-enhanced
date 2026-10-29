@@ -98,7 +98,13 @@ void test_runtime_schema_parity(const std::filesystem::path& runtime_source) {
          it != std::sregex_iterator(); ++it) {
         loaded.insert((*it)[1].str());
     }
-    for (auto it = std::sregex_iterator(source.begin(), source.end(), writer_key);
+
+    const auto save_begin = source.find("static void settings_save(void) {");
+    require(save_begin != std::string::npos, "could not find settings_save() in runtime source");
+    const auto save_end = source.find("\n}\n", save_begin);
+    require(save_end != std::string::npos, "could not find end of settings_save()");
+    const std::string writer_source = source.substr(save_begin, save_end - save_begin);
+    for (auto it = std::sregex_iterator(writer_source.begin(), writer_source.end(), writer_key);
          it != std::sregex_iterator(); ++it) {
         written.insert((*it)[1].str());
     }
