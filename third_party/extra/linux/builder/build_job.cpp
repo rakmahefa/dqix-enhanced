@@ -309,7 +309,7 @@ bool BuildJob::start(BuildRequest request, std::string& error) {
         error = "This workspace is not empty and has no builder marker; confirm merging source files before building.";
         return false;
     }
-    const fs::path script = request.workspace / "tools" / "build-game.sh";
+    const fs::path script = request.workspace / "third_party" / "extra" / "linux" / "src" / "tools" / "build-game.sh";
     (void)script;
     cancel_.store(false);
     running_.store(true);
@@ -406,14 +406,14 @@ void BuildJob::run(BuildRequest request) {
         marker.close();
         if (!marker) throw std::runtime_error("Failed while writing the workspace marker.");
 
-        const fs::path script = request.workspace / "tools" / "build-game.sh";
+        const fs::path script = request.workspace / "third_party" / "extra" / "linux" / "src" / "tools" / "build-game.sh";
         if (!fs::is_regular_file(script, ec) || ec)
             throw std::runtime_error("Build script not found: " + script.string());
         if (::access(script.c_str(), R_OK) != 0)
             throw std::runtime_error("Build script is not readable: " + script.string());
         check_cancelled(cancel_);
         publish({BuildEvent::Kind::Progress, "Sources ready — verifying ROM", current_progress, false});
-        log_line("[builder] Starting tools/build-game.sh; code generation and compilation may take time.");
+        log_line("[builder] Starting the patch-derived Linux build entry point; code generation and compilation may take time.");
 
         int pipe_fds[2]{};
         if (::pipe(pipe_fds) != 0)
