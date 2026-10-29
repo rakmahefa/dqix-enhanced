@@ -216,3 +216,87 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
           compression-level: 6
+
+
+  appimage-sdl2-toolchain:
+    name: Launcher using locked AppImage SDL2
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Prepare Conda-toolchain diagnostics
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/dqix-conda-sdl2-logs"
+          echo "CONDA_LOG_DIR=$RUNNER_TEMP/dqix-conda-sdl2-logs" >> "$GITHUB_ENV"
+          {
+            echo "Commit: $GITHUB_SHA"
+            echo "Runner: $(uname -a)"
+            date --utc --iso-8601=seconds
+          } > "$RUNNER_TEMP/dqix-conda-sdl2-logs/run-context.txt"
+
+      - name: Install launcher packaging tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential cmake ninja-build
+
+      - name: Verify committed Conda lock checksum
+        shell: bash
+        run: sha256sum --check packaging/linux/conda-linux-64.lock.sha256
+
+      - name: Set up the exact AppImage Conda environment
+        uses: mamba-org/setup-micromamba@f457c30a868e4760d3a6fcea5f25dc655b8edf39 # v3
+        with:
+          environment-file: packaging/linux/conda-linux-64.lock
+          environment-name: dqix-builder
+          cache-environment: true
+          cache-downloads: true
+          init-shell: bash
+
+      - name: Verify installed environment matches the lock
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          micromamba env export --name dqix-builder --explicit > "$RUNNER_TEMP/resolved-conda-linux-64.lock"
+          diff -u \
+            <(grep -E '^https?://' packaging/linux/conda-linux-64.lock | LC_ALL=C sort) \
+            <(grep -E '^https?://' "$RUNNER_TEMP/resolved-conda-linux-64.lock" | LC_ALL=C sort)
+
+      - name: Build and test against locked SDL2
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          {
+            echo "Conda prefix: $CONDA_PREFIX"
+            echo "Compiler: $(c++ --version | head -n 1)"
+            echo "SDL2 version: $(pkg-config --modversion sdl2)"
+            echo "SDL2 link flags: $(pkg-config --cflags --libs sdl2)"
+
+            BUILD_DIR="$RUNNER_TEMP/dqix-conda-sdl2-build"
+            cmake -S third_party/extra/linux -B "$BUILD_DIR" -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+            cmake --build "$BUILD_DIR" --verbose
+
+            export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            ldd "$BUILD_DIR/dqix-linux-ui-launcher" | tee "$CONDA_LOG_DIR/launcher-ldd.txt"
+            if grep -F "not found" "$CONDA_LOG_DIR/launcher-ldd.txt"; then
+              echo "Launcher has unresolved dynamic dependencies." >&2
+              exit 1
+            fi
+            "$BUILD_DIR/dqix-linux-ui-launcher" --help
+            ctest --test-dir "$BUILD_DIR" --output-on-failure
+          } 2>&1 | tee "$CONDA_LOG_DIR/build-and-test.log"
+
+      - name: Upload Conda SDL2 diagnostics (also on failure)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: appimage-sdl2-toolchain-diagnostics
+          path: ${ runner.temp }/dqix-conda-sdl2-logs/
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
