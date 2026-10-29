@@ -23,7 +23,7 @@
 - third_party/extra/linux/tests/smoke-ui.sh runs the dummy-video software-renderer self-test without Vulkan or Xvfb.
 - .github/workflows/linux-dev-sandbox.yml now installs SDL2 and runs CMake/CTest. It uploads logs even on failure.
 - README and the plan were updated to distinguish implemented controls from unfinished Controls remapping/free-form text editing.
-- **CI proof:** workflow run [40810860108](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40810860108), commit `b1bc1d7c47fd62db725c33fe4844607d43087d0c`, completed successfully. CMake configuration and build passed; CTest passed `linux-settings-model-and-runtime-parity`, `linux-ui-launcher-help` and `linux-ui-sdl2-software-renderer-smoke` (3/3); the source-boundary check passed. The optional repository-wide/package/semantic test set was skipped, so those checks remain unverified.
+- **Latest CI proof:** workflow run [40812361377](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40812361377), commit `131293700095f9d27948b5fde09e4153b0ef54a6`, completed successfully with both jobs green. The system-SDL2 job passed configure/build, all 3 CTest tests, static AppImage payload/safety tests and the Windows/shared-path boundary check. The second job verified the locked Conda environment, built against SDL2 2.32.56, found no unresolved shared libraries or build-time Conda RPATH, and passed all 3 CTest tests. The optional repository-wide/semantic tests were skipped. The permanent AppImage workflow has not yet completed on this branch, so final AppRun/AppImage assembly remains unverified.
 
 ## 3. Still not done
 
@@ -61,4 +61,4 @@
 - [ ] Settings schema tests run and their output is inspected.
 - [ ] No ROM, save or protected game assets enter CI/AppImage artifacts.
 - [ ] No in-game menu support is claimed before integration tests pass.
-- [ ] AppImage/builder integration is independently tested (workflow changes are implemented; validation still pending).
+- [ ] The builder/AppImage source integration and pinned Conda SDL2 build are validated in the temporary CI; the complete packaged AppImage/AppRun end-to-end test remains pending.

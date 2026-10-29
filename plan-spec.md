@@ -126,7 +126,7 @@ The temporary workflow is for reproducible scripts, tests, diagnostics and logs 
 5. Reproduce F5/Enhanced and fallback behavior with logs; separate requested preference from effective renderer.
 6. Document a Linux-only build/packaging path without modifying build.mk or tools/build-game.sh.
 
-P0 exit: **met for the standalone prototype** on CI run 40810860108: configuration/build succeeded, all 3 CTest tests passed, and the Windows/shared-path boundary check passed. The permanent AppImage and runtime integration gates remain open.
+P0 exit: **met for the standalone prototype** on CI run 40812361377: both system SDL2 and locked Conda SDL2 configure/build/tests succeeded, all 3 CTest tests passed in each job, packaging/static checks passed, and the Windows/shared-path boundary check passed. The permanent AppImage assembly/self-test and runtime integration gates remain open.
 
 ### P1 — settings reliability
 
