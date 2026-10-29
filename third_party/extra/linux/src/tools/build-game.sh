@@ -43,59 +43,19 @@ esac
 PY=python3; command -v $PY >/dev/null 2>&1 || PY=python
 command -v $PY >/dev/null 2>&1 || { echo "   Python is missing from the build tools (MSYS2). In the MSYS2 UCRT64 window run:"
     echo "   pacman -S mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-yaml"; echo "   then run this again."; exit 1; }
-
-monotonic_now() {
-    "$PY" -c 'import time; print(time.monotonic())'
-}
-
-report_timing() {
-    phase="$1"; started="$2"; directory="$3"
-    ended="$(monotonic_now)"
-    elapsed=$("$PY" -c 'import sys; print("{:.3f}".format(float(sys.argv[2]) - float(sys.argv[1])))' "$started" "$ended")
-    metrics=$("$PY" - "$directory" <<'PYMETRICS'
-import os
-import sys
-
-root = sys.argv[1]
-files = total_bytes = 0
-if os.path.isdir(root):
-    for current, dirs, names in os.walk(root):
-        for name in names:
-            path = os.path.join(current, name)
-            try:
-                if os.path.isfile(path):
-                    files += 1
-                    total_bytes += os.path.getsize(path)
-            except OSError:
-                pass
-print(f"output_files={files} output_bytes={total_bytes}")
-PYMETRICS
-)
-    echo "== Timing: phase=$phase wall_seconds=$elapsed $metrics"
-}
-
-printf '== Input: ROM bytes=%s\n' "$(wc -c < "$ROM" | tr -d '[:space:]')"
 STEP="extracting the game's code (tools/extract_rom.py)"; echo "== Extracting the game's code"
-EXTRACT_START="$(monotonic_now)"
 $PY tools/extract_rom.py "$ROM" build/extract
-report_timing "rom_extract" "$EXTRACT_START" build/extract
-STEP="recompiling it to C"; echo "== Recompiling it to C (ARM9/ARM7 codegen)"
+STEP="recompiling it to C"; echo "== Recompiling it to C (about a minute)"
 # the symbol map and address lists are the USA version's; region.py moves them for the European one
-REGION_START="$(monotonic_now)"
 REGION=$($PY tools/region.py "$ROM" build/extract build/region)
-report_timing "region_detect" "$REGION_START" build/region
 if [ "$REGION" = eur ]; then CFG=build/region; CONFIG=build/region/arm9; else CFG=.; CONFIG=config/usa/arm9; fi
 # code compiled for the other version (or before this check existed) doesn't link with this one: start over
 if [ "$(cat build/obj/region.txt 2>/dev/null)" != "$REGION" ]; then
     rm -rf build/recomp build/obj/gen
     mkdir -p build/obj && echo "$REGION" > build/obj/region.txt
 fi
-RECOMP9_START="$(monotonic_now)"
 $PY recomp/build.py --extract build/extract --config $CONFIG --out build/recomp --hle $CFG/hle.txt --interpret $CFG/interpret.txt --patch $CFG/patches.txt --tags $CFG/tags.txt --wrap $CFG/wrap.txt
-report_timing "recompile_arm9" "$RECOMP9_START" build/recomp
-RECOMP7_START="$(monotonic_now)"
 $PY recomp/arm7.py --extract build/extract --out build/recomp7 --hle hle7.txt
-report_timing "recompile_arm7" "$RECOMP7_START" build/recomp7
 
 # The program's icon: the game's own (the one the DS menu shows), made from the
 # ROM like everything else, so nothing from the game is kept in this project.
@@ -132,14 +92,13 @@ RC
 }
 
 STEP="compiling"; echo "== Compiling (the first time takes a while; later builds only redo what changed)"
-COMPILE_START="$(monotonic_now)"
 mkdir -p game
 case "$(uname -s)" in
 MINGW*|MSYS*)
     EXE=game/dqix.exe
     make_icon "$ROM" build/icon
     # dqixcore.dll: the game again as a library, for the other players' DSes in a session
-    make -j"$(nproc)" -f "$LINUX_MAKEFILE" OS=Windows_NT GEN=build/recomp GEN7=build/recomp7 OBJ=build/obj FRONTEND=sdl OUT="$EXE" CORE=game/dqixcore.dll \
+    make -j"$(nproc)" -f build.mk OS=Windows_NT GEN=build/recomp GEN7=build/recomp7 OBJ=build/obj FRONTEND=sdl OUT="$EXE" CORE=game/dqixcore.dll \
          CFLAGS="-O1 -w" DEFS=-DRECOMP_TRACE SDL_CFLAGS="$(sdl2-config --cflags)" SDL_LIBS="-lSDL2" \
          LDFLAGS="-static-libgcc -Wl,--stack,67108864" RES="$RES" "$EXE" core
     cp /ucrt64/bin/SDL2.dll game/ ;;
@@ -148,9 +107,7 @@ MINGW*|MSYS*)
     make -j"$(nproc)" -f "$LINUX_MAKEFILE" GEN=build/recomp GEN7=build/recomp7 OBJ=build/obj FRONTEND=sdl OUT="$EXE" CORE=game/dqixcore.so PIC=-fPIC \
          CFLAGS="-O1 -w" DEFS=-DRECOMP_TRACE SDL_CFLAGS="${SDL_CFLAGS:-$(sdl2-config --cflags)}" SDL_LIBS="${SDL_LIBS:-$(sdl2-config --libs)}" "$EXE" core ;;
 esac
-report_timing "compile_link_parallel_make" "$COMPILE_START" build/obj
 
-ASSEMBLY_START="$(monotonic_now)"
 echo "== Putting the game folder together"
 mkdir -p game/data game/skins
 rm -rf game/data/code && cp -r build/extract game/data/code     # the overlays (the game checks which is loaded)
@@ -202,4 +159,3 @@ SH
 chmod +x game/play.sh
 echo
 case "$(uname -s)" in MINGW*|MSYS*) echo "== Done. The game is in the 'game' folder: double-click dqix.exe." ;; *) echo "== Done. The game is in the 'game' folder: run play.sh." ;; esac
-report_timing "assemble_game_folder" "$ASSEMBLY_START" game

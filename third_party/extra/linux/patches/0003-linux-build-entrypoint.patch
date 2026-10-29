@@ -21,19 +21,8 @@
  [ -f "$ROM" ] || { echo "No ROM given (or it doesn't exist): $ROM"; exit 1; }
  
  STEP="checking the ROM"; echo "== Checking the ROM"
-@@ -129,13 +139,13 @@
-     EXE=game/dqix.exe
-     make_icon "$ROM" build/icon
-     # dqixcore.dll: the game again as a library, for the other players' DSes in a session
--    make -j"$(nproc)" -f build.mk OS=Windows_NT GEN=build/recomp GEN7=build/recomp7 OBJ=build/obj FRONTEND=sdl OUT="$EXE" CORE=game/dqixcore.dll \
-+    make -j"$(nproc)" -f "$LINUX_MAKEFILE" OS=Windows_NT GEN=build/recomp GEN7=build/recomp7 OBJ=build/obj FRONTEND=sdl OUT="$EXE" CORE=game/dqixcore.dll \
-          CFLAGS="-O1 -w" DEFS=-DRECOMP_TRACE SDL_CFLAGS="$(sdl2-config --cflags)" SDL_LIBS="-lSDL2" \
-          LDFLAGS="-static-libgcc -Wl,--stack,67108864" RES="$RES" "$EXE" core
-     cp /ucrt64/bin/SDL2.dll game/ ;;
- *)
+@@ -96,3 +106,3 @@
      EXE=game/dqix
 -    make -j"$(nproc)" -f build.mk GEN=build/recomp GEN7=build/recomp7 OBJ=build/obj FRONTEND=sdl OUT="$EXE" CORE=game/dqixcore.so PIC=-fPIC \
 +    make -j"$(nproc)" -f "$LINUX_MAKEFILE" GEN=build/recomp GEN7=build/recomp7 OBJ=build/obj FRONTEND=sdl OUT="$EXE" CORE=game/dqixcore.so PIC=-fPIC \
           CFLAGS="-O1 -w" DEFS=-DRECOMP_TRACE SDL_CFLAGS="${SDL_CFLAGS:-$(sdl2-config --cflags)}" SDL_LIBS="${SDL_LIBS:-$(sdl2-config --libs)}" "$EXE" core ;;
- esac
- report_timing "compile_link_parallel_make" "$COMPILE_START" build/obj

@@ -184,7 +184,7 @@ static void skin_add(const char* png) {
         float a, b, c, d;
         if (sscanf(line, " top %f %f %f %f", &a, &b, &c, &d) == 4) { k->top[0] = a; k->top[1] = b; k->top[2] = c; k->top[3] = d; got |= 1; }
         else if (sscanf(line, " bottom %f %f %f %f", &a, &b, &c, &d) == 4) { k->bot[0] = a; k->bot[1] = b; k->bot[2] = c; k->bot[3] = d; got |= 2; }
-        else if (!strncmp(line, "name ", 5)) { snprintf(k->name, sizeof k->name, "%.63s", line + 5); k->name[strcspn(k->name, "\r\n")] = 0; }
+        else if (!strncmp(line, "name ", 5)) { snprintf(k->name, sizeof k->name, "%s", line + 5); k->name[strcspn(k->name, "\r\n")] = 0; }
     }
     fclose(f);
     if (got == 3 && k->top[2] > 0) g_nskins++;
@@ -251,7 +251,7 @@ static const char* BACKLIGHT_NAME[5] = { "", "low", "medium", "high", "max" };
  * or with Modern > "Widescreen: this place with black sides". */
 extern char g_scene_map[32], g_scene_movie[32];
 extern uint64_t g_scene_movie_frame;
-typedef struct { char what, kind; char name[32]; } SceneRule;   /* what: 'b' bars, 's' stacked; kind: 'm' map, 'v' movie */
+typedef struct { char what, kind; char name[30]; } SceneRule;   /* what: 'b' bars, 's' stacked; kind: 'm' map, 'v' movie */
 static const SceneRule SCENE_RULES[] = {
     { 'b', 'm', "M01M12" },                                       /* the starry sky (a new game's start, the story's turns) */
     { 'b', 'm', "X01M01" },                                       /* the way up to the Observatory: a painted sky that ends */
@@ -267,7 +267,7 @@ static void scene_rules_load(void) {
         if (line[0] == '#' || sscanf(line, "%15s %15s %63s", w, k, n) != 3) continue;
         SceneRule r = { !strcmp(w, "stacked") ? 's' : !strcmp(w, "bars") ? 'b' : !strcmp(w, "wide") ? 'w' : 0, !strcmp(k, "movie") ? 'v' : !strcmp(k, "map") ? 'm' : 0, "" };
         if (!r.what || !r.kind) continue;
-        snprintf(r.name, sizeof r.name, "%.31s", n);
+        snprintf(r.name, sizeof r.name, "%s", n);
         g_user_rules[g_n_user_rules++] = r;
     }
     fclose(f);
@@ -554,7 +554,7 @@ static void settings_load(void) {
         if (!strcmp(key, "update_check")) { g_update_auto = atoi(val) != 0; continue; }
         if (!strcmp(key, "confirm_quit")) { g_confirm_quit = atoi(val) != 0; continue; }
         if (!strcmp(key, "fast_forward")) { g_ff_hold = !strcmp(val, "hold"); continue; }
-        if (!strcmp(key, "update_skip")) { snprintf(g_update_skip, sizeof g_update_skip, "%.31s", val); continue; }
+        if (!strcmp(key, "update_skip")) { snprintf(g_update_skip, sizeof g_update_skip, "%s", val); continue; }
         if (!strcmp(key, "session_port")) { int v = atoi(val); if (v > 0 && v < 65536) g_session_port = v; continue; }
         if (!strcmp(key, "session_consoles")) { if (!strcmp(val, "processes")) { static char e[] = "DQIX_PROCESSES=1"; putenv(e); } continue; }
         if (!strcmp(key, "mode")) g_classic = strcmp(val, "enhanced") != 0;
