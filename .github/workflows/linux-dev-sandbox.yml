@@ -71,7 +71,7 @@ jobs:
             echo '$ sudo apt-get install --no-install-recommends ...'
             sudo apt-get install --no-install-recommends -y \
               build-essential clang lld cmake ninja-build pkg-config rsync \
-              libsdl2-dev python3 python3-pip
+              libsdl2-dev python3 python3-pip patch
           } 2>&1 | tee "$DEV_LOG_DIR/install-toolchain.log"
 
       - name: Record platform, compiler and SDL2 details
@@ -149,7 +149,10 @@ jobs:
           grep -F -- '-DCMAKE_SKIP_RPATH=ON' .github/workflows/linux-ci-appimage.yml >/dev/null
           grep -F -- 'args.toolchain_dir / "lib"' tools/packaging/audit_appimage.py >/dev/null
           git diff --check origin/main...HEAD -- .github/workflows/linux-dev-sandbox.yml .github/workflows/linux-ci-appimage.yml packaging/linux/gui.py packaging/linux/AppRun third_party/extra/linux
-          echo "SDL2-only GUI entry point, AppRun syntax and launcher packaging hooks passed."
+          python3 third_party/extra/linux/tools/sync_linux_sources.py --check 2>&1 | tee "$DEV_LOG_DIR/source-mirror-check.log"
+          cc -std=gnu11 -fsyntax-only -Wno-unused-parameter $(pkg-config --cflags sdl2) -Iruntime -I. \
+            third_party/extra/linux/src/runtime/frontend_sdl.c 2>&1 | tee "$DEV_LOG_DIR/patched-runtime-syntax.log"
+          echo "SDL2-only GUI entry point, patched runtime mirror and packaging hooks passed."
 
       - name: Configure, build and test Linux prototype
         shell: bash
