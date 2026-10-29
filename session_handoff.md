@@ -27,7 +27,7 @@
 
 ## 3. Still not done
 
-- The launcher is not connected to the Tk builder's launch button or packaged in the published AppImage.
+- `packaging/linux/gui.py` accepts `--launcher`, and `AppRun` passes the bundled executable path. The permanent AppImage workflow builds and packages that executable against the locked Conda SDL2. These source changes and the pinned-Conda build are validated by the temporary CI, but the full permanent AppImage assembly and `AppRun --self-test` are not yet confirmed end-to-end.
 - settings.ini and controls.ini path/migration behavior needs a more complete audit. The current launcher reads settings.ini under its selected game directory.
 - The in-game menu/bridge is not implemented. A separate SDL2 process cannot overlay the game's window, share its events or pause the runtime automatically.
 - The source tree still contains an old ImGui license file from the superseded prototype; it is not used by the current CMake target and should be removed as cleanup if no other remaining source refers to it.
@@ -45,8 +45,7 @@
 
 ## 5. Next steps
 
-1. P0 standalone SDL2 proof is now confirmed by workflow run 40810860108 (3/3 CTest passed and source-boundary check passed). Keep the log artifact for diagnostics.
-2. Run optional repository-wide/package/semantic checks when appropriate; they were not part of that successful run.
+1. P0 standalone and locked-Conda SDL2 proof is confirmed by workflow run 40812361377: both build/test jobs passed, each 3/3 CTest, plus static AppImage safety/payload and source-boundary checks. The optional broad semantic/package suite remains skipped.
 3. Add tests for missing/unwritable settings files, key/schema parity and persistence. Do not claim that writing a setting guarantees runtime support.
 4. Integrate the launcher with the builder and AppImage only after the standalone target is verified.
 5. Keep the in-game menu blocked until a Linux-only runtime integration proof covers events, focus, pause/resume, OpenGL and the software/SDL fallback.

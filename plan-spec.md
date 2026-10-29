@@ -1,6 +1,6 @@
 # Plan-spec — Linux v32: SDL2 launcher and future in-game menu
 
-**Status (2026-10-29):** SDL2-only launcher and development CI are implemented, and P0 standalone CI passed in run [40810860108](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40810860108) (`b1bc1d7c47fd62db725c33fe4844607d43087d0c`, 3/3 CTest passed). The builder/AppImage integration source changes are now staged in this branch but the permanent AppImage workflow has not yet been observed passing.  
+**Status (2026-10-29):** SDL2-only launcher, builder entrypoint and AppImage build wiring are implemented. Development workflow run [40812361377](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40812361377) (`131293700095f9d27948b5fde09e4153b0ef54a6`) passed both jobs: system SDL2 and locked Conda SDL2 2.32.56 builds, 3/3 CTest tests per job, AppImage payload/safety checks and the Windows/shared-path boundary check. The full permanent AppImage assembly and bundled AppRun self-test are still awaiting end-to-end validation.  
 **Base:** main at ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a.  
 **Work branch:** plan/v32-linux-launcher-settings.
 
@@ -25,7 +25,7 @@
 6. The launcher is a separate pre-Play process. SDL2 alone does not share the game's window, event queue, OpenGL context or pause/tick state.
 7. Vulkan may be reconsidered later only with a measured requirement, feasibility proof, dependency analysis and migration plan.
 
-The former source was an SDL3 + Dear ImGui + Vulkan prototype. It has been replaced with an initial SDL2 + SDL_Renderer launcher. The successful CI run 40810860108 verified compilation and 3/3 CTest cases, including runtime/settings schema parity and the SDL2 software-renderer smoke test. This proves the standalone prototype's basic build path, not AppImage integration or the in-game menu.
+The former source was an SDL3 + Dear ImGui + Vulkan prototype. It has been replaced with an initial SDL2 + SDL_Renderer launcher. CI run 40812361377 verified system and locked-Conda SDL2 builds, 3/3 CTest cases in both jobs, AppImage payload/safety checks and the source boundary. This proves the standalone build paths and dependency resolution, not the full AppImage artifact or the in-game menu.
 
 ## 2. Audited runtime facts
 
