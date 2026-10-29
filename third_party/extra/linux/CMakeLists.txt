@@ -90,6 +90,6 @@ if(BUILD_TESTING)
     )
 endif()
 
-message(STATUS "DQIX Linux P0 prototype: SDL3 + Dear ImGui + Vulkan")
+message(STATUS "DQIX Linux pre-Play launcher preview: SDL3 + Dear ImGui + Vulkan")
 message(STATUS "Dear ImGui pinned commit: ${DQIX_DEAR_IMGUI_COMMIT}")
-message(STATUS "DQIX runtime integration: not attempted in this standalone probe")
+message(STATUS "DQIX in-game runtime bridge: not implemented; gameplay remains on the existing runtime")
