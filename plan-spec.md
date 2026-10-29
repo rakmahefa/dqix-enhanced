@@ -1,6 +1,6 @@
 # Plan-spec — Linux v32, launcher et menu in-game SDL3/Vulkan
 
-**Statut :** spécification en cours ; un probe technique autonome SDL3/Vulkan/ImGui et un modèle de paramètres Linux isolé sont ajoutés dans `third_party/extra/linux/`. Leur validation CI, le launcher et l'intégration au runtime restent non confirmés.  
+**Statut :** spécification en cours ; un premier launcher pré-Play SDL3/Vulkan/ImGui et un modèle de paramètres Linux sont ajoutés dans `third_party/extra/linux/`. La compilation/CTest CI et l'intégration au runtime restent non confirmées.  
 **Base de travail :** branche `main`, commit `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.  
 **Cible primaire :** Linux x86_64, build local et AppImage.  
 **Décision d'architecture :** SDL3 + Dear ImGui + Vulkan pour les nouvelles interfaces Linux.  
@@ -197,6 +197,9 @@ Le développement a besoin d'un environnement reproductible pour exécuter de pe
 **Sortie P1 :** paramètres traçables et persistants, capacité effective visible et aucun reset silencieux.
 
 ### P2 — Launcher Linux natif
+
+**État d'implémentation au 2026-10-29 :** un premier shell pré-Play est présent dans `third_party/extra/linux/ui/launcher_main.cpp`. Il propose une sidebar avec Game, Graphics, Screen & Display, Audio & Music, Controls, Mods, Wireless & Online et System ; charge/sauvegarde `settings.ini` via le modèle Linux ; affiche le device Vulkan de l'UI séparément du renderer gameplay ; détecte la présence des fichiers du jeu et lance `dqix` depuis le répertoire choisi quand ils sont présents. La page Controls est explicitement non connectée au runtime. L'interface reste une preview tant que compilation, CTest et lancement sous Linux ne sont pas observés.
+
 
 1. Ajouter SDL3, Dear ImGui et Vulkan à la toolchain Linux/AppImage par un mécanisme épinglé et reproductible ; enregistrer les licences.
 2. Implémenter sous `third_party/extra/linux/ui/` le shell de l'application, la sidebar et les pages du launcher.
