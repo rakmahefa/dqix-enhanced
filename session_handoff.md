@@ -6,7 +6,7 @@
 **Branche de base :** `main`  
 **Commit de base connu :** `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`  
 **Dernier commit confirmé avant cette mise à jour de la note :** `705c5552e10700289f147c04fc5ca1a97932a822`  
-**État fonctionnel :** CI temporaire, modèle de settings et premier launcher pré-Play SDL3/Vulkan/ImGui ajoutés ; compilation/CTest et lancement Linux restent non confirmés. Le launcher journalise les erreurs dans `launcher.log`. Le bridge runtime et le menu in-game ne sont pas implémentés.
+**État fonctionnel :** CI temporaire, modèle de settings et premier launcher pré-Play SDL3/Vulkan/ImGui ajoutés ; compilation/CTest et lancement Linux restent non confirmés. Le launcher journalise les erreurs dans `launcher.log`. Il n'est pas encore intégré à l'AppImage ni au bouton Play du builder Tk. Le bridge runtime et le menu in-game ne sont pas implémentés.
 
 ## 1. Règles impératives
 
@@ -64,7 +64,7 @@ La CI existante [linux-ci-appimage.yml](https://github.com/rakmahefa/dqix-enhanc
 4. Compléter le manifeste de build à partir de `build.mk`, de `tools/build-game.sh` et des objets réellement générés ; la CI protège désormais les chemins runtime et les configurations Windows partagées, mais la matrice complète de compilation Windows/Linux reste à démontrer.
 5. **Garder P3 bloqué.** Définir un chemin d'intégration qui ne change ni les sources ni la configuration Windows. Avant de coder un bridge, comparer deux choix honnêtes : launcher SDL3/Vulkan pré-Play seulement, ou build/frontend Linux entièrement isolé. Ne pas modifier `build.mk` partagé et ne pas ajouter de shim source dans `runtime/`.
 6. Après validation CTest, corriger les erreurs de compilation et smoke test du launcher. Tester sur Linux le chemin `--game-dir`, l'édition/lecture de `settings.ini`, le lancement du jeu et le retour d'état du processus. Vérifier que les erreurs Vulkan/SDL sont lisibles via `launcher.log`. Les valeurs d'affichage initiales des pages ont été alignées sur les valeurs globales observées dans `runtime/frontend_sdl.c` et `runtime/gl_render.c`; compléter l'audit parité/options avant de considérer toutes les pages v32 couvertes. Ne pas annoncer une option comme appliquée si elle n'a été enregistrée que dans le fichier.
-7. La fenêtre Tk de génération ROM/workspace reste en place ; ne pas la remplacer prématurément et ne pas construire l'AppImage complète à chaque itération.
+7. Le launcher n'est pas encore inclus dans `linux-ci-appimage.yml` et le bouton Play du builder Tk n'a pas été raccordé à ce binaire. Après validation du prototype, décider de sa stratégie de packaging SDL3 (bibliothèque vendored/bundled, Vulkan loader et dépendance au pilote hôte) et l'intégrer sans augmenter inutilement le coût de chaque itération. La fenêtre Tk de génération ROM/workspace reste en place ; ne pas la remplacer prématurément et ne pas construire l'AppImage complète à chaque itération.
 
 ## 5. Critères de validation à ne pas oublier
 
