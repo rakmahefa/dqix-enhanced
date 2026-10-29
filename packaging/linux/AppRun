@@ -12,13 +12,13 @@ CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/dqix-enhanced-appimage"
 ENV_DIR="$CACHE_ROOT/toolchain"
 
 die() {
-    printf 'DQIX Enhanced Builder: %s\n' "$*" >&2
+    printf 'DQIX Enhanced Linux Launcher: %s\n' "$*" >&2
     exit 1
 }
 
 usage() {
     cat <<EOF
-DQIX Enhanced Builder $VERSION
+DQIX Enhanced Linux Launcher $VERSION
 
 By default, opens the native SDL2 launcher where you select your ROM (.nds),
 choose a workspace folder, build the game, inspect settings and press Play.
@@ -159,7 +159,7 @@ C
     LAUNCHER_HELP="$("$LAUNCHER" --help)"
     printf '%s\n' "$LAUNCHER_HELP" | grep -F -- "--self-test" >/dev/null || die "the bundled launcher help check failed"
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "$LAUNCHER" --self-test
-    printf 'AppImage builder and SDL2 launcher self-tests passed.\n'
+    printf 'AppImage toolchain and native SDL2 launcher self-tests passed.\n'
     exit 0
 fi
 
@@ -184,7 +184,7 @@ if [ -z "$ROM" ]; then
         printf 'Path to your own DQIX .nds ROM: '
         IFS= read -r ROM
     else
-        die "this command needs a ROM path. Open the AppImage without arguments to use the graphical builder."
+        die "this command needs a ROM path. Open the AppImage without arguments to use the native SDL2 launcher."
     fi
 fi
 [ -f "$ROM" ] || die "ROM file not found: $ROM"
