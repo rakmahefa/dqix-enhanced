@@ -5,7 +5,7 @@
 **Work branch:** `plan/v32-linux-launcher-settings`  
 **Base:** `main` at `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.
 
-**Status before this plan adjustment:** the initial SDL2 settings/launch prototype and the existing Tk builder are both present, but they are two separate graphical applications. The temporary CI run [40815344443](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40815344443), commit `7092d1920fbc529b6a5529e0cf3273a992431768`, passed its three jobs: system and locked-Conda SDL2 builds/tests, then a real x86_64 AppImage build with cold/warm startup, bundled launcher smoke test, toolchain-integrity rejection, checksums and ELF audit (718 ELF files, zero findings; 96 SBOM components). Those results are a **baseline only**; they do not prove the unified native builder specified here.
+**Implementation update (2026-10-29):** the unified SDL2 builder path is now implemented in `third_party/extra/linux/builder/` and the SDL2 launcher. The former `packaging/linux/gui.py` Tk application has been deleted, and the AppImage payload policy explicitly excludes it. `AppRun` now starts the SDL2 launcher directly with source/workspace/version arguments. Latest verification run [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989) is testing this integrated state; the locked-Conda SDL2 build and all four CTest cases passed. The final AppImage packaging job has not yet been confirmed, and a real user-ROM/workspace run remains a manual validation item.
 
 ## 0. Prime directive — preserve the Windows upstream path
 
@@ -45,16 +45,16 @@ After implementation, the normal AppImage launch path must **not open Tk, spawn 
 
 | Area | Current fact | Consequence for the plan |
 |---|---|---|
-| `third_party/extra/linux/ui/launcher_main.cpp` | Existing SDL2 + SDL_Renderer prototype has navigation, settings pages, a hidden software-renderer self-test and game launching via `--game-dir`. It does not yet select a ROM/workspace or orchestrate a build. | Extend this app into the unified UI; avoid a second UI implementation. |
-| `packaging/linux/gui.py` | Existing Tk app selects a ROM and workspace, stages sources, runs the build in a worker thread, maps build output to progress, shows logs/errors, then offers to open the SDL2 launcher. | This is the behavioral reference for migration; port the needed behavior into the SDL2 app and retire Tk from the user-facing launch path. |
-| `packaging/linux/AppRun` | Currently prepares/checks the bundled toolchain, then executes the Tk GUI by default. It also supports terminal-oriented build/rebuild actions. | Switch the default graphical entry point to the bundled SDL2 executable and pass explicit source/workspace/version configuration. Preserve supported CLI modes. |
+| `third_party/extra/linux/ui/launcher_main.cpp` | The SDL2 launcher owns navigation/settings, ROM/workspace selection, an in-app file browser, asynchronous build/progress/log handling, diagnostics and Play. | Extend this app into the unified UI; avoid a second UI implementation. |
+| `packaging/linux/gui.py` | The former Tk builder behavior has been ported into the SDL2 launcher; `gui.py` has been removed and no second graphical frontend is packaged. | This is the behavioral reference for migration; port the needed behavior into the SDL2 app and retire Tk from the user-facing launch path. |
+| `packaging/linux/AppRun` | Verifies the bundled toolchain, then runs the native SDL2 GUI for the default and `--gui` entry points; terminal build/rebuild actions remain available. | Switch the default graphical entry point to the bundled SDL2 executable and pass explicit source/workspace/version configuration. Preserve supported CLI modes. |
 | `runtime/frontend.h` | `frontend_init()`, `frontend_frame()` and `frontend_shutdown()` define the frontend lifecycle. | Respect this lifecycle boundary. |
 | `runtime/frontend_sdl.c` | SDL2 owns runtime window, input, frame pacing, pause and presentation. OpenGL may have an SDL/software fallback. | Reuse known runtime semantics only where proven; the separate launcher cannot directly control the game's event queue or pause state. |
 | `runtime/gl_render.c` | Existing gameplay OpenGL renderer. | Do not rewrite it for the launcher. |
 | `runtime/controls.c` | Existing key/gamepad mappings and actions; F5 requests Classic/Enhanced. | Reuse action semantics only when an actual runtime bridge exists. |
 | `runtime/menu_win32.c` | Menu/dialog implementation includes Win32 behavior. | Keep unchanged; any future in-game Linux UI must be Linux-only. |
 | `build.mk` | Frontend source paths are selected under `runtime/`; no safe direct injection point for the new native Linux UI has been established. | Do not edit this shared file or add shims under `runtime/`. |
-| `tools/build-game.sh` | Shared by Windows and Linux. The Tk builder runs it from the staged workspace and passes the selected ROM. | Invoke it from the workspace; do not change the script in this plan. |
+| `tools/build-game.sh` | Shared by Windows and Linux. The native SDL2 builder runs it from the staged workspace and passes the selected ROM. | Invoke it from the workspace; do not change the script in this plan. |
 | AppImage toolchain | AppRun validates the bundled toolchain archive and prepares a cached Conda environment used by build tools. | Keep toolchain integrity/environment setup working when AppRun switches to SDL2. Python may remain a build-tool dependency; it must no longer be the graphical UI runtime. |
 | Settings | Runtime paths can depend on working directory and values are saved from runtime memory. | Define explicit paths/migration and avoid silently overwriting user preferences. |
 
@@ -74,7 +74,7 @@ The first screen adapts to the user's state:
 
 ### 3.2 Port the existing builder's behavior
 
-Retain the working behavior of `packaging/linux/gui.py`, but implement it in the native SDL2 app:
+Port the former Tk builder's working behavior into the native SDL2 app:
 
 - Validate that a selected ROM exists, is a regular `.nds` file, and that the workspace path is valid and writable.
 - Refuse unsafe workspace choices such as the filesystem root, the user's home directory itself, the bundled read-only source, or a path overlapping the source tree. Resolve/canonicalize paths carefully and account for symlinks before destructive/copy operations.
@@ -114,7 +114,7 @@ A small, project-owned browser is required because the dependency policy forbids
 - Preserve archive checksum verification, cached toolchain setup and required compiler/build environment. Child build jobs must inherit the expected environment and run against the staged workspace.
 - Keep non-interactive automation/terminal paths such as `--help`, `--version`, `--self-test`, `--build-only`, `--rebuild` and ROM-path invocation working where currently supported. Document any intentional CLI behavior change before implementing it.
 - Convert `--self-test` to validate the native SDL2 launcher, software-renderer UI, configuration parsing and relevant packaging/toolchain assumptions. It must no longer require importing Tk to prove the GUI works.
-- Once native behavior has passed its parity tests, remove the Tk launch hand-off and retire/remove `packaging/linux/gui.py` and any Tk-only self-test/packaging hooks that are no longer referenced. Do not remove Python or build-tool dependencies without first proving they are not used by source generation/build/package scripts.
+- The Tk GUI source and launch hand-off have now been removed. The AppImage payload filter and its test explicitly reject `packaging/linux/gui.py`. Keep Python/compiler/build-tool dependencies that remain in use by source generation and packaging.
 - Update Linux desktop entry/icon labels and AppRun messages so the product is described as the **DQIX Enhanced Linux Launcher**, not a separate Tk builder. Keep filenames or compatibility aliases only when packaging/install compatibility requires them.
 - Continue to package the SDL2 runtime dependencies consistently and verify the executable resolves the bundled/system libraries as intended. Do not bundle ROMs, saves or generated game content.
 
@@ -179,12 +179,12 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 
 ### P2 — Make SDL2 the only graphical AppImage entry point
 
-1. Update AppRun no-argument and `--gui` paths to execute the bundled native launcher with explicit arguments/environment.
+1. **Implemented:** AppRun no-argument and `--gui` paths execute the bundled SDL2 launcher with explicit source-root, default-workspace and version arguments.
 2. Preserve toolchain checksum enforcement, cached extraction, build environment and command-line build modes.
-3. Make `--self-test` validate the actual SDL2 UI path and remove Tk imports from the GUI self-test.
-4. Update the temporary and production CI checks to assert that AppRun launches SDL2 and no longer invokes `gui.py`.
+3. **Implemented:** `--self-test` validates the native SDL2 UI/software-renderer path and parses the integrated launcher configuration without importing Tk.
+4. **Implemented:** temporary CI checks the SDL2 AppRun entry point, while the AppImage payload test rejects the retired `gui.py`.
 5. Update desktop metadata/icon/labels and Linux/AppImage documentation.
-6. Remove the Tk GUI from the graphical product path only after feature parity and tests; remove obsolete files and hooks when no remaining reference requires them.
+6. **Implemented:** `packaging/linux/gui.py` was deleted, and the AppImage source filter/payload test were updated accordingly.
 7. Re-run cold/warm AppImage startup, launcher software-renderer self-test, build-worker simulation, toolchain archive rejection, checksum and ELF audits.
 
 **P2 exit:** normal AppImage launch opens one SDL2 window that owns Build, Logs, Settings and Play. No Tk window or “Open launcher” hand-off remains.
