@@ -776,7 +776,7 @@ void render_ui(SDL_Renderer* renderer, LauncherState& state) {
                                 state.build_in_progress || !game_ready(state)))
                     launch_game(state);
             }
-            draw_text(renderer,270,538,"BUILD OUTPUT  (complete log: launcher-build.log)",SDL_Color{126,150,178,255},1,105);
+            draw_text(renderer,270,538,"BUILD OUTPUT (launcher-build.log; build/game details in devlog.log)",SDL_Color{126,150,178,255},1,105);
             if (draw_button(renderer,state,950,528,105,30,"OLDER"))
                 state.build_log_offset=std::min(state.build_lines.size(),state.build_log_offset+5);
             if (draw_button(renderer,state,1065,528,105,30,"NEWER"))
@@ -807,7 +807,7 @@ void render_ui(SDL_Renderer* renderer, LauncherState& state) {
             if (draw_button(renderer,state,270,430,250,54,"PLAY NOW",!game_ready(state))) launch_game(state);
             draw_text(renderer,270,510,"Uses the same data/dqix.nds and data/code/ layout as the build script.",
                       SDL_Color{144,160,181,255},2,95);
-            draw_text(renderer,270,546,"Game output is appended to launcher.log in the selected folder.",
+            draw_text(renderer,270,546,"Game output and SDL/OpenGL render diagnostics go to devlog.log.",
                       SDL_Color{144,160,181,255},2,95);
         }
         break;
@@ -876,6 +876,7 @@ void render_ui(SDL_Renderer* renderer, LauncherState& state) {
         draw_text(renderer,270,255,"GAME: "+short_path(state.game_dir,70),SDL_Color{190,205,222,255},2,85);
         draw_text(renderer,270,290,"SETTINGS: "+short_path(state.settings_path,70),SDL_Color{190,205,222,255},2,85);
         draw_text(renderer,270,325,"LOG: "+short_path(state.log_path,70),SDL_Color{190,205,222,255},2,85);
+        draw_text(renderer,270,350,"DEVLOG: "+short_path(state.devlog_path,70),SDL_Color{190,205,222,255},2,85);
         draw_text(renderer,270,372,"UI renderer: SDL_Renderer; gameplay uses the existing runtime paths.",SDL_Color{144,160,181,255},2,100);
         if (draw_button(renderer,state,270,430,260,46,"RELOAD SETTINGS")) (void)load_settings(state);
         if (draw_button(renderer,state,550,430,260,46,"SHOW LOG PATH")) state.message="Log file: "+state.log_path.string();
@@ -961,7 +962,8 @@ bool parse_arguments(int argc,char** argv,LauncherState& state,bool& show_help,b
             requested=(!ec&&fs::is_directory(candidate,ec))?candidate:current;
         }
         state.game_dir=absolute_path(requested);
-        state.workspace=state.game_dir.parent_path();
+        state.workspace=state.game_dir.filename()=="game"
+            ?state.game_dir.parent_path():state.game_dir;
         if(rom_explicit) state.rom_path=absolute_path(requested_rom);
     }
     state.settings_path=state.game_dir/"settings.ini";
