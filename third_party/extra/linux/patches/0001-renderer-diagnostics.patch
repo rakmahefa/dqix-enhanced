@@ -10,7 +10,7 @@
  static SDL_GLContext g_glctx;
  static int g_scale3d = 2;
  extern void (*g_report_capture)(uint32_t out[2][256 * 192]);
-@@ -790,36 +793,139 @@
+@@ -790,36 +793,138 @@
  
  /* OpenGL: a 3.3 core context; on any failure fall back to SDL_Renderer + software 3D. */
  static int try_gl(void) {
@@ -145,11 +145,10 @@
 +        renderer_log_gl_attribute("blue_size",SDL_GL_BLUE_SIZE);renderer_log_gl_attribute("alpha_size",SDL_GL_ALPHA_SIZE);
 +        renderer_log_gl_attribute("multisample_buffers",SDL_GL_MULTISAMPLEBUFFERS);renderer_log_gl_attribute("multisample_samples",SDL_GL_MULTISAMPLESAMPLES);
 +        fprintf(stderr,"renderer-diagnostics: gl.request=3.3-core swap_interval_set_result=%d swap_interval_actual=%d\n",g_gl_swap_interval_set_result,g_gl_swap_interval_actual);
-+        fprintf(stderr,"renderer-diagnostics: gl.vendor=%s gl.renderer=%s gl.version=%s glsl.version=%s\n",
-+            gs?renderer_or_unknown((const char*)gs(0x1F00u)):"(unavailable)",
-+            gs?renderer_or_unknown((const char*)gs(0x1F01u)):"(unavailable)",
-+            gs?renderer_or_unknown((const char*)gs(0x1F02u)):"(unavailable)",
-+            gs?renderer_or_unknown((const char*)gs(0x8B8Cu)):"(unavailable)");
++        fprintf(stderr,"renderer-diagnostics: gl.vendor=%s\n",gs?renderer_or_unknown((const char*)gs(0x1F00u)):"(unavailable)");
++        fprintf(stderr,"renderer-diagnostics: gl.renderer=%s\n",gs?renderer_or_unknown((const char*)gs(0x1F01u)):"(unavailable)");
++        fprintf(stderr,"renderer-diagnostics: gl.version=%s\n",gs?renderer_or_unknown((const char*)gs(0x1F02u)):"(unavailable)");
++        fprintf(stderr,"renderer-diagnostics: glsl.version=%s\n",gs?renderer_or_unknown((const char*)gs(0x8B8Cu)):"(unavailable)");
 +    } else {
 +        fprintf(stderr,"renderer-diagnostics: gl.context_present=false requested=3.3-core\n");
 +        fprintf(stderr,"renderer-diagnostics: fallback.window_error=%s accelerated_renderer_error=%s software_renderer_error=%s texture_error=%s\n",
@@ -177,7 +176,7 @@
  
  /* The window's icon: the game's own, the 32x32 picture the DS menu shows for
   * the cartridge (in the ROM's banner). On Windows, dqix.exe normally carries
-@@ -952,13 +1058,18 @@
+@@ -952,13 +1057,18 @@
          const char* sc = getenv("DQIX_SCALE");
          if (sc) { g_scale = atoi(sc); if (g_scale < 1) g_scale = 1; if (g_scale > 8) g_scale = 8; }
          if (!try_gl()) {
@@ -203,7 +202,7 @@
          }
          window_icon();
          {   /* started again by the program itself (reset, sessions): the window where it was */
-@@ -980,6 +1091,7 @@
+@@ -980,6 +1090,7 @@
          session_lobby_hook = lobby_hook;
          air_idle_hook = idle_pump;
      }

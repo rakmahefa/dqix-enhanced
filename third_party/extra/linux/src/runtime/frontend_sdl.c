@@ -897,11 +897,10 @@ static void renderer_diagnostics(void) {
         renderer_log_gl_attribute("blue_size",SDL_GL_BLUE_SIZE);renderer_log_gl_attribute("alpha_size",SDL_GL_ALPHA_SIZE);
         renderer_log_gl_attribute("multisample_buffers",SDL_GL_MULTISAMPLEBUFFERS);renderer_log_gl_attribute("multisample_samples",SDL_GL_MULTISAMPLESAMPLES);
         fprintf(stderr,"renderer-diagnostics: gl.request=3.3-core swap_interval_set_result=%d swap_interval_actual=%d\n",g_gl_swap_interval_set_result,g_gl_swap_interval_actual);
-        fprintf(stderr,"renderer-diagnostics: gl.vendor=%s gl.renderer=%s gl.version=%s glsl.version=%s\n",
-            gs?renderer_or_unknown((const char*)gs(0x1F00u)):"(unavailable)",
-            gs?renderer_or_unknown((const char*)gs(0x1F01u)):"(unavailable)",
-            gs?renderer_or_unknown((const char*)gs(0x1F02u)):"(unavailable)",
-            gs?renderer_or_unknown((const char*)gs(0x8B8Cu)):"(unavailable)");
+        fprintf(stderr,"renderer-diagnostics: gl.vendor=%s\n",gs?renderer_or_unknown((const char*)gs(0x1F00u)):"(unavailable)");
+        fprintf(stderr,"renderer-diagnostics: gl.renderer=%s\n",gs?renderer_or_unknown((const char*)gs(0x1F01u)):"(unavailable)");
+        fprintf(stderr,"renderer-diagnostics: gl.version=%s\n",gs?renderer_or_unknown((const char*)gs(0x1F02u)):"(unavailable)");
+        fprintf(stderr,"renderer-diagnostics: glsl.version=%s\n",gs?renderer_or_unknown((const char*)gs(0x8B8Cu)):"(unavailable)");
     } else {
         fprintf(stderr,"renderer-diagnostics: gl.context_present=false requested=3.3-core\n");
         fprintf(stderr,"renderer-diagnostics: fallback.window_error=%s accelerated_renderer_error=%s software_renderer_error=%s texture_error=%s\n",
