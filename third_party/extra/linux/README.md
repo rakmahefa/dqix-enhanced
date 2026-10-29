@@ -60,4 +60,4 @@ The integrated AppImage path passes the first group of arguments automatically. 
 
 1. With the updated AppImage, check workspace-root `devlog.log` for the timestamped session header, the runtime's stdout/stderr, SDL/OpenGL messages and exit status. `devlog.log` records diagnostics the runtime already emits; it does not export every frame's in-memory performance counters.
 2. Confirm the production AppImage workflow on its intended trigger.
-3. Keep the in-game overlay blocked until a Linux-only integration architecture is approved; see `IN_GAME_OVERLAY_GATE.md`.
+3. The selected architecture is a patch-derived Linux source mirror under `third_party/extra/linux/src/`; do not claim the overlay is implemented until the runtime acceptance gate in `IN_GAME_OVERLAY_GATE.md` passes.
