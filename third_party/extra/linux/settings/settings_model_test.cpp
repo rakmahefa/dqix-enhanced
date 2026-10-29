@@ -38,6 +38,10 @@ void test_validation() {
     require(validate_setting("wireless_mac", "02:aa:B3:00:01:ff", error), "valid MAC address must be accepted");
     require(!validate_setting("wireless_mac", "02:aa:B3:00:01:xyz", error), "malformed MAC address must be rejected");
     require(!validate_setting("monitor_width_mm", "nan", error), "non-finite monitor width must be rejected");
+    require(validate_setting("discord_app_id", "1564002016639062076", error),
+        "normal Discord application IDs must be accepted");
+    require(!validate_setting("discord_app_id", std::string(32, '1'), error),
+        "Discord application ID must fit the runtime g_app_id buffer");
     require(!validate_setting("not_a_runtime_setting", "1", error), "unknown keys must not be editable");
 }
 

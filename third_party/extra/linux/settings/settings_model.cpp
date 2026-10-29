@@ -68,7 +68,7 @@ constexpr Rule kRules[] = {
     {"music_song_names", RuleKind::Boolean},
     {"music_pack_volume", RuleKind::Integer, 0, 200},
     {"discord", RuleKind::Boolean},
-    {"discord_app_id", RuleKind::String, 0, 0, "", 63, false},
+    {"discord_app_id", RuleKind::String, 0, 0, "", 31, false},
     {"upscale_textures", RuleKind::Boolean},
     {"hd_text_shadows", RuleKind::Boolean},
     {"small_screen_opacity", RuleKind::Integer, 10, 100},
