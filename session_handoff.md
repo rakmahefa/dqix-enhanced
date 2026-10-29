@@ -31,8 +31,9 @@
 Latest relevant CI run: [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989) against implementation commit `4e41e34114d3a5a09a3792e8a8393625aabd80a5`.
 
 - Locked Conda SDL2 launcher build and test job passed all four CTest cases: builder dry-run/symlink safety, settings-model/runtime schema parity, CLI help and hidden SDL2 software-renderer smoke test.
-- System-SDL2 build and payload-policy tests are in progress as of this handoff update.
-- The full AppImage assembly/cold-warm startup/checksum/ELF audit job has not yet been confirmed by this run. The older successful AppImage run [40815344443](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40815344443) predates the unified builder and is baseline evidence only.
+- Run [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989) completed successfully across all three jobs. Both system SDL2 and locked Conda SDL2 builds passed all four CTest cases.
+- The full x86_64 AppImage was assembled and passed cold/warm startup, integrated launcher self-test, corrupted-toolchain rejection, payload policy, checksums and ELF audit. The audit reported 718 ELF files and zero findings; the SBOM contains 96 components. The AppImage and diagnostic artifacts are available from the run page.
+- Follow-up run [40818570839](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818570839) is verifying the subsequent documentation update that is bundled into the AppImage source tree.
 - No real user ROM or complete local gameplay session is run in CI. Manual validation with the user's own ROM and a successfully built workspace remains required before claiming end-to-end gameplay validation.
 - The permanent production AppImage workflow has not yet been confirmed on an allowed PR/main/workflow-dispatch event.
 
@@ -51,7 +52,7 @@ Latest relevant CI run: [40818245989](https://github.com/rakmahefa/dqix-enhanced
 - [x] No ImGui/SDL3/Vulkan/new UI-toolkit dependency added.
 - [x] Source-boundary CI has verified no protected runtime/Windows/shared build paths changed.
 - [x] Builder dry-run tests cover success/failure, path rejection, staging exclusions, output logs and destination symlink safety (locked Conda SDL2 suite passed).
-- [ ] Full AppImage assembly/self-test/checksum/ELF audit passes for the unified launcher.
+- [x] Temporary CI AppImage assembly/self-test/checksum/ELF audit passes for the unified launcher (run 40818245989).
 - [ ] Permanent production AppImage workflow passes on an allowed event.
 - [ ] Interactive real-Workspace build/launch tested locally with a user ROM.
 - [ ] No in-game overlay support claimed without runtime integration tests.
