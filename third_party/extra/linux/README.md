@@ -15,8 +15,11 @@ SDL2 event loop or pause/tick state.
   ROM/code/save arguments.
 - Controls that read and write the existing `settings.ini` schema through
   `IniDocument`, including explicit Save buttons for player name and WFC server.
-- A System page that identifies the launcher's Vulkan device while explaining
-  that gameplay still uses the existing SDL2/OpenGL or software renderer.
+- A System page that identifies the launcher's Vulkan device, shows the settings
+  and log paths, and explains that gameplay still uses the existing SDL2/OpenGL
+  or software renderer.
+- Diagnostic messages written to `<game-dir>/launcher.log` as well as stderr,
+  including SDL/Vulkan startup failures.
 - A non-graphical `--help` CTest and a graphical smoke test under Xvfb.
 
 Dear ImGui is fetched from its official repository at immutable commit
