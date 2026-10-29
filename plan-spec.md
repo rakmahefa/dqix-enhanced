@@ -273,7 +273,7 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 - [ ] Ordered Linux-only patch series and mirror manifest exist under `third_party/extra/linux/`; sync/check proves mirrored sources equal declared upstream copies plus patches.
 - [ ] Linux build compiles the mirrored `third_party/extra/linux/src/runtime/frontend_sdl.c` using the mirrored Linux makefile/build entry point, with no fallback to canonical sources.
 - [ ] Temporary CI verifies patch application/source hashes and proves `runtime/`, root `build.mk` and root `tools/build-game.sh` remain unchanged.
-- [x] In-game overlay is not claimed without a supported Linux-only runtime hook; current audit and options are documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
+- [x] No in-game overlay support is claimed yet; the selected patch-derived Linux mirror architecture and its runtime acceptance gate are documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
 
 ## 9. Out of scope
 
