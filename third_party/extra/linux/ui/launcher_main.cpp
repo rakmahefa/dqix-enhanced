@@ -49,6 +49,7 @@ struct LauncherState {
     int build_percent = 0;
     std::string build_status = "Choose your ROM and workspace to build.";
     std::vector<std::string> build_lines;
+    std::size_t build_log_offset = 0;
     std::unique_ptr<dqix::linux_ui::BuildJob> build_job = std::make_unique<dqix::linux_ui::BuildJob>();
     BrowserKind browser_kind = BrowserKind::None;
     fs::path browser_dir;
@@ -423,7 +424,7 @@ void poll_build_events(LauncherState& state) {
             while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
             if (!line.empty()) {
                 state.build_lines.push_back(std::move(line));
-                if (state.build_lines.size() > 9) state.build_lines.erase(state.build_lines.begin());
+                if (state.build_lines.size() > 500) state.build_lines.erase(state.build_lines.begin());
             }
         } else if (event.kind == dqix::linux_ui::BuildEvent::Kind::Status ||
                    event.kind == dqix::linux_ui::BuildEvent::Kind::Progress) {
@@ -679,11 +680,17 @@ void render_ui(SDL_Renderer* renderer, LauncherState& state) {
                                 state.build_in_progress || !game_ready(state)))
                     launch_game(state);
             }
-            draw_text(renderer,270,538,"BUILD OUTPUT  (complete log: launcher-build.log)",SDL_Color{126,150,178,255},1,120);
-            int log_y=558;
-            const std::size_t first=state.build_lines.size()>8?state.build_lines.size()-8:0;
-            for(std::size_t i=first;i<state.build_lines.size();++i) {
-                draw_text(renderer,270,log_y,state.build_lines[i],SDL_Color{166,190,211,255},1,116);
+            draw_text(renderer,270,538,"BUILD OUTPUT  (complete log: launcher-build.log)",SDL_Color{126,150,178,255},1,105);
+            if (draw_button(renderer,state,950,528,105,30,"OLDER"))
+                state.build_log_offset=std::min(state.build_lines.size(),state.build_log_offset+5);
+            if (draw_button(renderer,state,1065,528,105,30,"NEWER"))
+                state.build_log_offset=state.build_log_offset>5?state.build_log_offset-5:0;
+            const std::size_t end=state.build_lines.size()>state.build_log_offset
+                ?state.build_lines.size()-state.build_log_offset:0;
+            const std::size_t first=end>8?end-8:0;
+            int log_y=565;
+            for(std::size_t i=first;i<end;++i) {
+                draw_text(renderer,270,log_y,state.build_lines[i],SDL_Color{166,190,211,255},1,110);
                 log_y+=20;
             }
             if (state.version!="unknown")
@@ -933,6 +940,10 @@ int main(int argc,char** argv) {
             else if(event.type==SDL_WINDOWEVENT && event.window.event==SDL_WINDOWEVENT_CLOSE) running=false;
             else if(event.type==SDL_MOUSEBUTTONUP && event.button.button==SDL_BUTTON_LEFT) {
                 g_mouse_click=true; g_mouse_x=event.button.x; g_mouse_y=event.button.y;
+            } else if(event.type==SDL_MOUSEWHEEL && state.integrated_builder && state.page==Page::Game &&
+                      state.browser_kind==BrowserKind::None) {
+                if(event.wheel.y>0) state.build_log_offset=std::min(state.build_lines.size(),state.build_log_offset+3);
+                else if(event.wheel.y<0) state.build_log_offset=state.build_log_offset>3?state.build_log_offset-3:0;
             } else if(event.type==SDL_TEXTINPUT && state.path_editing &&
                       state.path_edit_buffer.size()+std::strlen(event.text.text)<4096) {
                 state.path_edit_buffer += event.text.text;
@@ -986,6 +997,14 @@ int main(int argc,char** argv) {
                 } else {
                     switch(key) {
                     case SDLK_ESCAPE: running=false; break;
+                    case SDLK_PAGEUP:
+                        if(state.integrated_builder&&state.page==Page::Game)
+                            state.build_log_offset=std::min(state.build_lines.size(),state.build_log_offset+5);
+                        break;
+                    case SDLK_PAGEDOWN:
+                        if(state.integrated_builder&&state.page==Page::Game)
+                            state.build_log_offset=state.build_log_offset>5?state.build_log_offset-5:0;
+                        break;
                     case SDLK_LEFT: state.page=static_cast<Page>((static_cast<int>(state.page)+7)%8);state.focus_index=0;break;
                     case SDLK_RIGHT: state.page=static_cast<Page>((static_cast<int>(state.page)+1)%8);state.focus_index=0;break;
                     case SDLK_UP: state.focus_index=(state.focus_index+state.previous_button_count-1)%state.previous_button_count;break;
