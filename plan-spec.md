@@ -5,7 +5,9 @@
 **Work branch:** `plan/v32-linux-launcher-settings`  
 **Base:** `main` at `ac8c5ae5c9f9b30e17b7ae379c6fd6413891949a`.
 
-**Implementation update (2026-10-29):** the unified SDL2 builder path is now implemented in `third_party/extra/linux/builder/` and the SDL2 launcher. The former `packaging/linux/gui.py` Tk application has been deleted, and the AppImage payload policy explicitly excludes it. `AppRun` now starts the SDL2 launcher directly with source/workspace/version arguments. Latest completed verification run [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989) succeeded across all three jobs: system SDL2 and locked-Conda SDL2 builds each passed 4/4 CTest cases, and a real x86_64 AppImage was assembled and tested with cold/warm startup, integrated launcher self-test, corrupted-toolchain rejection, payload policy, checksums and ELF audit (718 ELF files, zero findings; SBOM 96 components). The AppImage and diagnostic artifacts were uploaded. Follow-up run [40818570839](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818570839) also succeeded after the Linux launcher README/payload documentation update. Final polish commit `c720d0ac` (move `play.sh` detection before `fork()`) and AppRun help wording passed run [40818812000](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818812000): all three jobs succeeded. The updated AppImage passed cold/warm startup, integrated launcher self-test, corrupted-toolchain rejection, payload policy, checksums and ELF audit (718 ELF files, zero findings; 96-component SBOM); AppImage and diagnostics artifacts were uploaded. Real user-ROM/workspace testing and the permanent production workflow remain open validation items.
+**Implementation update (2026-10-29):** the native SDL2 launcher replaces the former Tk builder, and `AppRun` starts that launcher directly. The user has confirmed that the AppImage builds and launches the game with a real ROM/workspace. This follow-up adds a workspace-root `devlog.log`: timestamped build lines are mirrored there, and the game's stdout/stderr (including existing SDL/OpenGL renderer diagnostics) are redirected there on Play. Full end-to-end run [40823508014](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823508014) passed system SDL2, locked-Conda SDL2 and AppImage assembly/cold-warm-start/toolchain-integrity/ELF checks. A small fallback-reporting fix is included in the current branch and passed CI run [40823840655](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823840655). The new log path has compile/CTest/AppImage-smoke coverage; one real gameplay run should confirm the exact renderer output produced by the user's build.
+
+
 
 ## 0. Prime directive — preserve the Windows upstream path
 
@@ -170,12 +172,12 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 1. **Implemented:** the launcher accepts source root, default workspace, version and optional game/ROM paths.
 2. **Implemented:** ROM/workspace state, in-app browser, path entry, workspace validation and confirmation for non-empty unmarked workspaces are integrated.
 3. **Implemented:** Linux-only source staging ports the old ignore behavior and marker flow while preserving generated `game/` and `build/` output.
-4. **Implemented:** `BuildJob` runs staging and `bash tools/build-game.sh ROM` off the SDL render/event loop; stdout/stderr feed the UI queue and persistent `launcher-build.log`, known stages map to approximate progress, and failures expose the real process status.
+4. **Implemented:** `BuildJob` runs staging and `bash tools/build-game.sh ROM` off the SDL render/event loop; stdout/stderr feed the UI queue and persistent `launcher-build.log`, while timestamped copies of build messages are mirrored into the workspace-root `devlog.log`. Known stages map to approximate progress, and failures expose the real process status.
 5. **Implemented:** success rechecks game readiness and enables Play in the same window; launching prefers `game/play.sh` and keeps a direct-executable fallback.
 6. **Implemented:** synthetic dry-run tests exercise successful and failed child builds, output/log persistence, exit-status reporting and source exclusions without any real ROM or generated game data.
 7. **Implemented:** ROM type/readability and source/workspace overlap validation, non-empty workspace confirmation and destination-symlink write protection have coverage. Broader missing/unwritable and long-path interaction checks remain follow-up hardening.
 
-**P1 exit:** native build-job compilation and synthetic success/failure + symlink safety tests passed in the locked Conda SDL2 job. Real ROM/gameplay validation remains manual.
+**P1 exit:** native build-job compilation and synthetic success/failure + symlink safety tests passed in the locked Conda SDL2 job. The user has confirmed the AppImage can build and launch a real game; the new devlog content still needs a manual check.
 
 ### P2 — SDL2-only AppImage GUI entry point (implemented; temporary end-to-end packaging verified)
 
@@ -187,26 +189,35 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 6. **Implemented:** `packaging/linux/gui.py` was deleted, and the AppImage source filter/payload test were updated accordingly.
 7. **Verified in run 40818245989:** AppImage assembly, cold/warm startup, launcher self-test, toolchain-integrity rejection, checksums, payload policy and ELF audit all passed on the unified builder.
 
-**P2 exit:** the code-path cutover is implemented. Full AppImage packaging verification and manual use with a real workspace are still required before calling the product release-ready.
+**P2 exit:** AppImage packaging and E2E checks are verified and the user confirms Build/Play work with a real ROM. The added `devlog.log` capture needs a manual content check, and the permanent production workflow remains pending.
 
-### P3 — Settings reliability and interaction polish
+### P3 — Settings reliability, interaction polish and development logs
 
-1. Test parse/validation, missing/unwritable files, unknown entries, migration and atomic writes.
-2. Verify parity against runtime read/write keys.
-3. Audit controls.ini/settings.ini path resolution and document startup-only/renderer-dependent options.
-4. Improve text input, file-browser navigation, focus, disabled/busy/error states, keyboard, mouse and controller interaction.
-5. Ensure UI operations never block SDL event/render processing; inspect long build and directory-enumeration logs.
+1. Continue settings parse/validation, missing/unwritable file, unknown-key, migration and atomic-write coverage.
+2. Verify parity against runtime read/write keys and audit startup-only/renderer-dependent values.
+3. Improve text input, file-browser navigation, focus, disabled/busy/error states, keyboard, mouse and controller interaction.
+4. Keep workspace-root `devlog.log` for timestamped builder output and game stdout/stderr; keep `launcher-build.log` as the raw build transcript and `game/launcher.log` for launcher/settings lifecycle messages.
+5. Do not claim per-frame profiling is captured just because stderr is redirected. Existing renderer messages (GL renderer name, shader/link failures and runtime-emitted diagnostics) are captured; the runtime's in-memory performance ring is not automatically exported per frame.
 
-**P3 exit:** settings persistence is safe, Build/Play status is truthful, and all exposed controls have implemented and tested semantics or are explicitly marked unsupported.
+**P3 exit:** Build/Play status and settings behavior remain truthful, log paths are visible, build output has automated coverage, and a real run confirms the new game-output log on the user's AppImage.
 
-### P4 — In-game menu/overlay
+### P4 — In-game menu/overlay: integration gate not yet satisfied
 
-Start only after the separate integration gate in section 6 passes. Do not conflate this with replacing the Tk pre-Play builder.
+The runtime has internal lifecycle functions (`frontend_init`, `frontend_frame`, `frontend_shutdown`), its own event handler/present path, an existing pause loop, and an OpenGL-to-SDL-renderer fallback. Those are internal implementation points, not a Linux-only extension API.
 
-- Prove a Linux-only runtime/build integration point without editing Windows sources or `build.mk`.
-- Share settings/actions/navigation only after the event/render/pause integration is real.
-- Test Escape, focus, pause/resume, Quit, OpenGL and fallback paths.
-- If the gate fails, document the blocker and leave in-game overlay functionality out of scope.
+Audit findings:
+- `build.mk` constructs the runtime list by selecting `runtime/frontend_$(FRONTEND).c`; the SDL build compiles `runtime/frontend_sdl.c` and includes other shared runtime/menu sources. Its object rules are rooted under `runtime/`.
+- `tools/build-game.sh` invokes `build.mk` with `FRONTEND=sdl`. There is no documented callback/plugin argument to add a separate Linux-only overlay module to the frame/event/pause lifecycle.
+- A `RES` object is documented as an extra object for the program; it is not a supported callback into the runtime frame loop.
+- `runtime/frontend_sdl.c` is used by the Windows/MSYS2 build too. Editing it, editing `build.mk` or `tools/build-game.sh`, or adding a shim under `runtime/` would break the current strict source-boundary rule.
+
+**Decision:** do not fake an in-game overlay by launching another SDL process, by interposing SDL symbols/using `LD_PRELOAD`, or by permanently copying/forking the full SDL frontend. Those approaches do not provide a reliable supported hook for keyboard capture, pause, OpenGL/SDL fallback and shutdown.
+
+The next architecture decision is one of:
+1. **Keep the strict rule:** design a dedicated Linux runtime build/integration path that does not alter Windows/shared sources. This fits the current constraint but needs a deliberate build-design step before implementation.
+2. **Approve a narrow common-source extension:** add a small Linux-only callback in the shared SDL frontend, guarded so Windows behavior is unchanged, with the overlay implementation staying under `third_party/extra/linux/`. This is technically cleaner but modifies a shared source file and therefore needs an explicit change to the current strict boundary.
+
+The runtime already has pause/settings/menu functionality; the target here would be an additional overlay, not a replacement for that working code. Do not mark the gate passed until Escape/focus, gamepad capture, pause/resume, OpenGL and software fallback, fullscreen and shutdown are exercised against the real runtime.
 
 ### P5 — Final packaging and upstream review
 
@@ -225,17 +236,18 @@ Start only after the separate integration gate in section 6 passes. Do not confl
 - [x] File/folder selection is implemented inside the app without an external UI toolkit (manual interaction still needs checking).
 - [x] Build runs off the UI thread; output goes to the event queue and persistent log; actual child exit status is reported.
 - [x] Workspace validation/copy exclusions preserve generated game/build output and reject destination symlinks.
-- [x] Simulated/dry-run tests cover successful and failed build jobs without a real ROM.
+- [x] Simulated/dry-run tests cover successful and failed build jobs without a real ROM, including timestamped build records in workspace `devlog.log`.
 - [x] Settings schema parity and persistence CTest passed in system and locked Conda SDL2 builds.
 - [x] `AppRun` defaults to the native launcher and passes explicit paths/configuration; CLI automation modes are preserved.
 - [x] Native `--self-test` needs neither a real ROM nor a desktop GPU/Vulkan device.
 - [x] UI messages distinguish saved preferences from actual runtime support.
-- [x] Temporary CI AppImage cold/warm startup, launcher smoke, toolchain-integrity rejection, checksums and ELF checks passed after this migration (run 40818245989).
+- [x] Temporary CI AppImage cold/warm startup, integrated launcher smoke, toolchain-integrity rejection, checksums and ELF checks passed with devlog capture (run 40823508014).
 - [ ] Permanent production AppImage workflow run is confirmed.
-- [ ] Manual local end-to-end test with a real user ROM/build workspace is complete.
+- [x] User manually confirmed Build/Play work with a real ROM/workspace before devlog capture was added.
+- [ ] Manually confirm the updated AppImage's `devlog.log` contains actual game stdout/stderr and expected renderer diagnostics.
 - [x] AppImage payload policy rejects ROM/save/protected assets and the retired Tk GUI (run 40818245989).
 - [x] Windows/upstream path remains clean according to source-boundary CI.
-- [x] In-game menu is not claimed without actual runtime integration tests.
+- [x] In-game overlay is not claimed without a supported Linux-only runtime hook; current audit and options are documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
 
 ## 9. Out of scope
 

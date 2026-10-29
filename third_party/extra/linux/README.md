@@ -11,23 +11,24 @@ No in-game overlay is claimed: a separate pre-Play process does not share the ga
 - `ui/launcher_main.cpp` draws the UI with SDL_Renderer and an embedded 5x7 bitmap font. Keyboard, mouse and basic gamepad navigation are supported.
 - The Game page offers ROM and workspace selection via an in-app file/folder browser with path entry, plus build status/progress, scrollable recent output and Play Now.
 - `builder/build_job.cpp` validates ROM/workspace paths, confirms merging non-empty unmarked workspaces, stages project sources while excluding generated/private output, and protects against writes through destination symlinks.
-- Source staging and compilation run outside the SDL render/event loop. `BuildJob` captures combined build output, sends events to the UI and persists the full log at `launcher-build.log`. Approximate build stages are shown; code-generation/compilation use indeterminate progress where no precise counter is available.
-- After a successful build, the launcher validates the generated game layout and launches via `game/play.sh` when present, with a direct-executable fallback.
+- Source staging and compilation run outside the SDL render/event loop. `BuildJob` captures combined build output, sends events to the UI and persists the raw build transcript at `launcher-build.log`. It also mirrors timestamped build messages into workspace-root `devlog.log`.
+- After a successful build, the launcher validates the generated game layout and launches via `game/play.sh` when present, with a direct-executable fallback. Game stdout/stderr are appended to workspace-root `devlog.log` under a timestamped session header. Existing SDL/OpenGL messages (renderer name, shader/link errors and other diagnostics emitted by the runtime) are captured there; `game/launcher.log` remains the launcher/settings log. If `devlog.log` cannot be opened, output falls back to `launcher.log` and the UI reports the fallback.
 - Graphics/display/audio/controls/mods/wireless/system pages remain. Some controls are still explicitly informational or not implemented (notably controls remapping and free-form text editing); saving a setting does not guarantee that the runtime applies it.
 - `packaging/linux/AppRun` checks the bundled toolchain as before and starts the SDL2 launcher directly. The former Tk app `packaging/linux/gui.py` is deleted from the branch and excluded by the AppImage payload policy. The build toolchain still contains Python for code generation/build/package tasks; this does not create a Tk UI.
 - No Windows/runtime source, `build.mk` or `tools/build-game.sh` was modified. Native Linux code and tests are under `third_party/extra/linux/`.
 
 ## Verification
 
-The integrated implementation passed temporary CI run [40818245989](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40818245989), on implementation commit `4e41e34114d3a5a09a3792e8a8393625aabd80a5`:
+The completed temporary E2E run [40823508014](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823508014) passed all three jobs with the devlog capture code:
 
-- System SDL2 build: 4/4 CTest tests passed.
-- Locked Conda SDL2 build: 4/4 CTest tests passed.
-- Native builder dry-run tests cover synthetic build success and failure, log/exit-status reporting, staging exclusions, source/workspace overlap and destination-symlink protection. No real ROM or generated game data is used by CI.
-- The complete x86_64 AppImage was assembled and tested with cold/warm start and its bundled SDL2 software-renderer self-test. A corrupted toolchain archive was rejected; the payload policy passed; checksums and ELF audit passed.
-- ELF audit reported 718 ELF files and zero findings; the Conda SBOM has 96 components. The AppImage artifact and diagnostic artifacts were uploaded in the run.
+- System SDL2: 4/4 CTest tests passed.
+- Locked Conda SDL2: 4/4 CTest tests passed, including timestamped build records in workspace `devlog.log`.
+- The x86_64 AppImage assembled and passed cold/warm startup, the integrated SDL2 software-renderer self-test, corrupted toolchain rejection, payload policy, checksums and ELF audit.
+- ELF audit: 718 ELF files, zero findings; SBOM: 96 Conda components.
 
-The permanent production AppImage workflow has not yet been confirmed on an allowed PR/main/workflow-dispatch event. Manual interactive testing with a real user-provided ROM and a built game workspace is still required to validate the full local gameplay journey.
+Artifacts: [AppImage](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823508014/artifacts/12875252792) · [E2E diagnostics](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823508014/artifacts/12874794549).
+
+The user has confirmed the previous AppImage builds and launches the game with a real ROM/workspace. The new log redirection has compile/CTest and AppImage-smoke coverage; one real game run should confirm the contents of the updated `devlog.log`. The fallback-reporting fix passed [40823840655](https://github.com/rakmahefa/dqix-enhanced/actions/runs/40823840655). The permanent production AppImage workflow has not yet been confirmed on an allowed trigger.
 
 ## Build and test locally
 
@@ -57,6 +58,6 @@ The integrated AppImage path passes the first group of arguments automatically. 
 
 ## Remaining manual checks
 
-1. With a user-provided ROM, exercise the in-app browser, existing-workspace confirmation, full build log, retry after failure, settings file location and Play/game exit status.
+1. With the updated AppImage, check workspace-root `devlog.log` for the timestamped session header, the runtime's stdout/stderr, SDL/OpenGL messages and exit status. `devlog.log` records diagnostics the runtime already emits; it does not export every frame's in-memory performance counters.
 2. Confirm the production AppImage workflow on its intended trigger.
-3. Keep the in-game menu/overlay blocked until Linux-only integration proves keyboard/gamepad focus, event capture, pause/resume, OpenGL/software fallback, fullscreen and shutdown without touching protected Windows code.
+3. Keep the in-game overlay blocked until a Linux-only integration architecture is approved; see `IN_GAME_OVERLAY_GATE.md`.
