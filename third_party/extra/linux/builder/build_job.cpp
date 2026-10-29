@@ -275,6 +275,10 @@ bool BuildJob::start(BuildRequest request, std::string& error) {
     return true;
 }
 
+void BuildJob::wait() {
+    if (worker_.joinable()) worker_.join();
+}
+
 void BuildJob::cancel_and_join() {
     cancel_.store(true);
     const pid_t pid = child_pid_.load();
