@@ -113,6 +113,40 @@ echo "== Done."
     ok &= require(fs::is_regular_file(failure_workspace / "launcher-build.log"),
                   "failed build diagnostics must be persisted");
 
+    // A pre-existing symlink in the user workspace must never redirect writes outside it.
+    const fs::path link_source = temp / "source-link";
+    write_file(link_source / "tools/build-game.sh", "#!/bin/bash\\nexit 0\\n");
+    write_file(link_source / "docs/private.txt", "bundled source text\\n");
+    const fs::path link_workspace = temp / "workspace-link";
+    const fs::path outside = temp / "outside";
+    write_file(outside / "private.txt", "must remain untouched\\n");
+    fs::create_directories(link_workspace);
+    write_file(link_workspace / ".dqix-enhanced-appimage-workspace", "test marker\\n");
+    fs::create_directory_symlink(outside, link_workspace / "docs", ec);
+    if (ec) {
+        ok &= require(false, "test setup could not create a symlink: " + ec.message());
+        ec.clear();
+    } else {
+        BuildRequest link_request;
+        link_request.source_root = link_source;
+        link_request.workspace = link_workspace;
+        link_request.rom = rom;
+        BuildJob link_job;
+        error.clear();
+        ok &= require(link_job.start(link_request, error), "symlink safety job should start: " + error);
+        link_job.wait();
+        bool saw_symlink_failure=false;
+        for (const auto& event : link_job.drain_events())
+            saw_symlink_failure |= event.kind == BuildEvent::Kind::Failed &&
+                                    event.text.find("workspace symlink") != std::string::npos;
+        ok &= require(saw_symlink_failure, "source staging must reject destination symlinks");
+        std::ifstream outside_file(outside / "private.txt", std::ios::binary);
+        std::string outside_text;
+        std::getline(outside_file, outside_text);
+        ok &= require(outside_text == "must remain untouched",
+                      "workspace staging must not overwrite data through symlinks");
+    }
+
     fs::remove_all(temp, ec);
     if (!ok) return 1;
     std::cout << "Native SDL2 builder dry-run tests passed (synthetic ROM fixture; no game data).\n";
