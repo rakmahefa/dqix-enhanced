@@ -203,6 +203,7 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 5. **Implemented:** success rechecks game readiness and enables Play in the same window; launching prefers `game/play.sh` and keeps a direct-executable fallback.
 6. **Implemented:** synthetic dry-run tests exercise successful and failed child builds, output/log persistence, exit-status reporting and source exclusions without any real ROM or generated game data.
 7. **Implemented:** ROM type/readability and source/workspace overlap validation, non-empty workspace confirmation and destination-symlink write protection have coverage. Broader missing/unwritable and long-path interaction checks remain follow-up hardening.
+8. **Implemented:** Linux BuildJob requires the patch-derived `third_party/extra/linux/src/tools/build-game.sh`; there is no fallback to the canonical Windows/shared build script.
 
 **P1 exit:** native build-job compilation and synthetic build success/failure, game stdout/stderr capture, safe log fallback and exit-record routing tests pass in the locked Conda SDL2 job. The user has confirmed Build/Play works with a real game; emitted renderer output still needs a quick manual log check.
 
@@ -224,20 +225,21 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 2. Verify parity against runtime read/write keys and audit startup-only/renderer-dependent values.
 3. Improve text input, file-browser navigation, focus, disabled/busy/error states, keyboard, mouse and controller interaction.
 4. Keep workspace-root `devlog.log` for timestamped builder output and game stdout/stderr; keep `launcher-build.log` as the raw build transcript and `game/launcher.log` for launcher/settings lifecycle messages.
+5. **Implemented in the patch-derived Linux frontend:** emit a `renderer-diagnostics` startup block that explicitly reports fallback status/reason, SDL and video-driver details, window/display information, OpenGL vendor/renderer/version/context attributes, or SDL_Renderer capabilities, attempted-backend failures, output size and texture details.
 5. Do not claim per-frame profiling is captured just because stderr is redirected. Existing renderer messages (GL renderer name, shader/link failures and runtime-emitted diagnostics) are captured; the runtime's in-memory performance ring is not automatically exported per frame.
 
 **P3 exit:** Build/Play status and settings behavior remain truthful, log paths are visible, build output has automated coverage, and a real run confirms the new game-output log on the user's AppImage.
 
 ### P4 — In-game menu/overlay through patch-derived Linux sources
 
-**Architecture decision accepted:** preserve canonical sources, derive a minimal Linux source mirror under `third_party/extra/linux/src/`, and compile that mirror only for Linux.
+**Source/build groundwork implemented:** preserve canonical sources, derive a minimal Linux source mirror under `third_party/extra/linux/src/`, and compile that mirror only for Linux. The renderer diagnostics patch is implemented; the overlay UI and runtime interaction tests remain pending.
 
-1. Audit the smallest source set required for a lifecycle hook; expected starting points are `runtime/frontend_sdl.c`, root `build.mk`, and `tools/build-game.sh`. Do not copy unrelated runtime files.
-2. Add ordered patches under `third_party/extra/linux/patches/` and a sync/check tool that regenerates checked-in mirrors from canonical inputs and applies patches only to those copies. Record base hashes and resulting hashes; fail closed on drift. CI regenerates to a temporary directory and compares; the Linux build consumes the checked-in mirror.
-3. Add a Linux-only game-build entry point that uses the patched copies and preserves the existing ROM extraction, region selection, ARM9/ARM7 code generation, compilation, and game folder assembly semantics.
-4. Wire the Linux builder/AppRun paths to that entry point; Windows/MSYS2 and shared root scripts must continue to use canonical files.
+1. **Implemented:** the minimal mirrors cover `runtime/frontend_sdl.c`, `build.mk`, and `tools/build-game.sh` only.
+2. **Implemented:** ordered patches, source manifest and sync/check tool regenerate copies in a temporary directory and fail closed on upstream blob drift or patch failure.
+3. **Implemented:** the mirror build entry point preserves code generation/assembly and selects the mirrored makefile; Linux BuildJob calls it explicitly.
+4. **CI wired in this commit:** development CI checks mirror integrity and syntax-compiles the patched frontend; production workflow checks mirror integrity.
 5. Implement the in-game overlay with the runtime's active render path, event lifecycle and pause state. Do not introduce a second window, SDL symbol interposition, `LD_PRELOAD`, ImGui, SDL3, Vulkan or another UI toolkit.
-6. Extend temporary development CI with patch/sync validation, source-selection checks, Linux build/CTest and the existing dry-run/E2E diagnostics. Confirm canonical protected paths remain unchanged.
+6. Extend temporary development CI with overlay-specific tests and the existing dry-run/E2E diagnostics. Confirm canonical protected paths remain unchanged.
 7. Run the runtime acceptance matrix from Section 6.3 against the real game on Linux before calling the overlay complete.
 
 **P4 exit:** mirrors reproducibly derive from declared upstream inputs and patch series; the Linux build demonstrably compiles the mirrored runtime source; root Windows/shared files remain unchanged; overlay lifecycle, input, pause, renderer fallback, fullscreen and shutdown tests pass.
@@ -270,9 +272,10 @@ The existing temporary run [40815344443](https://github.com/rakmahefa/dqix-enhan
 - [ ] Manually confirm the updated AppImage's `devlog.log` contains actual game stdout/stderr and expected renderer diagnostics.
 - [x] AppImage payload policy rejects ROM/save/protected assets and the retired Tk GUI (run 40818245989).
 - [x] Canonical Windows/upstream path remains clean according to source-boundary CI.
-- [ ] Ordered Linux-only patch series and mirror manifest exist under `third_party/extra/linux/`; sync/check proves mirrored sources equal declared upstream copies plus patches.
-- [ ] Linux build compiles the mirrored `third_party/extra/linux/src/runtime/frontend_sdl.c` using the mirrored Linux makefile/build entry point, with no fallback to canonical sources.
-- [ ] Temporary CI verifies patch application/source hashes and proves `runtime/`, root `build.mk` and root `tools/build-game.sh` remain unchanged.
+- [x] Ordered Linux-only patch series, source mirror manifest and sync/check tool exist under `third_party/extra/linux/`.
+- [x] Linux BuildJob requires the mirrored build entry point; its makefile explicitly selects the mirrored frontend with no canonical-script fallback.
+- [x] Temporary CI checks patch application/content hashes and syntax-compiles the patched frontend; production CI checks mirror integrity.
+- [ ] Manually verify the renderer diagnostic block in workspace `devlog.log` with the updated AppImage and real gameplay.
 - [x] No in-game overlay support is claimed yet; the selected patch-derived Linux mirror architecture and its runtime acceptance gate are documented in `third_party/extra/linux/IN_GAME_OVERLAY_GATE.md`.
 
 ## 9. Out of scope
