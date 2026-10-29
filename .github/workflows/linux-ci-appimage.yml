@@ -30,7 +30,7 @@ jobs:
       - name: Install test toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y build-essential clang lld llvm
+          sudo apt-get install --no-install-recommends -y build-essential clang lld llvm patch
           clang --version
           python -m pip install --disable-pip-version-check "PyYAML==6.0.2"
 
@@ -38,6 +38,11 @@ jobs:
         run: |
           set -euo pipefail
           for script in .github/scripts/*.sh; do bash -n "$script"; done
+
+      - name: Verify patch-derived Linux source mirror
+        run: |
+          set -euo pipefail
+          python3 third_party/extra/linux/tools/sync_linux_sources.py --check
 
       - name: Verify release workflow safety defaults
         run: python tests/packaging/test_release_workflow_safety.py
