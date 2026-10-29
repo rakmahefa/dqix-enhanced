@@ -251,8 +251,11 @@ void refresh_browser_entries(LauncherState& state) {
         state.message_is_error = true;
         return;
     }
-    constexpr std::size_t kMaxEntries = 5000;
-    for (; it != end && state.browser_entries.size() < kMaxEntries; it.increment(ec)) {
+    constexpr std::size_t kMaxScannedEntries = 10000;
+    constexpr std::size_t kMaxVisibleEntries = 5000;
+    std::size_t scanned = 0;
+    for (; it != end && scanned < kMaxScannedEntries &&
+           state.browser_entries.size() < kMaxVisibleEntries; it.increment(ec), ++scanned) {
         if (ec) { ec.clear(); continue; }
         std::error_code type_ec;
         const auto status = it->symlink_status(type_ec);
@@ -269,8 +272,8 @@ void refresh_browser_entries(LauncherState& state) {
         });
     state.browser_scroll = 0;
     state.browser_selection = 0;
-    state.message = state.browser_entries.size() >= kMaxEntries
-        ? "Showing the first 5000 entries in this folder."
+    state.message = (scanned >= kMaxScannedEntries || state.browser_entries.size() >= kMaxVisibleEntries)
+        ? "Directory listing is capped at 10000 scanned / 5000 visible entries."
         : "Select a folder or .nds file.";
     state.message_is_error = false;
 }
