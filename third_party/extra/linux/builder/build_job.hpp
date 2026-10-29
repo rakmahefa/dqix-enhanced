@@ -35,6 +35,7 @@ public:
 
     bool start(BuildRequest request, std::string& error);
     void cancel_and_join();
+    void wait();
     bool running() const noexcept { return running_.load(); }
     std::vector<BuildEvent> drain_events();
 
