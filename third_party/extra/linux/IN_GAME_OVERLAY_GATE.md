@@ -1,6 +1,6 @@
 # In-game SDL2 overlay integration gate
 
-**Status: architecture selected; overlay implementation and runtime acceptance tests are still pending.**
+**Status: patch-derived Linux mirror and renderer diagnostics implemented; overlay UI and runtime acceptance tests are still pending.**
 
 ## Findings from the existing Linux build path
 
@@ -23,11 +23,11 @@ The expected first mirrored inputs are:
 
 Implementation rules:
 
-1. Store ordered unified patches in `third_party/extra/linux/patches/`. The patches target copies, never the canonical files.
-2. A developer sync tool regenerates the checked-in mirrors from their canonical input plus the ordered patches. Keep the mirrored file set minimal, preserve upstream copyright/license headers and record each input path, base revision/hash, patch order and result hash.
-3. CI regenerates the mirror in a temporary directory and compares hashes/content with the checked-in copy. Patch failures, source drift or unexpected fuzz/offsets must fail closed.
-4. The Linux build uses the checked-in `third_party/extra/linux/src/tools/build-game.sh`, its `src/build.mk` and `src/runtime/frontend_sdl.c`. It must not silently fall back to root files. The runtime build must continue to use the workspace for generated C, objects and `game/` outputs; AppImage source remains read-only.
-5. Do not mirror unrelated runtime files without a demonstrated need. If the patch footprint grows substantially, stop and revisit whether this architecture remains easier to maintain than upstreaming a generic extension API.
+1. **Implemented:** ordered patches and checked-in mirrors live under `third_party/extra/linux/`; patches target copies only.
+2. **Implemented:** `tools/sync_linux_sources.py` copies canonical inputs to a temporary directory, applies patches with no fuzz, and validates canonical and resulting Git-blob hashes.
+3. **CI integrated:** development CI checks mirror integrity and syntax-compiles the patched frontend; production CI checks mirror integrity. Drift or patch failure stops validation.
+4. **Implemented:** BuildJob requires mirrored `src/tools/build-game.sh`, which selects `src/build.mk` and the patched frontend. No fallback to root scripts is allowed.
+5. Keep mirrors minimal and rebase deliberately when upstream changes a tracked input.
 
 This approach is worthwhile because a small patch set can modify Linux runtime behavior while keeping Windows sources and the upstream-facing diff clean. Its key cost is upstream drift; source-manifest checks and deterministic regeneration are mandatory, not optional hygiene.
 
@@ -38,6 +38,10 @@ This approach is worthwhile because a small patch set can modify Linux runtime b
 - Keep overlay interfaces/implementation under `third_party/extra/linux/`.
 - Do not use SDL symbol interposition, `LD_PRELOAD`, a new UI toolkit, SDL3, Vulkan or a hand-maintained whole-runtime fork.
 - Keep root `runtime/`, root `build.mk` and root `tools/build-game.sh` unchanged for Windows/upstream use.
+
+## Renderer diagnostics (implemented; manual check pending)
+
+The patch-derived Linux frontend writes a `renderer-diagnostics` block to stderr at startup; the launcher captures it in workspace-root `devlog.log`. It explicitly reports `game_renderer_fallback=false` for OpenGL, `true` for SDL_Renderer fallback, or `not-applicable` in headless mode. It records the OpenGL skip/failure reason, SDL compile/runtime versions and video driver, environment overrides, window/display details, GL vendor/renderer/version/GLSL/context attributes, or SDL_Renderer name/flags/formats/errors/output size and streaming texture format/access/dimensions. A real AppImage/game run is still needed to confirm the output in practice.
 
 ## Required acceptance tests
 
