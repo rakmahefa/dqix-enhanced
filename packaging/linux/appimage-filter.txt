@@ -83,6 +83,6 @@
 + /tools/region.py
 + /packaging/
 + /packaging/linux/
-+ /packaging/linux/gui.py
+- /packaging/linux/gui.py
 + /release-notes/***
 - *
