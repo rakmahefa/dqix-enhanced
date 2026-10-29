@@ -732,6 +732,11 @@ void draw_game_page(LauncherState& state) {
     ImGui::BulletText("Generated game code: %s", code ? "found" : "not found");
     ImGui::Spacing();
     ImGui::TextWrapped("The launcher expects the same game folder layout produced by the current build script. It does not include a ROM or generated game.");
+    static const char* const languages[] = {"english", "french", "german", "italian", "spanish"};
+    combo_setting(state, "Language (European ROM)", "language", "english", languages, 5);
+    checkbox_setting(state, "Unlock downloadable quests and guests", "downloadable_content");
+    ImGui::TextDisabled("The USA version runs in English; the language selector applies to the European version.");
+    ImGui::Spacing();
     if (state.game_pid > 0) {
         ImGui::Text("Game running (PID %ld)", static_cast<long>(state.game_pid));
     } else {
@@ -752,7 +757,7 @@ void draw_graphics_page(LauncherState& state) {
     combo_setting(state, "3D render scale", "render_scale", "auto", scales, 13);
     checkbox_setting(state, "Smooth textures", "smooth_textures");
     combo_setting(state, "Character outlines", "outlines", "thin", outlines, 3);
-    checkbox_setting(state, "Soft shadows and glows", "soft_shadows");
+    checkbox_setting(state, "Soft shadows and glows", "soft_shadows", true);
     checkbox_setting(state, "Smooth shading", "smooth_shading");
     checkbox_setting(state, "HD text", "hd_text");
     checkbox_setting(state, "HD text shadows", "hd_text_shadows");
