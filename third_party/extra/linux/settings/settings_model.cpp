@@ -375,7 +375,14 @@ bool validate_setting(std::string_view key, std::string_view value, std::string&
 
     value = trim(value);
     switch (rule->kind) {
-    case RuleKind::Boolean:
+    case RuleKind::Boolean: {
+        long long number = 0;
+        if (!parse_integer(value, number) || number < 0 || number > 1) {
+            error = "setting '" + std::string(key) + "' must be 0 or 1";
+            return false;
+        }
+        break;
+    }
     case RuleKind::Integer: {
         long long number = 0;
         if (!parse_integer(value, number) || number < rule->minimum || number > rule->maximum) {
@@ -451,7 +458,7 @@ bool validate_setting(std::string_view key, std::string_view value, std::string&
 const std::vector<std::string_view>& known_setting_keys() {
     static const std::vector<std::string_view> keys = [] {
         std::vector<std::string_view> result;
-        result.reserve(std::size(kRules));
+        result.reserve(sizeof(kRules) / sizeof(kRules[0]));
         for (const auto& rule : kRules) result.push_back(rule.key);
         return result;
     }();
