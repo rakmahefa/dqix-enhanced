@@ -1,0 +1,52 @@
+"""Validate the Linux payload created by tools/launcher/payload.py."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import subprocess
+import unittest
+
+
+class ReleasePayloadTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        configured = os.environ.get("DQIX_PAYLOAD_DIR", "build/payload")
+        cls.payload = Path(configured).resolve()
+        cls.manifest_path = cls.payload / "payload.json"
+        if not cls.manifest_path.is_file():
+            raise unittest.SkipTest("payload not built; set DQIX_PAYLOAD_DIR to test it")
+        cls.manifest = json.loads(cls.manifest_path.read_text(encoding="utf-8"))
+
+    def test_payload_has_portable_python_and_pyyaml(self) -> None:
+        python = self.payload / self.manifest["paths"]["python"]
+        self.assertTrue(python.is_file(), python)
+        result = subprocess.run(
+            [str(python), "-c", "import yaml; print(yaml.__version__)"],
+            check=True, capture_output=True, text=True,
+        )
+        self.assertEqual(result.stdout.strip(), self.manifest["versions"]["PyYAML"])
+
+    def test_payload_has_sdl2_headers_and_runtime(self) -> None:
+        self.assertTrue((self.payload / "include/SDL2/SDL.h").is_file())
+        self.assertTrue((self.payload / "lib/libSDL2-2.0.so.0").is_file())
+        self.assertTrue((self.payload / "lib/libSDL2.so").exists())
+
+    def test_source_snapshot_has_makefile_launcher_and_imgui(self) -> None:
+        self.assertTrue((self.payload / "source/Makefile").is_file())
+        self.assertTrue((self.payload / "source/third_party/imgui/imgui.h").is_file())
+        self.assertTrue((self.payload / "source/tools/launcher/launcher.cpp").is_file())
+
+    def test_payload_contains_no_rom_or_generated_game_artifacts(self) -> None:
+        forbidden = {".nds", ".sav", ".o", ".exe", ".dll"}
+        offenders = [
+            path.relative_to(self.payload).as_posix()
+            for path in self.payload.rglob("*")
+            if path.is_file() and path.suffix.lower() in forbidden
+        ]
+        self.assertEqual(offenders, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

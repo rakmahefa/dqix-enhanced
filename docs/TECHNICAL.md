@@ -21,6 +21,14 @@ natively, plus the runtime that stands in for the DS hardware.
   players across the internet (see "Playing with friends far away" below and
   `docs/STATE.md`, which also says where the project stands).
 
+## Linux release (launcher + payload)
+
+The Linux release is a portable directory archive, not an AppImage. Extract the archive and run `DQIX-Enhanced/dqix-launcher`. The launcher has the DQ8-style five-step flow: Your ROM, Tools, Options, Build and Play. It uses SDL2 and Dear ImGui; the pinned source is in `third_party/imgui`.
+
+The adjacent `payload/` directory contains the tracked source snapshot, standalone CPython 3.12 with PyYAML, SDL2 headers and its runtime library, a `payload.json` manifest and license notices. The launcher invokes the source snapshot's root `Makefile` in the chosen workspace. The host supplies a C++17 compiler, GNU Make and OpenGL development headers. No AppImage, ROM, generated C or prebuilt game is distributed.
+
+The root Makefile replaces `tools/build-game.sh` and coordinates ROM validation, extraction, region mapping, ARM9 and ARM7 code generation, native compilation and game-folder assembly. `build.mk` remains the lower-level compilation/linking makefile. `make screenshots` renders the launcher pages as BMP files for visual review.
+
 ## Getting started (Windows)
 
 You need your own Dragon Quest IX cartridge's ROM (the USA version is the
@@ -333,14 +341,14 @@ build-pc.bat           one-click Windows build (installs MSYS2 first time)
 build-windows.sh       the build itself (runs inside MSYS2)
 hle.txt / hle7.txt     functions the runtime provides instead (thread switch)
 interpret.txt          functions run in the interpreter (encrypted in the ROM)
-build.mk               makefile (make -f build.mk)
+Makefile               root build orchestrator (ROM -> extraction -> recompile -> game)
+build.mk               lower-level compiler/linker makefile
 tools/where.sh         run, then show where the game is
 tests/                 decoder check vs LLVM; behaviour tests for recompiler + interpreter
 recomp.bat             regenerate the ARM9 C on Windows (developer build)
 Install Dragon Quest IX.bat  the setup window (tools/setup-wizard.ps1): ROM version, folder,
                        shortcuts, Apps entry (tools/uninstall.ps1), then BUILD.bat
 BUILD.bat              the one-click build: your ROM -> the game folder
-tools/build-game.sh    what BUILD.bat runs (inside MSYS2; also works on Linux)
 tools/extract_rom.py   takes the code out of a DS ROM (same output as dsd rom extract)
 config/usa/arm9        function names and relocations from the dqix-decomp project
 rom/, extras/          where your ROM and the optional extras go
