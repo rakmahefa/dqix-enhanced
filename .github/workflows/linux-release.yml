@@ -20,7 +20,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  semantic-tests:
+    name: Recompiler semantic tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install the supported ARM test toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential clang lld llvm
+          clang --version
+
+      - name: Run ARM and Thumb semantic tests
+        run: python3 tests/semantics/run.py 2000
+
   build:
+    needs: semantic-tests
     name: Build Linux ${{ matrix.arch }}
     strategy:
       fail-fast: false
@@ -43,29 +60,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             build-essential g++ make pkg-config \
-            clang lld llvm \
             libsdl2-dev libgl-dev \
             python3 python3-pip python3-venv \
             xvfb xauth
-
-      - name: Normalize LLVM tool names required by semantic tests
-        shell: bash
-        run: |
-          for tool in ld.lld llvm-objcopy llvm-readelf; do
-            if command -v "$tool" >/dev/null 2>&1; then
-              continue
-            fi
-            candidate="$(find /usr/bin -maxdepth 1 \\( -type f -o -type l \\) -name "$tool-[0-9]*" -print | sort -V | tail -n 1)"
-            if [[ -z "$candidate" ]]; then
-              echo "Required LLVM tool not found: $tool" >&2
-              ls -1 /usr/bin/"$tool"* 2>/dev/null || true
-              exit 1
-            fi
-            sudo ln -s "$candidate" "/usr/local/bin/$tool"
-          done
-          for tool in clang ld.lld llvm-objcopy llvm-readelf gcc; do
-            command -v "$tool"
-          done
 
       - name: Verify runner architecture
         run: |
@@ -81,10 +78,6 @@ jobs:
         run: |
           python3 -m compileall -q recomp tools tests
           sh -n tools/play.sh
-
-      - name: Run recompiler semantic tests (x86_64 host)
-        if: matrix.arch == 'x86_64'
-        run: python3 tests/semantics/run.py 2000
 
       - name: Restore payload download cache
         uses: actions/cache@v4

@@ -918,7 +918,8 @@ private:
 
         const float bodyHeight = ImGui::GetWindowHeight() - 184.0f;
         ImGui::BeginChild("body", ImVec2(0, bodyHeight), false);
-        ImGui::SetCursorPos(ImVec2(0, 0));
+        // The body child starts at local (0, 0): WindowPadding is explicitly zero above.
+        // Avoid a redundant SetCursorPos() here; child windows follow immediately.
         drawSidebar();
         ImGui::SameLine(0, 0);
         ImGui::BeginChild("main", ImVec2(0, 0), false);
