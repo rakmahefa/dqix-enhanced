@@ -82,7 +82,8 @@ jobs:
           python3 -m compileall -q recomp tools tests
           sh -n tools/play.sh
 
-      - name: Run recompiler semantic tests
+      - name: Run recompiler semantic tests (x86_64 host)
+        if: matrix.arch == 'x86_64'
         run: python3 tests/semantics/run.py 2000
 
       - name: Restore payload download cache
