@@ -112,6 +112,14 @@ original)
 
 ## Getting started
 
+### Linux (x86_64 and ARM64)
+
+Download the Linux release archive from the [DQIX Enhanced releases page](https://github.com/rakmahefa/dqix-enhanced/releases), extract it, and run `./DQIX-Enhanced/dqix-launcher`. The launcher follows five steps: choose your own `.nds` ROM, check the tools, select a workspace, build, and play.
+
+The release contains the launcher, project source, portable Python/PyYAML and SDL2 runtime. It does not contain a ROM or a prebuilt game. A C++17 compiler, GNU Make and OpenGL development headers are system prerequisites; the Tools page can install them on supported Debian/Ubuntu, Fedora and Arch-family distributions. Your workspace, ROM copy, game and saves stay on your computer.
+
+### Windows
+
 You need your own Dragon Quest IX cartridge's ROM (`.nds`; the USA or
 European version, others can be tried; the European one plays in the language
 chosen in Game > Language), Windows 10 or 11 (64-bit), about 3 GB of free space, and the internet the

@@ -56,7 +56,7 @@ rem ---- build
 set MSYSTEM=UCRT64
 set CHERE_INVOKING=1
 set "DQIX_ROM=%ROM%"
-"%MSYSROOT%\usr\bin\bash.exe" -lc "./tools/build-game.sh \"$(cygpath -u \"$DQIX_ROM\")\""
+"%MSYSROOT%\usr\bin\bash.exe" -lc "make -f Makefile build OS=Windows_NT ROM=\"$(cygpath -u \"$DQIX_ROM\")\" JOBS=\"$(nproc)\""
 if errorlevel 1 goto failed
 echo.
 echo Finished. Play with game\dqix.exe (you can make a shortcut to it).
