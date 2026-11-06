@@ -43,6 +43,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             build-essential g++ make pkg-config \
+            clang lld llvm \
             libsdl2-dev libgl-dev \
             python3 python3-pip python3-venv \
             xvfb xauth
