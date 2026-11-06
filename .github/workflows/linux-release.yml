@@ -48,6 +48,25 @@ jobs:
             python3 python3-pip python3-venv \
             xvfb xauth
 
+      - name: Normalize LLVM tool names required by semantic tests
+        shell: bash
+        run: |
+          for tool in ld.lld llvm-objcopy llvm-readelf; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              continue
+            fi
+            candidate="$(find /usr/bin -maxdepth 1 \\( -type f -o -type l \\) -name "$tool-[0-9]*" -print | sort -V | tail -n 1)"
+            if [[ -z "$candidate" ]]; then
+              echo "Required LLVM tool not found: $tool" >&2
+              ls -1 /usr/bin/"$tool"* 2>/dev/null || true
+              exit 1
+            fi
+            sudo ln -s "$candidate" "/usr/local/bin/$tool"
+          done
+          for tool in clang ld.lld llvm-objcopy llvm-readelf gcc; do
+            command -v "$tool"
+          done
+
       - name: Verify runner architecture
         run: |
           case "${{ matrix.arch }}" in
