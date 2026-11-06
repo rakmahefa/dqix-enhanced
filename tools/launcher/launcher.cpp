@@ -868,6 +868,9 @@ private:
             if (!canContinue) ImGui::EndDisabled();
         } else if (fs::exists(fs::path(m_workspace) / "game/play.sh")) {
             if (primaryButton("Play", ImVec2(185, 44))) launchGame();
+        } else {
+            // Keep the footer's reserved action slot registered when no game exists yet.
+            ImGui::Dummy(ImVec2(185, 44));
         }
         ImGui::EndChild();
     }
