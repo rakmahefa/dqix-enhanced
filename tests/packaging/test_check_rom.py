@@ -14,24 +14,31 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
+def nds_header(game_code: bytes) -> bytes:
+    header = bytearray(MODULE.NDS_HEADER_SIZE)
+    header[MODULE.GAME_CODE_OFFSET:MODULE.GAME_CODE_OFFSET + 4] = game_code
+    return bytes(header)
+
+
 class CheckRomTests(unittest.TestCase):
     def test_rejects_a_truncated_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             rom = Path(directory) / "short.nds"
-            rom.write_bytes(b"not a Nintendo DS ROM")
+            header = bytearray(nds_header(b"YDQE"))
+            rom.write_bytes(header[:-1])
             with self.assertRaisesRegex(ValueError, "too small"):
                 MODULE.inspect_rom(rom)
 
     def test_accepts_usa_game_code(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             rom = Path(directory) / "usa.nds"
-            rom.write_bytes(bytes(12) + b"YDQE")
+            rom.write_bytes(nds_header(b"YDQE"))
             self.assertEqual(MODULE.inspect_rom(rom), "YDQE")
 
     def test_accepts_europe_game_code(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             rom = Path(directory) / "europe.nds"
-            rom.write_bytes(bytes(12) + b"YDQP")
+            rom.write_bytes(nds_header(b"YDQP"))
             self.assertEqual(MODULE.inspect_rom(rom), "YDQP")
 
 

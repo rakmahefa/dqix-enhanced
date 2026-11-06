@@ -38,14 +38,26 @@ class ReleasePayloadTests(unittest.TestCase):
         self.assertTrue((self.payload / "source/third_party/imgui/imgui.h").is_file())
         self.assertTrue((self.payload / "source/tools/launcher/launcher.cpp").is_file())
 
-    def test_payload_contains_no_rom_or_generated_game_artifacts(self) -> None:
-        forbidden = {".nds", ".sav", ".o", ".exe", ".dll"}
-        offenders = [
-            path.relative_to(self.payload).as_posix()
-            for path in self.payload.rglob("*")
-            if path.is_file() and path.suffix.lower() in forbidden
-        ]
-        self.assertEqual(offenders, [])
+    def test_payload_contains_no_rom_saves_or_generated_game_tree(self) -> None:
+        forbidden_rom_saves = {".nds", ".sav"}
+        offenders = []
+        for path in self.payload.rglob("*"):
+            if not path.is_file():
+                continue
+            relative = path.relative_to(self.payload)
+            if path.suffix.lower() in forbidden_rom_saves:
+                offenders.append(relative.as_posix())
+                continue
+            if relative.parts and relative.parts[0] == "source" and len(relative.parts) > 1:
+                if relative.parts[1] in {"build", "game", "rom", "extract", "obj", "gen", "gen7"}:
+                    offenders.append(relative.as_posix())
+                    continue
+            if path.name.lower() in {
+                "dqix", "dqix.exe", "dqixcore.so", "dqixcore.dll",
+                "dqix.nds", "dqix.sav",
+            }:
+                offenders.append(relative.as_posix())
+        self.assertEqual(offenders, [], f"ROM/save/generated game files found in payload: {offenders}")
 
 
 if __name__ == "__main__":

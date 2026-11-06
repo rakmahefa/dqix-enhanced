@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the minimum Nintendo DS ROM header required by the DQIX build."""
+"""Validate the Nintendo DS ROM header required by the DQIX build."""
 
 from __future__ import annotations
 
@@ -7,18 +7,24 @@ import argparse
 from pathlib import Path
 import sys
 
+NDS_HEADER_SIZE = 0x160
+GAME_CODE_OFFSET = 0x0C
+
 
 def inspect_rom(path: Path) -> str:
     try:
         with path.open("rb") as stream:
-            header = stream.read(16)
+            header = stream.read(NDS_HEADER_SIZE)
     except OSError as exc:
         raise ValueError(f"cannot read ROM: {exc}") from exc
 
-    if len(header) < 16:
-        raise ValueError("file is too small to contain a Nintendo DS header")
+    if len(header) < NDS_HEADER_SIZE:
+        raise ValueError(
+            f"file is too small to contain a complete Nintendo DS header "
+            f"({len(header)} of {NDS_HEADER_SIZE} bytes)"
+        )
 
-    code = header[12:16].decode("ascii", errors="replace")
+    code = header[GAME_CODE_OFFSET:GAME_CODE_OFFSET + 4].decode("ascii", errors="replace")
     if not code.strip() or not code.isalnum():
         raise ValueError("the Nintendo DS game-code field is empty or invalid")
 
