@@ -319,7 +319,7 @@ public:
             {"C compiler", "Compiles the native game and runtime", false, false, "not found"},
             {"GNU Make", "Runs the build rules", false, false, "not found"},
             {"OpenGL headers", "Compile the enhanced renderer", false, false, "not found"},
-            {"Python + PyYAML", "Translates ARM9 and ARM7 code", true, true, "Python 3.12.15 · PyYAML 6.0.2 · bundled"},
+            {"Python 3 + PyYAML", "Translates ARM9 and ARM7 code", false, false, "not found"},
             {"SDL2", "Window, sound and input", true, true, "SDL2 · bundled"}
         };
 
