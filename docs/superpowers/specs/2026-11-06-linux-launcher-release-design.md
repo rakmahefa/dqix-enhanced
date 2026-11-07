@@ -21,7 +21,7 @@ The shell uses the reference design's navy background, framed panel, subtle shad
 - The native C++17 launcher uses the existing SDL2 runtime and a pinned Dear ImGui submodule with the SDL2 platform and renderer backends.
 - The root Makefile replaces tools/build-game.sh and orchestrates ROM validation, extraction, region mapping, ARM9/ARM7 recompilation, native compilation and assembly.
 - Existing build.mk remains the lower-level compiler/linker makefile.
-- The Linux payload contains a tracked source snapshot, standalone CPython 3.12.15, a pinned PyYAML 6.0.2 wheel, SDL2 headers/runtime and license notices.
+- The Linux payload contains a tracked source snapshot, SDL2 headers/runtime and license notices. Python 3 and PyYAML are system prerequisites supplied by the host distribution; neither is bundled.
 - The host supplies a C compiler, GNU Make and OpenGL development headers; the recompiler emits C, which is built through `CC`. The launcher can install those packages on Debian/Ubuntu, Fedora-family and Arch-family systems.
 - Release archives use a folder containing dqix-launcher and payload/. No AppImage is produced.
 
