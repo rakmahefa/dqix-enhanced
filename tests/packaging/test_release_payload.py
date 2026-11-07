@@ -29,9 +29,25 @@ class ReleasePayloadTests(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), self.manifest["versions"]["PyYAML"])
 
     def test_payload_has_sdl2_headers_and_runtime(self) -> None:
-        self.assertTrue((self.payload / "include/SDL2/SDL.h").is_file())
+        include_dir = self.payload / "include/SDL2"
+        self.assertTrue((include_dir / "SDL.h").is_file())
         self.assertTrue((self.payload / "lib/libSDL2-2.0.so.0").is_file())
         self.assertTrue((self.payload / "lib/libSDL2.so").exists())
+
+        # Compile the same SDL header entry point used by runtime/frontend_sdl.c.
+        # This catches Debian's non-portable _real_SDL_config.h indirection.
+        compiler = shlex.split(os.environ.get("CC", "cc"))
+        result = subprocess.run(
+            compiler + ["-fsyntax-only", "-x", "c", "-I", str(include_dir), "-"],
+            input="#include <SDL.h>\nint main(void) { return SDL_INIT_VIDEO == 0; }\n",
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            "bundled SDL2 headers are not self-contained:\n" + result.stderr,
+        )
 
     def test_source_snapshot_has_makefile_launcher_and_imgui(self) -> None:
         self.assertTrue((self.payload / "source/Makefile").is_file())

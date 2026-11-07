@@ -238,6 +238,33 @@ def copy_sdl2(out: Path) -> dict[str, str]:
 
     include_destination = out / "include/SDL2"
     shutil.copytree(include_root, include_destination, dirs_exist_ok=True)
+
+    # Debian/Ubuntu ship a generic SDL_config.h wrapper which includes the
+    # architecture-specific header from /usr/include/<multiarch>/SDL2. That
+    # system path is not present on users' machines, so make the payload
+    # self-contained and resolve the wrapper relative to its own directory.
+    config_header = include_destination / "SDL_config.h"
+    config_text = config_header.read_text(encoding="utf-8") if config_header.is_file() else ""
+    debian_include = "#include <SDL2/_real_SDL_config.h>"
+    if debian_include in config_text:
+        multiarch = run(["cc", "-print-multiarch"])
+        candidates = []
+        if multiarch:
+            candidates.append(Path("/usr/include") / multiarch / "SDL2" / "_real_SDL_config.h")
+        candidates.extend(sorted(Path("/usr/include").glob("*/SDL2/_real_SDL_config.h")))
+        real_config = next((path for path in candidates if path.is_file()), None)
+        if real_config is None:
+            raise RuntimeError(
+                "Debian SDL2 headers use an architecture-specific SDL_config.h, "
+                "but cc -print-multiarch did not resolve _real_SDL_config.h"
+            )
+        shutil.copy2(real_config, include_destination / "_real_SDL_config.h")
+        config_header.write_text(
+            config_text.replace(debian_include, '#include "_real_SDL_config.h"'),
+            encoding="utf-8",
+        )
+        print(f"payload: bundled SDL2 configuration for {multiarch}", flush=True)
+
     lib_destination = out / "lib"
     lib_destination.mkdir(parents=True, exist_ok=True)
     shutil.copy2(library.resolve(), lib_destination / "libSDL2-2.0.so.0")

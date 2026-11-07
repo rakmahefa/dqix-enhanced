@@ -542,6 +542,17 @@ private:
         return m_log;
     }
 
+    std::string buildFailureSummary() {
+        const auto lines = logCopy();
+        for (const auto &line : lines) {
+            if (line.find("fatal error:") != std::string::npos ||
+                line.find(": error:") != std::string::npos ||
+                line.rfind("ERROR:", 0) == 0)
+                return line;
+        }
+        return {};
+    }
+
     void startBuild() {
         if (m_buildRunning) return;
         if (m_source.empty()) {
@@ -950,7 +961,7 @@ private:
         static const std::array<const char *, 7> names = {
             "Check the ROM", "Extract game code", "Map the region", "Recompile ARM9", "Recompile ARM7", "Compile the game", "Assemble the game folder"
         };
-        ImGui::BeginChild("build-progress", ImVec2(0, 218), true);
+        ImGui::BeginChild("build-progress", ImVec2(0, 178), true);
         for (int i = 0; i < static_cast<int>(names.size()); ++i) {
             const bool done = (m_buildFinished && m_buildSuccess) || i < m_stage;
             const bool current = m_buildRunning && i == m_stage;
@@ -977,9 +988,12 @@ private:
             if (ImGui::Button("Open game folder", ImVec2(160, 38))) openGameFolder();
         } else if (m_buildFinished || m_previewFailed) {
             const std::string buildError = errorCopy();
+            const std::string failureDetail = buildFailureSummary();
             ImGui::TextColored(m_buildCancelled ? kWarn : kBad, "%s",
                                m_buildCancelled ? "Build cancelled. Some workspace files may be incomplete; run Build again before Play."
-                                                : (buildError.empty() ? "The build failed. Check log.txt below." : buildError.c_str()));
+                                                : (failureDetail.empty()
+                                                    ? (buildError.empty() ? "The build failed. Check log.txt below." : buildError.c_str())
+                                                    : failureDetail.c_str()));
             if (ImGui::Button("Build again", ImVec2(135, 38))) startBuild();
         } else {
             ImGui::TextWrapped("Ready to build. Your ROM and workspace are not uploaded anywhere.");
@@ -1152,7 +1166,7 @@ private:
 
         // DQ8's fixed header: emblem, project name and one-line explanation.
         ImGui::BeginChild("header", ImVec2(0, 104), false);
-        ImGui::SetCursorPos(ImVec2(27, 20));
+        ImGui::SetCursorPos(ImVec2(31, 38));
         ImDrawList *headerDraw = ImGui::GetWindowDrawList();
         const ImVec2 logo(ImGui::GetWindowPos().x + 42, ImGui::GetWindowPos().y + 47);
         headerDraw->AddCircleFilled(logo, 24.0f, IM_COL32(244, 203, 82, 34), 36);
