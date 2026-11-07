@@ -157,6 +157,19 @@ void perf_note_allocation(size_t bytes) {
     counter_add(&g_total.allocated_bytes, (uint64_t)bytes);
 }
 
+char* perf_strdup(const char* text) {
+    size_t length;
+    char* copy;
+    if (!text) return NULL;
+    length = strlen(text);
+    if (length == SIZE_MAX) return NULL;
+    copy = (char*)malloc(length + 1);
+    if (!copy) return NULL;
+    memcpy(copy, text, length + 1);
+    perf_note_allocation(length + 1);
+    return copy;
+}
+
 void* perf_malloc(size_t size) {
     void* pointer = malloc(size);
     if (pointer) perf_note_allocation(size);

@@ -3,6 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include "update.h"
+#include "perf.h"
+#define malloc(size) perf_malloc(size)
+#define calloc(count, size) perf_calloc((count), (size))
+#define realloc(pointer, size) perf_realloc((pointer), (size))
+#define free(pointer) perf_free(pointer)
+#define strdup(text) perf_strdup(text)
 
 /* "v27" -> 27, 9999; "v27-nightly9" -> 27, 9 */
 static long long version_key(const char* v) {

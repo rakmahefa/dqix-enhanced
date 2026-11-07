@@ -12,6 +12,12 @@
 #include <wchar.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "perf.h"
+#define malloc(size) perf_malloc(size)
+#define calloc(count, size) perf_calloc((count), (size))
+#define realloc(pointer, size) perf_realloc((pointer), (size))
+#define free(pointer) perf_free(pointer)
+#define strdup(text) perf_strdup(text)
 
 static HWND g_hwnd;
 static HMENU g_bar;

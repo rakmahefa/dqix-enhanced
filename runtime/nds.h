@@ -28,6 +28,7 @@ int rt_host_rom(const uint8_t** rom, size_t* size);
 #define calloc(count, size) perf_calloc((count), (size))
 #define realloc(pointer, size) perf_realloc((pointer), (size))
 #define free(pointer) perf_free(pointer)
+#define strdup(text) perf_strdup(text)
 
 /* ---- logging ---- */
 extern int g_log_level;

@@ -17,6 +17,14 @@
 #include <string.h>
 #include <stdio.h>
 
+/* This module does not include nds.h; route its heap operations through the
+ * same allocation counters as the emulator core. */
+#define malloc(size) perf_malloc(size)
+#define calloc(count, size) perf_calloc((count), (size))
+#define realloc(pointer, size) perf_realloc((pointer), (size))
+#define free(pointer) perf_free(pointer)
+#define strdup(text) perf_strdup(text)
+
 typedef struct {
     int kind;                 /* MK_SUB, MK_ITEM, MK_SEP; or ROW_RESUME */
     int id;                   /* the command (items) */

@@ -36,6 +36,7 @@ void perf_reset_frame_clock(void);
 void perf_note_memory_lookup(int cpu_id);
 void perf_note_emulated_call(int cpu_id);
 void perf_note_allocation(size_t bytes);
+char* perf_strdup(const char* text);
 
 void perf_scope_begin(PerfScope* scope, const char* name);
 void perf_scope_end(PerfScope* scope);

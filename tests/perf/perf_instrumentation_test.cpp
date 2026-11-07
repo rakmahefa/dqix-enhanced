@@ -63,6 +63,9 @@ int main() {
     allocation = perf_realloc(allocation, 128);
     assert(allocation != nullptr);
     perf_free(allocation);
+    char* duplicate = perf_strdup("tracked");
+    assert(duplicate != nullptr && std::string(duplicate) == "tracked");
+    perf_free(duplicate);
 
     {
         ScopedPerfLogger scope("test.scoped");
