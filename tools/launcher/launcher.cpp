@@ -545,8 +545,7 @@ private:
     std::string buildFailureSummary() {
         const auto lines = logCopy();
         for (const auto &line : lines) {
-            if (line.find("fatal error:") != std::string::npos ||
-                line.find(": error:") != std::string::npos ||
+            if (line.find("error:") != std::string::npos ||
                 line.rfind("ERROR:", 0) == 0)
                 return line;
         }
