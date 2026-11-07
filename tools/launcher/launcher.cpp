@@ -883,7 +883,7 @@ private:
         drawSectionTitle("Tools on this computer", "The release carries Python, PyYAML and SDL2. Your system supplies a C compiler, GNU Make and OpenGL development headers used to build the game from your ROM.");
         for (const auto &tool : m_tools) {
             ImGui::BeginChild(("tool-" + tool.name).c_str(), ImVec2(0, 58), true);
-            ImGui::TextColored(tool.ready ? kGood : kWarn, "%s", tool.ready ? "●" : "○");
+            ImGui::TextColored(tool.ready ? kGood : kWarn, "%s", tool.ready ? "[+]" : "[-]");
             ImGui::SameLine();
             ImGui::BeginGroup();
             ImGui::Text("%s", tool.name.c_str());
@@ -958,8 +958,8 @@ private:
             const bool failed = !done && !current && !cancelled &&
                 (m_previewFailed || (m_buildFinished && !m_buildSuccess)) && i == m_stage;
             const ImVec4 statusColor = done ? kGood : ((current || cancelled) ? kGold : (failed ? kBad : kMuted));
-            const char *status = done ? "Done" : (current ? "Working…" : (cancelled ? "Cancelled" : (failed ? "Failed" : "Waiting")));
-            ImGui::TextColored(statusColor, "%s", done ? "✓" : (current ? "●" : (cancelled ? "!" : (failed ? "×" : "○"))));
+            const char *status = done ? "Done" : (current ? "Working" : (cancelled ? "Cancelled" : (failed ? "Failed" : "Waiting")));
+            ImGui::TextColored(statusColor, "%s", done ? "[x]" : (current ? "[>]" : (cancelled ? "[!]" : (failed ? "[x]" : "[ ]"))));
             ImGui::SameLine();
             ImGui::Text("%s", names[static_cast<size_t>(i)]);
             ImGui::SameLine();
