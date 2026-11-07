@@ -39,6 +39,14 @@ GAME_EXE := $(GAME_DIR)/dqix
 GAME_CORE := $(GAME_DIR)/dqixcore.so
 endif
 
+ifeq ($(OS),Windows_NT)
+BUILD_OS_ARGS := OS=Windows_NT
+GAME_LDFLAGS := -static-libgcc -Wl,--stack,67108864
+else
+BUILD_OS_ARGS :=
+GAME_LDFLAGS := -pthread
+endif
+
 ifeq ($(strip $(PAYLOAD_ABS)),)
 SDL_CFLAGS ?= $(shell sdl2-config --cflags 2>/dev/null)
 SDL_LIBS ?= $(shell sdl2-config --libs 2>/dev/null)
@@ -131,7 +139,7 @@ compile: recompile-arm9 recompile-arm7
 		FRONTEND=sdl OUT="$(GAME_EXE)" CORE="$(GAME_CORE)" \
 		CC="$(CC)" CFLAGS="-O1 -w" DEFS=-DRECOMP_TRACE PIC=-fPIC \
 		SDL_CFLAGS="$(SDL_CFLAGS)" SDL_LIBS="$(SDL_LIBS)" \
-		$(if $(filter Windows_NT,$(OS)),OS=Windows_NT LDFLAGS="-static-libgcc -Wl,--stack,67108864",LDFLAGS="-pthread") \
+		$(BUILD_OS_ARGS) LDFLAGS="$(GAME_LDFLAGS)" \
 		-j$(JOBS) "$(GAME_EXE)" core
 
 assemble: compile
