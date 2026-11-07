@@ -8,6 +8,9 @@ GEN7 ?= ../build/recomp7
 CC ?= gcc
 CXX ?= g++
 CFLAGS ?= -O1 -g -w
+ifeq ($(OS),Windows_NT)
+CXX_RUNTIME_LIBS ?= -static-libstdc++ -static-libgcc
+endif
 PERF_GIT_COMMIT ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null)
 PERF_DEFS = $(if $(strip $(PERF_GIT_COMMIT)),-DDQIX_GIT_COMMIT='"$(PERF_GIT_COMMIT)"')
 OBJ ?= obj
@@ -45,7 +48,7 @@ PERF_CPP_OBJ = $(OBJ)/rt/perf_new.o
 # resource the build makes from the ROM (tools/rom_icon.py)
 RES ?=
 $(OUT): $(GENOBJ) $(GEN7OBJ) $(RTOBJ) $(SLIRPOBJ) $(OBJ)/rt/exe_main.o $(PERF_CPP_OBJ) $(RES)
-	$(CXX) -o $@ $^ $(SDL_LIBS) -lm $(NET_LIBS) $(LDFLAGS) $(POSIX_LIBS)
+	$(CXX) -o $@ $^ $(CXX_RUNTIME_LIBS) $(SDL_LIBS) -lm $(NET_LIBS) $(LDFLAGS) $(POSIX_LIBS)
 
 # The game as a library (CORE=dqixcore.dll / dqixcore.so): in a session the
 # other players' DSes run from copies of it on one thread (hosting.c). Same
@@ -58,7 +61,7 @@ CORE_LDFLAGS ?= -Wl,-Bsymbolic
 endif
 core: $(CORE)
 $(CORE): $(GENOBJ) $(GEN7OBJ) $(CORE_RTOBJ) $(SLIRPOBJ) $(PERF_CPP_OBJ)
-	$(CXX) -shared -o $@ $^ -lm $(NET_LIBS) $(CORE_LDFLAGS) $(POSIX_LIBS)
+	$(CXX) -shared -o $@ $^ $(CXX_RUNTIME_LIBS) -lm $(NET_LIBS) $(CORE_LDFLAGS) $(POSIX_LIBS)
 
 $(OBJ)/slirp/%.o: third_party/libslirp/%.c
 	@mkdir -p $(dir $@)

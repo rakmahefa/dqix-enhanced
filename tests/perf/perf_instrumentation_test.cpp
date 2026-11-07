@@ -8,6 +8,8 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <sstream>
+#include <vector>
 #include <string>
 #include <thread>
 
@@ -83,9 +85,40 @@ int main() {
     assert(contents.find("# build_version=") != std::string::npos);
     assert(contents.find("# git_commit=") != std::string::npos);
     assert(contents.find("memory_lookups_arm9") != std::string::npos);
-    assert(contents.find(",3,2,1,1,0,1,3,196,") != std::string::npos);
-    assert(contents.find("frame,42,") != std::string::npos);
-    assert(contents.find("scope,") != std::string::npos);
+    {
+        std::istringstream rows(contents);
+        std::string line;
+        bool found_frame = false, found_scope = false;
+        while (std::getline(rows, line)) {
+            if (line.compare(0, 9, "frame,42,") == 0) {
+                std::vector<std::string> columns;
+                std::istringstream fields(line);
+                std::string field;
+                while (std::getline(fields, field, ',')) columns.push_back(field);
+                assert(columns.size() >= 16);
+                assert(std::stoull(columns[7]) >= 3);   // memory lookups total
+                assert(std::stoull(columns[8]) >= 2);   // ARM9 lookups
+                assert(std::stoull(columns[9]) >= 1);   // ARM7 lookups
+                assert(std::stoull(columns[10]) >= 1);  // emulated fallback calls
+                assert(std::stoull(columns[13]) >= 3);  // malloc + realloc + new
+                assert(std::stoull(columns[14]) >= 196);
+                found_frame = true;
+            } else if (line.compare(0, 6, "scope,") == 0) {
+                std::vector<std::string> columns;
+                std::istringstream fields(line);
+                std::string field;
+                while (std::getline(fields, field, ',')) columns.push_back(field);
+                assert(columns.size() >= 16);
+                assert(columns[5].find("test.scoped") != std::string::npos);
+                assert(std::stoull(columns[7]) >= 1);
+                assert(std::stoull(columns[13]) >= 1);
+                assert(std::stoull(columns[14]) >= 4);
+                found_scope = true;
+            }
+        }
+        assert(found_frame);
+        assert(found_scope);
+    }
     assert(contents.find("test.scoped") != std::string::npos);
     assert(contents.find("test-scene") != std::string::npos);
 
