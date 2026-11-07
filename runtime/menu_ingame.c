@@ -12,9 +12,18 @@
 #include "menu.h"
 #include "text.h"
 #include "controls.h"
+#include "perf.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
+/* This module does not include nds.h; route its heap operations through the
+ * same allocation counters as the emulator core. */
+#define malloc(size) perf_malloc(size)
+#define calloc(count, size) perf_calloc((count), (size))
+#define realloc(pointer, size) perf_realloc((pointer), (size))
+#define free(pointer) perf_free(pointer)
+#define strdup(text) perf_strdup(text)
 
 typedef struct {
     int kind;                 /* MK_SUB, MK_ITEM, MK_SEP; or ROW_RESUME */
@@ -130,8 +139,12 @@ void ingame_menu_open(void) {
     if (g_open) return;
     g_open = 1; g_depth = 0; g_sel[0] = 0; g_top[0] = 0;
     build_rows(); fix_sel(1); g_dirty = 1;
+    perf_set_scene("menu");
 }
-void ingame_menu_close(void) { g_open = 0; g_dirty = 1; }
+void ingame_menu_close(void) {
+    g_open = 0; g_dirty = 1;
+    perf_set_scene("gameplay");
+}
 
 static void move(int dir) {
     if (!g_nrows) return;

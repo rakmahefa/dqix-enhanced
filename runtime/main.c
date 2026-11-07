@@ -80,6 +80,9 @@ int dqix_main(int argc, char** argv) {
         fprintf(stderr, "usage: %s <rom.nds> <extract/usa dir> [frames] [log level] [save file]\n", argv[0]);
         return 2;
     }
+    perf_init();
+    atexit(perf_shutdown);
+    perf_set_scene("loading");
     load_rom(argv[1]);
     if (argc > 3) g_frame_limit = strtoull(argv[3], NULL, 0);
     if (argc > 4) g_log_level = atoi(argv[4]);
@@ -96,6 +99,8 @@ int dqix_main(int argc, char** argv) {
     vram_remap();
     threads_init();
     threads_start_arm7(rom32(0x34));
+    perf_set_scene("gameplay");
+    perf_reset_frame_clock();
     dispatch_call(&g_arm9, rom32(0x24), 0);
     LOG_WARN("the game's entry function returned\n");
     return 0;

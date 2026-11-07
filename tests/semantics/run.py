@@ -127,6 +127,9 @@ int g_log_level = 0;
 void rt_log(int l, const char* f, ...) { (void)l; (void)f; }
 _Noreturn void rt_fatal(const char* f, ...) { fprintf(stderr, "fatal: %s\n", f); exit(6); }
 const RecompFunc* dispatch_find(Core* k, uint32_t a) { (void)k; (void)a; return NULL; }
+void perf_note_emulated_call(int cpu_id) { (void)cpu_id; }
+void perf_scope_begin(PerfScope* scope, const char* name) { (void)scope; (void)name; }
+void perf_scope_end(PerfScope* scope) { (void)scope; }
 void bios7_swi(Cpu* c, uint32_t n) { bios_swi(c, n); }
 """
 INTERP_MAIN = r"""

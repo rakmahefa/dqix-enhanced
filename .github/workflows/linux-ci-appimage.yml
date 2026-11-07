@@ -39,6 +39,19 @@ jobs:
           set -euo pipefail
           for script in .github/scripts/*.sh; do bash -n "$script"; done
 
+      - name: Test performance instrumentation and C++ RAII scopes
+        run: |
+          set -euo pipefail
+          cc -std=c11 -O2 -Wall -Wextra -Iruntime -c runtime/perf.c -o "$RUNNER_TEMP/dqix-perf.o"
+          g++ -std=c++11 -O2 -Wall -Wextra -Iruntime \
+            tests/perf/perf_instrumentation_test.cpp runtime/perf_new.cpp \
+            "$RUNNER_TEMP/dqix-perf.o" -pthread -o "$RUNNER_TEMP/dqix-perf-test"
+          mkdir -p "$RUNNER_TEMP/dqix-perf-test-work"
+          (cd "$RUNNER_TEMP/dqix-perf-test-work" && "$RUNNER_TEMP/dqix-perf-test")
+
+      - name: Run recompiler semantic tests
+        run: python tests/semantics/run.py 2000
+
       - name: Verify patch-derived Linux source mirror
         run: |
           set -euo pipefail
@@ -57,9 +70,6 @@ jobs:
           for script in tools/build-game.sh tools/where.sh build-windows.sh; do
             sh -n "$script"
           done
-
-      - name: Run recompiler semantic tests
-        run: python tests/semantics/run.py 2000
 
   appimage:
     name: Package and smoke-test builder AppImage

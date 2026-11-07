@@ -48,3 +48,6 @@ upload-to-github.bat
 /update/
 # a test build Claude puts here for trying a fix (not part of the project)
 /testbuild/
+
+# Runtime performance session logs
+/perf_logs/

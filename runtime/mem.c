@@ -136,11 +136,13 @@ static uint32_t unmapped_read(uint32_t a, int size) {
 }
 
 uint8_t mem_read8(uint32_t a) {
+    perf_note_memory_lookup(9);
     if ((a >> 24) == 4) return (uint8_t)io9_read(a, 1);
     uint8_t* p = resolve(a, 0);
     return p ? *p : (uint8_t)unmapped_read(a, 1);
 }
 uint16_t mem_read16(uint32_t a) {
+    perf_note_memory_lookup(9);
     a &= ~1u;
     if ((a >> 24) == 4) return (uint16_t)io9_read(a, 2);
     uint8_t* p = resolve(a, 0);
@@ -148,6 +150,7 @@ uint16_t mem_read16(uint32_t a) {
     uint16_t v; memcpy(&v, p, 2); return v;
 }
 uint32_t mem_read32(uint32_t a) {
+    perf_note_memory_lookup(9);
     a &= ~3u;
     if ((a >> 24) == 4) return io9_read(a, 4);
     uint8_t* p = resolve(a, 0);
@@ -167,6 +170,7 @@ static inline int watching(uint32_t a) {
 }
 
 void mem_write8(uint32_t a, uint8_t v) {
+    perf_note_memory_lookup(9);
     if (watching(a)) watch_hit(a, v, 1);
     if ((a >> 24) == 4) { io9_write(a, v, 1); return; }
     /* 8-bit writes to VRAM/palette/OAM are ignored on the DS */
@@ -175,6 +179,7 @@ void mem_write8(uint32_t a, uint8_t v) {
     if (p) { uint8_t o = *p; *p = v; tx_write_v(a, 1, (uint32_t)(o ^ v)); } else LOG_WARN("write8 to unmapped %08x = %02x\n", a, v);
 }
 void mem_write16(uint32_t a, uint16_t v) {
+    perf_note_memory_lookup(9);
     a &= ~1u;
     if (watching(a)) watch_hit(a, v, 2);
     if ((a >> 24) == 4) { io9_write(a, v, 2); return; }
@@ -182,6 +187,7 @@ void mem_write16(uint32_t a, uint16_t v) {
     if (p) { uint16_t o; memcpy(&o, p, 2); memcpy(p, &v, 2); tx_write_v(a, 2, (uint32_t)(o ^ v)); } else LOG_WARN("write16 to unmapped %08x = %04x\n", a, v);
 }
 void mem_write32(uint32_t a, uint32_t v) {
+    perf_note_memory_lookup(9);
     a &= ~3u;
     if (watching(a)) watch_hit(a, v, 4);
     if ((a >> 24) == 4) { io9_write(a, v, 4); return; }
