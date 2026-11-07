@@ -10,36 +10,10 @@ import os
 import platform
 import shutil
 import subprocess
-import sys
 import tarfile
-import tempfile
 import urllib.request
-import zipfile
 from pathlib import Path, PurePosixPath
 
-PYTHON_RELEASE = "20261003"
-PYTHON_VERSION = "3.12.15"
-PYTHON_BUILDS = {
-    "x86_64": (
-        "x86_64-unknown-linux-gnu",
-        "731af898886c5f821890dc901eca3c651cca8e51fa7308c159d12a1194aeac91",
-    ),
-    "aarch64": (
-        "aarch64-unknown-linux-gnu",
-        "6541297dd1798dec8b98c3ad7492808a5b9d1c126801ceb2011e7754cd20d1ce",
-    ),
-}
-PYAML_VERSION = "6.0.2"
-PYAML_WHEELS = {
-    "x86_64": (
-        "manylinux2014_x86_64",
-        "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476",
-    ),
-    "aarch64": (
-        "manylinux2014_aarch64",
-        "1f71ea527786de97d1a0cc0eacd1defc0985dcf6b3f17bb77dcfc8c34bec4dc5",
-    ),
-}
 SDL2_VERSION_MIN = (2, 0, 18)
 PRIVATE_ROOTS = {
     ".git", ".worktrees", "build", "game", "rom", "extract", "obj",
@@ -86,21 +60,6 @@ def download(url: str, expected_sha256: str, destination: Path) -> Path:
             f"SHA-256 mismatch for {url}: expected {expected_sha256}, got {actual}"
         )
     return destination
-
-
-def safe_extract_tar(archive: Path, destination: Path) -> None:
-    destination.mkdir(parents=True, exist_ok=True)
-    root = destination.resolve()
-    with tarfile.open(archive, "r:gz") as tar:
-        for member in tar.getmembers():
-            target = (destination / member.name).resolve()
-            if target != root and root not in target.parents:
-                raise RuntimeError(f"unsafe path in Python archive: {member.name}")
-            if member.issym() or member.islnk():
-                link = (target.parent / member.linkname).resolve()
-                if link != root and root not in link.parents:
-                    raise RuntimeError(f"unsafe link in Python archive: {member.name}")
-        tar.extractall(destination)
 
 
 def host_arch() -> str:
@@ -150,77 +109,6 @@ def copy_source(repo: Path, destination: Path) -> None:
     if not (destination / "Makefile").is_file():
         raise RuntimeError("the tracked source snapshot is missing the root Makefile")
     print(f"payload: copied {copied} tracked files", flush=True)
-
-
-def build_python(arch: str, out: Path, cache: Path, work: Path) -> dict[str, str]:
-    triple, expected = PYTHON_BUILDS[arch]
-    archive_name = f"cpython-{PYTHON_VERSION}+{PYTHON_RELEASE}-{triple}-install_only_stripped.tar.gz"
-    url = (
-        f"https://github.com/astral-sh/python-build-standalone/releases/download/{PYTHON_RELEASE}/"
-        + archive_name.replace("+", "%2B")
-    )
-    archive = download(url, expected, cache / archive_name)
-    tools_dir = out / "tools"
-    safe_extract_tar(archive, tools_dir)
-    python = tools_dir / "python/bin/python3"
-    if not python.is_file():
-        raise RuntimeError("the standalone Python archive did not contain tools/python/bin/python3")
-
-    platform_tag, expected_wheel = PYAML_WHEELS[arch]
-    wheel_dir = work / "wheels"
-    wheel_dir.mkdir(parents=True, exist_ok=True)
-    pip_command = [
-        sys.executable, "-m", "pip", "download",
-        "--only-binary=:all:", "--no-deps",
-        "--implementation", "cp", "--python-version", "3.12", "--abi", "cp312",
-        "--platform", platform_tag, "--dest", str(wheel_dir),
-        f"PyYAML=={PYAML_VERSION}",
-    ]
-    print("payload: downloading the pinned PyYAML wheel", flush=True)
-    run(pip_command)
-    wheels = list(wheel_dir.glob("PyYAML-*.whl")) + list(wheel_dir.glob("pyyaml-*.whl"))
-    if len(wheels) != 1:
-        raise RuntimeError(f"expected one PyYAML wheel, found {len(wheels)}")
-    wheel = wheels[0]
-    actual = sha256(wheel)
-    if actual != expected_wheel:
-        raise RuntimeError(
-            f"PyYAML wheel SHA-256 mismatch: expected {expected_wheel}, got {actual}"
-        )
-
-    site_packages = tools_dir / "python/lib/python3.12/site-packages"
-    site_packages.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(wheel) as archive_file:
-        for name in archive_file.namelist():
-            target = PurePosixPath(name)
-            if target.is_absolute() or ".." in target.parts:
-                raise RuntimeError(f"unsafe path in PyYAML wheel: {name}")
-        archive_file.extractall(site_packages)
-        licenses = [
-            name for name in archive_file.namelist()
-            if "license" in name.lower() and not name.endswith("/")
-        ]
-        if licenses:
-            license_path = out / "licenses/PyYAML/LICENSE"
-            license_path.parent.mkdir(parents=True, exist_ok=True)
-            license_path.write_bytes(archive_file.read(licenses[0]))
-
-    python_license = next(iter(sorted(tools_dir.glob("python/**/LICENSE.txt"))), None)
-    if python_license is None:
-        python_license = next(iter(sorted(tools_dir.glob("python/**/LICENSE"))), None)
-    if python_license is None:
-        raise RuntimeError("the standalone Python distribution has no license file")
-    license_dir = out / "licenses/Python"
-    license_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(python_license, license_dir / python_license.name)
-
-    probe = run([python, "-c", "import yaml, sys; print(sys.version.split()[0], yaml.__version__)"])
-    print(f"payload: bundled Python and PyYAML {probe}", flush=True)
-    return {
-        "python": "tools/python/bin/python3",
-        "python_version": PYTHON_VERSION,
-        "pyyaml_version": PYAML_VERSION,
-    }
 
 
 def copy_sdl2(out: Path) -> dict[str, str]:
@@ -292,8 +180,6 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[2])
-    parser.add_argument("--cache", type=Path)
-    parser.add_argument("--work", type=Path)
     parser.add_argument("--version", default="")
     args = parser.parse_args()
 
@@ -302,16 +188,11 @@ def main() -> int:
     arch = host_arch()
     repo = args.repo.resolve()
     out = args.out.resolve()
-    cache = (args.cache or out.parent / "payload-cache").resolve()
-    work = (args.work or out.parent / "payload-work").resolve()
     if out.exists():
         shutil.rmtree(out)
-    shutil.rmtree(work, ignore_errors=True)
-    work.mkdir(parents=True, exist_ok=True)
     out.mkdir(parents=True, exist_ok=True)
 
     copy_source(repo, out / "source")
-    python_info = build_python(arch, out, cache, work)
     sdl_info = copy_sdl2(out)
     commit = run(["git", "rev-parse", "--short=12", "HEAD"], cwd=repo)
     version = args.version or commit
@@ -322,16 +203,19 @@ def main() -> int:
         "platform": f"linux-{arch}",
         "paths": {
             "source": "source",
-            "python": python_info["python"],
             "sdl2_include": "include/SDL2",
             "sdl2_library": sdl_info["sdl2_library"],
         },
         "versions": {
-            "Python": python_info["python_version"],
-            "PyYAML": python_info["pyyaml_version"],
             "SDL2": sdl_info["sdl2_version"],
         },
-        "system_requirements": ["C compiler", "GNU Make", "OpenGL development headers"],
+        "system_requirements": [
+            "Python 3",
+            "PyYAML for Python 3",
+            "C compiler",
+            "GNU Make",
+            "OpenGL development headers",
+        ],
     }
     (out / "payload.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     notices = out / "licenses/README.txt"
@@ -339,10 +223,10 @@ def main() -> int:
     notices.write_text(
         "DQIX Enhanced Linux payload notices\n"
         "====================================\n"
-        "Python and PyYAML license texts are in their respective folders.\n"
+        "Python and PyYAML are provided by the host Linux distribution.\n"
         "SDL2 retains its upstream license; see SDL2/copyright.\n"
         "Dear ImGui is bundled as source in source/third_party/imgui and retains its MIT license.\n"
-        "The host system supplies the C++ compiler and GNU Make; neither is bundled.\n",
+        "The host system supplies Python 3, PyYAML, the C/C++ compilers and GNU Make.\n",
         encoding="utf-8",
     )
     print(f"payload: ready at {out} (linux-{arch}, {version})", flush=True)
