@@ -82,7 +82,7 @@ def main() -> int:
         "3. Drop your own USA or European Dragon Quest IX .nds ROM onto the window.\n"
         "4. Follow Your ROM, Tools, Options, Build and Play.\n\n"
         "The payload contains the source snapshot, portable Python/PyYAML and SDL2.\n"
-        "A C++17 compiler, GNU Make and OpenGL development headers are installed by\n"
+        "A C compiler, GNU Make and OpenGL development headers are installed by\n"
         "the launcher when missing. No ROM or generated game code is distributed.\n"
         "The default workspace and all saves remain in your user data directory.\n",
         encoding="utf-8",

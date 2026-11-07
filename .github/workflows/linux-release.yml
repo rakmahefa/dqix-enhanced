@@ -62,7 +62,7 @@ jobs:
             build-essential g++ make pkg-config \
             libsdl2-dev libgl-dev \
             python3 python3-pip python3-venv \
-            xvfb xauth
+            xvfb xauth python3-pil
 
       - name: Verify runner architecture
         run: |
@@ -112,6 +112,9 @@ jobs:
           xvfb-run -a build/launcher/dqix-launcher \
             --preview "$GITHUB_WORKSPACE/build/launcher-screenshots"
 
+      - name: Convert launcher screenshots to PNG
+        run: python3 tools/launcher/convert-screenshots.py build/launcher-screenshots
+
       - name: Run packaging, payload and screenshot tests
         env:
           DQIX_PAYLOAD_DIR: ${{ github.workspace }}/build/payload
@@ -121,7 +124,7 @@ jobs:
       - name: Package launcher and payload release archive
         run: make release PAYLOAD="$GITHUB_WORKSPACE/build/payload"
 
-      - name: Upload Linux release archive and screenshots
+      - name: Upload Linux release archive
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -129,7 +132,16 @@ jobs:
           path: |
             build/release/DQIX-Enhanced-*.tar.gz
             build/release/SHA256SUMS-Linux-*.txt
-            build/launcher-screenshots/*.bmp
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload launcher PNG screenshots separately
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dqix-launcher-screenshots-${{ matrix.arch }}
+          path: build/launcher-screenshots/*.png
           if-no-files-found: warn
           retention-days: 14
           compression-level: 0

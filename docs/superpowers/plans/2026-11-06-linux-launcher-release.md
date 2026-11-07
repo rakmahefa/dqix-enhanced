@@ -4,7 +4,7 @@
 
 **Goal:** Ship a DQ8-shaped Linux launcher with a portable source/tool payload and a sync-safe CI release.
 
-**Architecture:** A C++17 Dear ImGui/SDL2 launcher invokes the root Makefile. The payload carries the project source, portable Python/PyYAML and SDL2. CI builds x86_64 and ARM64 archives and produces screenshot captures.
+**Architecture:** A C++17 Dear ImGui/SDL2 launcher invokes the root Makefile. The payload carries the project source, portable Python/PyYAML and SDL2. CI builds x86_64 and ARM64 archives and produces separate PNG screenshot artifacts.
 
 **Tech stack:** C++17, SDL2, pinned Dear ImGui submodule, GNU Make, Python 3.12.15, PyYAML 6.0.2, GitHub Actions.
 
@@ -45,8 +45,8 @@ Files: .gitmodules, third_party/imgui gitlink, tools/launcher/Makefile, tools/la
 
 - [ ] Pin Dear ImGui to f1cc2ae15e53a861a874c3034aae6798fde194ab.
 - [ ] Build the five-page UI shell with SDL2 backends.
-- [ ] Implement ROM drop/browse, tools checks, workspace options, worker-based build/log/cancel and Play.
-- [ ] Implement preview mode that renders seven actual screenshots.
+- [x] Implement ROM drop/browse plus a pasteable path, C compiler/tool checks, workspace options, worker-based build/log/cancel, log.txt + Copy log, and guarded Play.
+- [x] Implement preview mode that renders seven actual screenshots and convert the captures to PNG.
 - [ ] Compile and inspect screenshots on a Linux runner.
 
 ### Task 3: Portable Linux payload and packaging
@@ -65,7 +65,7 @@ Files: .github/workflows/linux-release.yml, tests/packaging/test_launcher_screen
 
 - [ ] Build on Ubuntu 22.04 x86_64 and ARM64.
 - [ ] Run semantic tests, ROM/Makefile/payload tests and screenshot smoke tests.
-- [ ] Upload seven launcher screenshots and the corresponding release archive as Actions artifacts.
+- [x] Upload seven launcher PNG screenshots separately from the Linux release archive artifacts.
 - [ ] Publish a GitHub Release only for v* tags and attach SHA-256 checksums.
 
 ### Task 5: Sync policy and documentation

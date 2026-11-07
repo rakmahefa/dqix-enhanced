@@ -248,7 +248,7 @@ def copy_sdl2(out: Path) -> dict[str, str]:
 
     sdl_version = run(["pkg-config", "--modversion", "sdl2"])
     if tuple(int(part) for part in sdl_version.split(".")[:3]) < SDL2_VERSION_MIN:
-        raise RuntimeError(f"SDL2 {sdl_version} is too old; need at least 2.0.17")
+        raise RuntimeError(f"SDL2 {sdl_version} is too old; need at least 2.0.18")
     notice_candidates = [
         Path("/usr/share/doc/libsdl2-2.0-0/copyright"),
         Path("/usr/share/doc/libsdl2-dev/copyright"),
@@ -304,7 +304,7 @@ def main() -> int:
             "PyYAML": python_info["pyyaml_version"],
             "SDL2": sdl_info["sdl2_version"],
         },
-        "system_requirements": ["C++17 compiler", "GNU Make", "OpenGL development headers"],
+        "system_requirements": ["C compiler", "GNU Make", "OpenGL development headers"],
     }
     (out / "payload.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     notices = out / "licenses/README.txt"
