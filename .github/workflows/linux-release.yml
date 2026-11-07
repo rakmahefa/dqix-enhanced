@@ -101,6 +101,9 @@ jobs:
       - name: Compile native launcher
         run: make launcher PAYLOAD="$GITHUB_WORKSPACE/build/payload"
 
+      - name: Verify bundled SDL2 runtime path
+        run: readelf -d build/launcher/dqix-launcher | grep -F '$ORIGIN/payload/lib'
+
       - name: Verify launcher CLI
         run: |
           build/launcher/dqix-launcher --version

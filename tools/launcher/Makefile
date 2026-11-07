@@ -14,7 +14,7 @@ escape_spaces = $(subst $(space),\$(space),$(1))
 PAYLOAD_ABS := $(if $(strip $(PAYLOAD)),$(shell realpath -m -- "$(PAYLOAD)"),)
 PAYLOAD_ESC := $(call escape_spaces,$(PAYLOAD_ABS))
 SDL_CFLAGS := -I$(PAYLOAD_ESC)/include/SDL2
-SDL_LIBS := -L$(PAYLOAD_ESC)/lib -Wl,-rpath,'$ORIGIN/payload/lib' -lSDL2
+SDL_LIBS := -L$(PAYLOAD_ESC)/lib -Wl,-rpath,'$$ORIGIN/payload/lib' -lSDL2
 else
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2)
 SDL_LIBS := $(shell pkg-config --libs sdl2)
