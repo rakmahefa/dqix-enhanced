@@ -49,6 +49,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/dqix-perf-test-work"
           (cd "$RUNNER_TEMP/dqix-perf-test-work" && "$RUNNER_TEMP/dqix-perf-test")
 
+      - name: Run recompiler semantic tests
+        run: python tests/semantics/run.py 2000
+
       - name: Verify patch-derived Linux source mirror
         run: |
           set -euo pipefail
@@ -67,9 +70,6 @@ jobs:
           for script in tools/build-game.sh tools/where.sh build-windows.sh; do
             sh -n "$script"
           done
-
-      - name: Run recompiler semantic tests
-        run: python tests/semantics/run.py 2000
 
   appimage:
     name: Package and smoke-test builder AppImage
