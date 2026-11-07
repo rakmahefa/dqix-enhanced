@@ -2,11 +2,11 @@
 
 > For agentic workers: use the executing-plans skill to implement the plan task by task. Steps use checkbox syntax for tracking.
 
-**Goal:** Ship a DQ8-shaped Linux launcher with a portable source/tool payload and a sync-safe CI release.
+**Goal:** Ship a DQ8-shaped Linux launcher with a portable source/SDL2 payload and a sync-safe CI release.
 
-**Architecture:** A C++17 Dear ImGui/SDL2 launcher invokes the root Makefile. The payload carries the project source, portable Python/PyYAML and SDL2. CI builds x86_64 and ARM64 archives and produces separate PNG screenshot artifacts.
+**Architecture:** A C++17 Dear ImGui/SDL2 launcher invokes the root Makefile. The payload carries the project source and SDL2; Python 3 and PyYAML come from the host distribution. CI builds x86_64 and ARM64 archives and produces separate PNG screenshot artifacts.
 
-**Tech stack:** C++17, SDL2, pinned Dear ImGui submodule, GNU Make, Python 3.12.15, PyYAML 6.0.2, GitHub Actions.
+**Tech stack:** C++17, SDL2, pinned Dear ImGui submodule, GNU Make, system Python 3 + PyYAML, GitHub Actions.
 
 **Spec:** docs/superpowers/specs/2026-11-06-linux-launcher-release-design.md
 
@@ -53,7 +53,7 @@ Files: .gitmodules, third_party/imgui gitlink, tools/launcher/Makefile, tools/la
 
 Files: tools/launcher/payload.py, tools/launcher/package.py, tests/packaging/test_release_payload.py.
 
-- [ ] Pin standalone CPython 3.12.15 and the PyYAML 6.0.2 architecture wheels by SHA-256.
+- [x] Use system Python 3 and PyYAML; do not bundle a Python runtime or wheel.
 - [ ] Bundle SDL2 headers/runtime and preserve license notices.
 - [ ] Copy tracked source and the pinned submodule while excluding private/generated ROM-derived files.
 - [ ] Package dqix-launcher and payload/ under DQIX-Enhanced/.
