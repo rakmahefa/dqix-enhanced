@@ -48,4 +48,4 @@ locations or battle state. Game-specific code can update the label through
 The C runtime uses `perf_scope_begin()/perf_scope_end()`; C++ code can use
 `ScopedPerfLogger` from `runtime/perf_raii.hpp`. The counters are atomic because
 ARM7 and ARM9 may run on separate threads. A long scope crossing a frame boundary
-still reports its lifetime delta; frame counters are reset independently.
+still reports its lifetime delta; frame rows use a moving cumulative-counter baseline.

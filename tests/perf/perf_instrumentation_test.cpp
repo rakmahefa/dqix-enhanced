@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <thread>
 
@@ -82,6 +83,7 @@ int main() {
     assert(contents.find("# build_version=") != std::string::npos);
     assert(contents.find("# git_commit=") != std::string::npos);
     assert(contents.find("memory_lookups_arm9") != std::string::npos);
+    assert(contents.find(",3,2,1,1,0,1,3,196,") != std::string::npos);
     assert(contents.find("frame,42,") != std::string::npos);
     assert(contents.find("scope,") != std::string::npos);
     assert(contents.find("test.scoped") != std::string::npos);

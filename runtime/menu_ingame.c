@@ -12,6 +12,7 @@
 #include "menu.h"
 #include "text.h"
 #include "controls.h"
+#include "perf.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -130,8 +131,12 @@ void ingame_menu_open(void) {
     if (g_open) return;
     g_open = 1; g_depth = 0; g_sel[0] = 0; g_top[0] = 0;
     build_rows(); fix_sel(1); g_dirty = 1;
+    perf_set_scene("menu");
 }
-void ingame_menu_close(void) { g_open = 0; g_dirty = 1; }
+void ingame_menu_close(void) {
+    g_open = 0; g_dirty = 1;
+    perf_set_scene("gameplay");
+}
 
 static void move(int dir) {
     if (!g_nrows) return;

@@ -3086,7 +3086,6 @@ static void handle_events(void) {
 }
 
 void frontend_frame(void) {
-    perf_set_scene(ingame_menu_is_open() ? "menu" : "gameplay");
     if (g_hidden) { sound_discard(); return; }
     uint64_t t_start = SDL_GetPerformanceCounter();
     if (!g_perf_end) g_perf_end = t_start;
