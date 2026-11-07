@@ -60,8 +60,8 @@ std::string trim(std::string value) {
     return value.substr(first);
 }
 
-std::string readPipe(const char *command) {
-    FILE *pipe = popen(command, "r");
+std::string readPipe(const std::string &command) {
+    FILE *pipe = popen(command.c_str(), "r");
     if (!pipe) return {};
     std::string result;
     std::array<char, 512> buffer{};
