@@ -47,7 +47,6 @@ def main() -> int:
         raise SystemExit(f"payload manifest is missing: {manifest_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     for required in (
-        "tools/python/bin/python3",
         "include/SDL2/SDL.h",
         "lib/libSDL2-2.0.so.0",
         "source/Makefile",
@@ -81,7 +80,8 @@ def main() -> int:
         "2. Open the DQIX-Enhanced folder and run ./dqix-launcher.\n"
         "3. Drop your own USA or European Dragon Quest IX .nds ROM onto the window.\n"
         "4. Follow Your ROM, Tools, Options, Build and Play.\n\n"
-        "The payload contains the source snapshot, portable Python/PyYAML and SDL2.\n"
+        "The payload contains the source snapshot and SDL2. Python 3 and PyYAML\n"
+        "are supplied by your Linux distribution.\n"
         "A C compiler, GNU Make and OpenGL development headers are installed by\n"
         "the launcher when missing. No ROM or generated game code is distributed.\n"
         "The default workspace and all saves remain in your user data directory.\n",
