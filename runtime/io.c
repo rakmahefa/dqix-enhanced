@@ -186,6 +186,7 @@ void time_advance_lines(uint32_t lines) {
     while (lines--) {
         g_subline = 0;
         if (++g_vcount >= LINES_PER_FRAME) {
+            perf_frame_end(g_frame);
             g_vcount = 0; g_frame++; wfc_frame(); ram_dump_check();
             if (g_frame_limit && g_frame >= g_frame_limit) rt_exit(0);
         }

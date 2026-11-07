@@ -448,12 +448,21 @@ static int step_thumb(St* s, uint32_t exit_lr) {
 unsigned long long g_interp_steps;
 
 void interp_call(Core* k, uint32_t target) {
+    PerfScope perf_scope;
+    perf_note_emulated_call(k->id == 0 ? 9 : 7);
+    perf_scope_begin(&perf_scope, k->id == 0 ? "ARM9.interpreter_fallback" : "ARM7.interpreter_fallback");
     St s = { k, k->cpu, k->bus, target & ~1u, (int)(target & 1), 0 };
     uint32_t exit_lr = k->cpu->r[14] & ~1u;
     LOG_DEBUG("%s interp: enter %08x (returns to %08x)\n", k->name, target, exit_lr);
     for (;;) {
         g_interp_steps++;
-        if (s.thumb ? step_thumb(&s, exit_lr) : step_arm(&s, exit_lr)) return;
-        if (s.pc == exit_lr) return;
+        if (s.thumb ? step_thumb(&s, exit_lr) : step_arm(&s, exit_lr)) {
+            perf_scope_end(&perf_scope);
+            return;
+        }
+        if (s.pc == exit_lr) {
+            perf_scope_end(&perf_scope);
+            return;
+        }
     }
 }

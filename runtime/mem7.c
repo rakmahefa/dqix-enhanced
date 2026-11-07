@@ -31,11 +31,13 @@ static uint32_t unmapped7(uint32_t a, int size) {
 }
 
 uint8_t mem7_read8(uint32_t a) {
+    perf_note_memory_lookup(7);
     if ((a >> 24) == 4) return (uint8_t)io7_read(a, 1);
     uint8_t* p = resolve7(a);
     return p ? *p : (uint8_t)unmapped7(a, 1);
 }
 uint16_t mem7_read16(uint32_t a) {
+    perf_note_memory_lookup(7);
     a &= ~1u;
     if ((a >> 24) == 4) return (uint16_t)io7_read(a, 2);
     uint8_t* p = resolve7(a);
@@ -43,6 +45,7 @@ uint16_t mem7_read16(uint32_t a) {
     uint16_t v; memcpy(&v, p, 2); return v;
 }
 uint32_t mem7_read32(uint32_t a) {
+    perf_note_memory_lookup(7);
     a &= ~3u;
     if ((a >> 24) == 4) return io7_read(a, 4);
     uint8_t* p = resolve7(a);
@@ -58,17 +61,20 @@ static int bios_write(uint32_t a) {
     return 1;
 }
 void mem7_write8(uint32_t a, uint8_t v) {
+    perf_note_memory_lookup(7);
     if ((a >> 24) == 4) { io7_write(a, v, 1); return; }
     uint8_t* p = resolve7(a);
     if (p) *p = v; else if (!bios_write(a)) LOG_WARN("arm7 write8 to unmapped %08x = %02x\n", a, v);
 }
 void mem7_write16(uint32_t a, uint16_t v) {
+    perf_note_memory_lookup(7);
     a &= ~1u;
     if ((a >> 24) == 4) { io7_write(a, v, 2); return; }
     uint8_t* p = resolve7(a);
     if (p) memcpy(p, &v, 2); else if (!bios_write(a)) LOG_WARN("arm7 write16 to unmapped %08x = %04x\n", a, v);
 }
 void mem7_write32(uint32_t a, uint32_t v) {
+    perf_note_memory_lookup(7);
     a &= ~3u;
     if ((a >> 24) == 4) { io7_write(a, v, 4); return; }
     uint8_t* p = resolve7(a);

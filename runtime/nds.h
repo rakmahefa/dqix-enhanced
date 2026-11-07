@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "cpu.h"
+#include "perf.h"
 
 /* ---- running inside another program (hosting.c) ---- */
 typedef struct {
@@ -20,6 +21,13 @@ _Noreturn void rt_exit(int code);
 int rt_yield(void);                       /* 1 if the host ran others meanwhile */
 int rt_host_rom(const uint8_t** rom, size_t* size);
 #define getenv(name) rt_getenv(name)
+
+/* Allocation counters for runtime translation units. perf.c deliberately
+ * avoids nds.h, so these wrappers delegate to the real C allocator. */
+#define malloc(size) perf_malloc(size)
+#define calloc(count, size) perf_calloc((count), (size))
+#define realloc(pointer, size) perf_realloc((pointer), (size))
+#define free(pointer) perf_free(pointer)
 
 /* ---- logging ---- */
 extern int g_log_level;
