@@ -346,15 +346,17 @@ public:
                 }
             }
             if (snapshot.page == Page::Build) {
-                m_buildFinished = true;
-                m_buildSuccess = !m_previewFailed;
+                m_buildFinished = m_previewFailed;
+                m_buildSuccess = false;
                 m_buildRunning = !m_previewFailed;
+                m_buildCancelled = false;
                 m_stage = m_previewFailed ? 5 : 4;
                 m_log = m_previewFailed
-                    ? std::vector<std::string>{"== Checking ROM", "== Extracting game code", "== Recompiling ARM9",
-                                               "== Recompiling ARM7", "== Compiling game", "error: compiler returned exit code 1"}
-                    : std::vector<std::string>{"== Checking ROM", "== Extracting game code", "== Recompiling ARM9",
-                                               "== Recompiling ARM7", "== Compiling game", "== Assembling game folder"};
+                    ? std::vector<std::string>{"== Checking ROM", "== Extracting game code", "== Mapping ROM region",
+                                               "== Recompiling ARM9", "== Recompiling ARM7", "== Compiling game",
+                                               "error: compiler returned exit code 1"}
+                    : std::vector<std::string>{"== Checking ROM", "== Extracting game code", "== Mapping ROM region",
+                                               "== Recompiling ARM9", "== Recompiling ARM7"};
             }
             drawFrame(false);
             SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, kWidth, kHeight, 32, SDL_PIXELFORMAT_ARGB8888);
@@ -940,20 +942,29 @@ private:
     }
 
     void drawBuildPage() {
-        drawSectionTitle("Building DQIX Enhanced", "The launcher checks your ROM, extracts both DS CPUs, generates native C code and compiles the game. The first build takes longer; later builds reuse unchanged outputs.");
+        const bool buildFailed = m_previewFailed || (m_buildFinished && !m_buildSuccess && !m_buildCancelled);
+        const char *title = m_buildRunning ? "Building DQIX Enhanced" :
+            (buildFailed ? "Build failed" : (m_buildCancelled ? "Build cancelled" :
+             (m_buildFinished && m_buildSuccess ? "Build complete" : "Build your game")));
+        drawSectionTitle(title, "The launcher checks your ROM, extracts both DS CPUs, generates native C code and compiles the game. The first build takes longer; later builds reuse unchanged outputs.");
         static const std::array<const char *, 7> names = {
             "Check the ROM", "Extract game code", "Map the region", "Recompile ARM9", "Recompile ARM7", "Compile the game", "Assemble the game folder"
         };
         ImGui::BeginChild("build-progress", ImVec2(0, 218), true);
         for (int i = 0; i < static_cast<int>(names.size()); ++i) {
-            const bool done = m_buildFinished && m_buildSuccess ? true : i < m_stage;
+            const bool done = (m_buildFinished && m_buildSuccess) || i < m_stage;
             const bool current = m_buildRunning && i == m_stage;
-            ImGui::TextColored(done ? kGood : (current ? kGold : kMuted), "%s", done ? "✓" : (current ? "●" : "○"));
+            const bool cancelled = m_buildCancelled && m_buildFinished && i == m_stage;
+            const bool failed = !done && !current && !cancelled &&
+                (m_previewFailed || (m_buildFinished && !m_buildSuccess)) && i == m_stage;
+            const ImVec4 statusColor = done ? kGood : ((current || cancelled) ? kGold : (failed ? kBad : kMuted));
+            const char *status = done ? "Done" : (current ? "Working…" : (cancelled ? "Cancelled" : (failed ? "Failed" : "Waiting")));
+            ImGui::TextColored(statusColor, "%s", done ? "✓" : (current ? "●" : (cancelled ? "!" : (failed ? "×" : "○"))));
             ImGui::SameLine();
             ImGui::Text("%s", names[static_cast<size_t>(i)]);
             ImGui::SameLine();
             ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 120.0f);
-            ImGui::TextDisabled("%s", done ? "Done" : (current ? "Working…" : "Waiting"));
+            ImGui::TextColored(statusColor, "%s", status);
         }
         ImGui::EndChild();
         ImGui::Spacing();
@@ -982,11 +993,11 @@ private:
         ImGui::BeginDisabled(availableLog.empty());
         if (ImGui::Button("Copy build log", ImVec2(142, 32))) copyBuildLog();
         ImGui::EndDisabled();
-        ImGui::TextDisabled("Saved to %s/log.txt", m_workspace.c_str());
+        ImGui::TextDisabled("Complete log saved in the selected workspace as log.txt.");
         if (!m_logFeedback.empty())
             ImGui::TextColored(m_logFeedback.find("Could not") != std::string::npos ? kWarn : kGood,
                                "%s", m_logFeedback.c_str());
-        ImGui::BeginChild("build-log", ImVec2(0, 185), true, ImGuiWindowFlags_HorizontalScrollbar);
+        ImGui::BeginChild("build-log", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
         const auto lines = logCopy();
         for (const auto &line : lines) ImGui::TextUnformatted(line.c_str());
         if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) ImGui::SetScrollHereY(1.0f);

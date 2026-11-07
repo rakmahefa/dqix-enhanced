@@ -41,8 +41,10 @@ class RootMakefileTests(unittest.TestCase):
                     "make", "--no-print-directory", "--dry-run", "build",
                     f"ROM={rom}", f"WORKSPACE={workspace}",
                 ],
-                cwd=ROOT, check=True, capture_output=True, text=True,
+                cwd=ROOT, check=False, capture_output=True, text=True,
             )
+            output = (result.stdout + chr(10) + result.stderr)[-8000:]
+            self.assertEqual(result.returncode, 0, f"make --dry-run failed:{chr(10)}{output}")
             self.assertIn(str(rom), result.stdout)
             self.assertIn(str(workspace), result.stdout)
             self.assertIn("make -C", result.stdout)
