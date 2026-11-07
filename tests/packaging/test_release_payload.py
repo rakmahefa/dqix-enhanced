@@ -20,14 +20,14 @@ class ReleasePayloadTests(unittest.TestCase):
             raise unittest.SkipTest("payload not built; set DQIX_PAYLOAD_DIR to test it")
         cls.manifest = json.loads(cls.manifest_path.read_text(encoding="utf-8"))
 
-    def test_payload_has_portable_python_and_pyyaml(self) -> None:
-        python = self.payload / self.manifest["paths"]["python"]
-        self.assertTrue(python.is_file(), python)
-        result = subprocess.run(
-            [str(python), "-c", "import yaml; print(yaml.__version__)"],
-            check=True, capture_output=True, text=True,
-        )
-        self.assertEqual(result.stdout.strip(), self.manifest["versions"]["PyYAML"])
+    def test_payload_does_not_bundle_python(self) -> None:
+        self.assertNotIn("python", self.manifest.get("paths", {}))
+        self.assertNotIn("Python", self.manifest.get("versions", {}))
+        self.assertNotIn("PyYAML", self.manifest.get("versions", {}))
+        self.assertFalse((self.payload / "tools").exists())
+        requirements = self.manifest.get("system_requirements", [])
+        self.assertIn("Python 3", requirements)
+        self.assertIn("PyYAML for Python 3", requirements)
 
     def test_payload_has_sdl2_headers_and_runtime(self) -> None:
         include_dir = self.payload / "include/SDL2"
