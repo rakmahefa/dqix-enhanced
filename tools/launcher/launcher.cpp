@@ -185,9 +185,7 @@ public:
         : m_exeDir(executablePath().parent_path()),
           m_payload(m_exeDir / "payload"),
           m_source(findSourceRoot(m_exeDir, m_payload)),
-          m_python((m_payload / "tools/python/bin/python3").string()),
           m_workspace(defaultWorkspace()) {
-        if (!fs::exists(m_python)) m_python = "python3";
         m_payloadAvailable = fs::exists(m_payload / "payload.json") &&
                              fs::exists(m_payload / "include/SDL2/SDL.h") &&
                              fs::exists(m_payload / "lib/libSDL2-2.0.so.0");
@@ -240,6 +238,7 @@ public:
         m_imguiInitialized = true;
         ImGuiIO &io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        io.FontGlobalScale = 1.10f;
         io.IniFilename = nullptr;
         applyStyle();
         if (!ImGui_ImplSDL2_InitForSDLRenderer(m_window, m_renderer)) {
@@ -383,7 +382,6 @@ private:
     fs::path m_exeDir;
     fs::path m_payload;
     fs::path m_source;
-    std::string m_python;
     std::string m_workspace;
     std::string m_rom;
     std::array<char, 4096> m_romBuffer{};
@@ -461,6 +459,7 @@ private:
 
     void applyStyle() {
         ImGuiStyle &style = ImGui::GetStyle();
+        style.ScaleAllSizes(1.04f);
         style.WindowRounding = 19.0f;
         style.ChildRounding = 13.0f;
         style.FrameRounding = 8.0f;
@@ -603,7 +602,7 @@ private:
             m_log.clear();
         }
         addLog("===== Build started =====");
-        const std::string python = m_python;
+        const std::string python = "python3";
         const std::string payload = m_payloadAvailable ? m_payload.string() : "";
         const std::string jobs = std::to_string(m_jobs);
         m_worker = std::thread([this, source, rom, workspace, python, payload, jobs, compiler]() {
@@ -765,16 +764,14 @@ private:
         const bool glHeaders = fs::exists("/usr/include/GL/gl.h");
         result.push_back({"OpenGL development headers", "Compile the enhanced renderer", glHeaders, false,
                           glHeaders ? "found" : "missing GL/gl.h"});
-        result.push_back({"Python + PyYAML", "ARM9 / ARM7 code generator", fs::exists(m_payload / "tools/python/bin/python3") &&
-                          fs::exists(m_payload / "tools/python/lib/python3.12/site-packages/yaml/__init__.py"),
-                          true, "Python 3.12.15 · PyYAML 6.0.2 · bundled"});
+        const bool pythonYaml = executableOnPath("python3") &&
+            readPipe("python3 -c 'import yaml' 2>/dev/null; echo $?") == "0";
+        result.push_back({"Python 3 + PyYAML", "ARM9 / ARM7 code generator", pythonYaml, false,
+                          pythonYaml ? readPipe("python3 --version 2>/dev/null") + " · PyYAML available"
+                                     : "Python 3 or PyYAML not found"});
         result.push_back({"SDL2", "Launcher and game window / audio / input",
                           fs::exists(m_payload / "lib/libSDL2-2.0.so.0"), true, "bundled in payload"});
         if (!m_payloadAvailable) {
-            result[3].ready = executableOnPath("python3") &&
-                readPipe("python3 -c 'import yaml; print(yaml.__version__)' 2>/dev/null").size() > 0;
-            result[3].included = false;
-            result[3].detail = result[3].ready ? readPipe("python3 --version 2>/dev/null") + " · PyYAML found" : "Python 3 + PyYAML not found";
             result[4].ready = executableOnPath("sdl2-config");
             result[4].included = false;
             result[4].detail = result[4].ready ? readPipe("sdl2-config --version 2>/dev/null") : "SDL2 development files not found";
@@ -892,7 +889,7 @@ private:
     void drawToolsPage() {
         drawSectionTitle("Tools on this computer", "The release carries Python, PyYAML and SDL2. Your system supplies a C compiler, GNU Make and OpenGL development headers used to build the game from your ROM.");
         for (const auto &tool : m_tools) {
-            ImGui::BeginChild(("tool-" + tool.name).c_str(), ImVec2(0, 58), true);
+            ImGui::BeginChild(("tool-" + tool.name).c_str(), ImVec2(0, 66), true);
             ImGui::TextColored(tool.ready ? kGood : kWarn, "%s", tool.ready ? "[+]" : "[-]");
             ImGui::SameLine();
             ImGui::BeginGroup();
@@ -960,7 +957,7 @@ private:
         static const std::array<const char *, 7> names = {
             "Check the ROM", "Extract game code", "Map the region", "Recompile ARM9", "Recompile ARM7", "Compile the game", "Assemble the game folder"
         };
-        ImGui::BeginChild("build-progress", ImVec2(0, 178), true);
+        ImGui::BeginChild("build-progress", ImVec2(0, 196), true);
         for (int i = 0; i < static_cast<int>(names.size()); ++i) {
             const bool done = (m_buildFinished && m_buildSuccess) || i < m_stage;
             const bool current = m_buildRunning && i == m_stage;
