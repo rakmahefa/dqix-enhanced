@@ -55,7 +55,7 @@ class ReleasePayloadTests(unittest.TestCase):
         frontend = root / "runtime/frontend_sdl.c"
         frontend_result = subprocess.run(
             compiler + [
-                "-fsyntax-only", "-fPIC", "-ftrivial-auto-var-init=zero",
+                "-fsyntax-only", "-fPIC",
                 "-Wno-unused-parameter", "-DRECOMP_TRACE",
                 "-I", str(include_dir), "-Iruntime", str(frontend),
             ],
