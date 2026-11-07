@@ -887,7 +887,7 @@ private:
     }
 
     void drawToolsPage() {
-        drawSectionTitle("Tools on this computer", "The release carries Python, PyYAML and SDL2. Your system supplies a C compiler, GNU Make and OpenGL development headers used to build the game from your ROM.");
+        drawSectionTitle("Tools on this computer", "Python 3 and PyYAML are provided by your Linux distribution. The release carries SDL2; your system supplies a C compiler, GNU Make and OpenGL development headers.");
         for (const auto &tool : m_tools) {
             ImGui::BeginChild(("tool-" + tool.name).c_str(), ImVec2(0, 66), true);
             ImGui::TextColored(tool.ready ? kGood : kWarn, "%s", tool.ready ? "[+]" : "[-]");
