@@ -4,14 +4,11 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import platform
 import shutil
 import subprocess
-import tarfile
-import urllib.request
 from pathlib import Path, PurePosixPath
 
 SDL2_VERSION_MIN = (2, 0, 18)
@@ -33,33 +30,6 @@ def run(args: list[str], *, cwd: Path | None = None) -> str:
         text=True,
     )
     return completed.stdout.strip()
-
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def download(url: str, expected_sha256: str, destination: Path) -> Path:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.is_file() and sha256(destination) == expected_sha256:
-        return destination
-    if destination.exists():
-        destination.unlink()
-    print(f"payload: downloading {destination.name}", flush=True)
-    request = urllib.request.Request(url, headers={"User-Agent": "DQIX-Enhanced-release/1"})
-    with urllib.request.urlopen(request, timeout=120) as response, destination.open("wb") as out:
-        shutil.copyfileobj(response, out)
-    actual = sha256(destination)
-    if actual != expected_sha256:
-        destination.unlink(missing_ok=True)
-        raise RuntimeError(
-            f"SHA-256 mismatch for {url}: expected {expected_sha256}, got {actual}"
-        )
-    return destination
 
 
 def host_arch() -> str:
