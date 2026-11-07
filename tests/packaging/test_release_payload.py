@@ -25,6 +25,9 @@ class ReleasePayloadTests(unittest.TestCase):
         self.assertNotIn("Python", self.manifest.get("versions", {}))
         self.assertNotIn("PyYAML", self.manifest.get("versions", {}))
         self.assertFalse((self.payload / "tools").exists())
+        launcher_source = self.payload / "source/tools/launcher/launcher.cpp"
+        self.assertTrue(launcher_source.is_file())
+        self.assertNotIn("tools/python", launcher_source.read_text(encoding="utf-8"))
         requirements = self.manifest.get("system_requirements", [])
         self.assertIn("Python 3", requirements)
         self.assertIn("PyYAML for Python 3", requirements)
