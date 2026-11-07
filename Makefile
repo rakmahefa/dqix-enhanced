@@ -2,22 +2,30 @@ SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 .ONESHELL:
 .DEFAULT_GOAL := help
-ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+ROOT := $(CURDIR)
+empty :=
+space := $(empty) $(empty)
+escape_spaces = $(subst $(space),\$(space),$(1))
 ROM ?=
 WORKSPACE ?= $(ROOT)
-WORKSPACE_ABS := $(abspath $(WORKSPACE))
+WORKSPACE_ABS := $(shell realpath -m -- "$(WORKSPACE)")
 BUILD_DIR ?= $(WORKSPACE_ABS)/build
 GAME_DIR ?= $(WORKSPACE_ABS)/game
-ROM_ABS := $(abspath $(ROM))
+ROM_ABS := $(if $(strip $(ROM)),$(shell realpath -m -- "$(ROM)"),)
 PYTHON ?= python3
 JOBS ?= $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 2)
 PAYLOAD ?=
-PAYLOAD_ABS := $(if $(strip $(PAYLOAD)),$(abspath $(PAYLOAD)),)
+PAYLOAD_ABS := $(if $(strip $(PAYLOAD)),$(shell realpath -m -- "$(PAYLOAD)"),)
 EXTRACT_DIR := $(BUILD_DIR)/extract
 REGION_DIR := $(BUILD_DIR)/region
 RECOMP_DIR := $(BUILD_DIR)/recomp
 RECOMP7_DIR := $(BUILD_DIR)/recomp7
+ifneq ($(findstring $(space),$(WORKSPACE_ABS)$(BUILD_DIR)$(GAME_DIR)),)
+WORKSPACE_HASH := $(shell printf '%s' "$(ROOT)|$(WORKSPACE_ABS)|$(BUILD_DIR)|$(GAME_DIR)" | sha256sum | cut -c1-16)
+OBJ_DIR := /tmp/dqix-enhanced-obj-$(shell id -u)-$(WORKSPACE_HASH)
+else
 OBJ_DIR := $(BUILD_DIR)/obj
+endif
 ROM_STAMP := $(BUILD_DIR)/.rom-sha256
 REGION_FILE := $(BUILD_DIR)/region.txt
 ARM9_STAMP := $(BUILD_DIR)/.arm9-recompiler.stamp
@@ -31,12 +39,20 @@ GAME_EXE := $(GAME_DIR)/dqix
 GAME_CORE := $(GAME_DIR)/dqixcore.so
 endif
 
+ifeq ($(OS),Windows_NT)
+BUILD_OS_ARGS := OS=Windows_NT
+GAME_LDFLAGS := -static-libgcc -Wl,--stack,67108864
+else
+BUILD_OS_ARGS :=
+GAME_LDFLAGS := -pthread
+endif
+
 ifeq ($(strip $(PAYLOAD_ABS)),)
 SDL_CFLAGS ?= $(shell sdl2-config --cflags 2>/dev/null)
 SDL_LIBS ?= $(shell sdl2-config --libs 2>/dev/null)
 else
-SDL_CFLAGS ?= -I$(PAYLOAD_ABS)/include/SDL2
-SDL_LIBS ?= -L$(PAYLOAD_ABS)/lib -lSDL2
+SDL_CFLAGS ?= -I$(call escape_spaces,$(PAYLOAD_ABS))/include/SDL2
+SDL_LIBS ?= -L$(call escape_spaces,$(PAYLOAD_ABS))/lib -lSDL2
 endif
 
 .PHONY: help check-rom extract region recompile-arm9 recompile-arm7 compile assemble build run test launcher screenshots release clean
@@ -121,9 +137,9 @@ compile: recompile-arm9 recompile-arm7
 	$(MAKE) -C "$(ROOT)" -f "$(ROOT)/build.mk" \
 		GEN="$(RECOMP_DIR)" GEN7="$(RECOMP7_DIR)" OBJ="$(OBJ_DIR)" \
 		FRONTEND=sdl OUT="$(GAME_EXE)" CORE="$(GAME_CORE)" \
-		CFLAGS="-O1 -w" DEFS=-DRECOMP_TRACE PIC=-fPIC \
+		CC="$(CC)" CFLAGS="-O1 -w" DEFS=-DRECOMP_TRACE PIC=-fPIC \
 		SDL_CFLAGS="$(SDL_CFLAGS)" SDL_LIBS="$(SDL_LIBS)" \
-		$(if $(filter Windows_NT,$(OS)),OS=Windows_NT LDFLAGS="-static-libgcc -Wl,--stack,67108864",LDFLAGS="-pthread") \
+		$(BUILD_OS_ARGS) LDFLAGS="$(GAME_LDFLAGS)" \
 		-j$(JOBS) "$(GAME_EXE)" core
 
 assemble: compile
@@ -188,6 +204,7 @@ screenshots: launcher
 	else
 		"$(BUILD_DIR)/launcher/dqix-launcher" --preview "$(BUILD_DIR)/launcher-screenshots"
 	fi
+	$(PYTHON) "$(ROOT)/tools/launcher/convert-screenshots.py" "$(BUILD_DIR)/launcher-screenshots"
 	$(PYTHON) -m unittest discover -s "$(ROOT)/tests/packaging" -p 'test_launcher_screenshots.py' -v
 
 release: launcher
@@ -196,4 +213,4 @@ release: launcher
 
 clean:
 	echo "Removing generated files from $(WORKSPACE_ABS)"
-	rm -rf "$(BUILD_DIR)" "$(GAME_DIR)"
+	rm -rf "$(BUILD_DIR)" "$(GAME_DIR)" "$(OBJ_DIR)"

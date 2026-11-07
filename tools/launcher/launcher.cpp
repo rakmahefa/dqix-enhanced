@@ -60,8 +60,8 @@ std::string trim(std::string value) {
     return value.substr(first);
 }
 
-std::string readPipe(const char *command) {
-    FILE *pipe = popen(command, "r");
+std::string readPipe(const std::string &command) {
+    FILE *pipe = popen(command.c_str(), "r");
     if (!pipe) return {};
     std::string result;
     std::array<char, 512> buffer{};
@@ -166,22 +166,41 @@ std::string pageName(Page page) {
     return {};
 }
 
+bool gameArtifactsReady(const fs::path &workspace) {
+    const fs::path game = workspace / "game";
+    const fs::path executable = game / "dqix";
+    std::error_code ec;
+    if (!fs::is_regular_file(executable, ec) || ec || access(executable.c_str(), X_OK) != 0)
+        return false;
+    if (!fs::is_regular_file(game / "dqixcore.so", ec) || ec) return false;
+    if (!fs::is_regular_file(game / "play.sh", ec) || ec) return false;
+    if (!fs::is_regular_file(game / "data/dqix.nds", ec) || ec) return false;
+    if (!fs::is_regular_file(game / "data/code/arm9/arm9.bin", ec) || ec) return false;
+    return fs::is_regular_file(game / "data/code/arm7/arm7.bin", ec) && !ec;
+}
+
 class Launcher {
 public:
     Launcher()
         : m_exeDir(executablePath().parent_path()),
           m_payload(m_exeDir / "payload"),
           m_source(findSourceRoot(m_exeDir, m_payload)),
-          m_python((m_payload / "tools/python/bin/python3").string()),
           m_workspace(defaultWorkspace()) {
-        if (!fs::exists(m_python)) m_python = "python3";
         m_payloadAvailable = fs::exists(m_payload / "payload.json") &&
                              fs::exists(m_payload / "include/SDL2/SDL.h") &&
                              fs::exists(m_payload / "lib/libSDL2-2.0.so.0");
-        if (m_source.empty()) m_log.push_back("The source payload was not found beside the launcher.");
+        openLogFile(m_workspace, false);
+        addLog("Launcher started.");
+        {
+            std::lock_guard<std::mutex> lock(m_logMutex);
+            m_log.clear();
+        }
+        if (m_source.empty())
+            addLog("ERROR: The source payload was not found beside the launcher.");
     }
 
     ~Launcher() {
+        m_buildCancelled = true;
         if (m_childPid > 0) kill(-m_childPid, SIGTERM);
         if (m_worker.joinable()) m_worker.join();
         if (m_installPid > 0) kill(m_installPid, SIGTERM);
@@ -219,6 +238,7 @@ public:
         m_imguiInitialized = true;
         ImGuiIO &io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        io.FontGlobalScale = 1.10f;
         io.IniFilename = nullptr;
         applyStyle();
         if (!ImGui_ImplSDL2_InitForSDLRenderer(m_window, m_renderer)) {
@@ -236,10 +256,18 @@ public:
     }
 
     void shutdown() {
+        m_buildCancelled = true;
         if (m_childPid > 0) kill(-m_childPid, SIGTERM);
         if (m_installPid > 0) kill(m_installPid, SIGTERM);
         if (m_worker.joinable()) m_worker.join();
         if (m_installWorker.joinable()) m_installWorker.join();
+        {
+            std::lock_guard<std::mutex> lock(m_logMutex);
+            if (m_logFile.is_open()) {
+                m_logFile.flush();
+                m_logFile.close();
+            }
+        }
         if (m_rendererBackendInitialized) ImGui_ImplSDLRenderer2_Shutdown();
         if (m_platformBackendInitialized) ImGui_ImplSDL2_Shutdown();
         if (m_imguiInitialized) ImGui::DestroyContext();
@@ -261,9 +289,12 @@ public:
                 ImGui_ImplSDL2_ProcessEvent(&event);
                 if (event.type == SDL_QUIT) running = false;
                 if (event.type == SDL_DROPFILE && event.drop.file) {
-                    m_rom = fs::absolute(event.drop.file).string();
+                    if (!m_buildRunning) {
+                        m_rom = fs::absolute(event.drop.file).string();
+                        std::snprintf(m_romBuffer.data(), m_romBuffer.size(), "%s", m_rom.c_str());
+                        m_page = Page::Tools;
+                    }
                     SDL_free(event.drop.file);
-                    m_page = Page::Tools;
                 }
                 if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
                     if (m_page != Page::Rom && !m_buildRunning.load()) m_page = static_cast<Page>(std::max(0, static_cast<int>(m_page) - 1));
@@ -283,11 +314,12 @@ public:
         m_preview = true;
         m_rom.clear();
         m_workspace = (fs::current_path() / "preview-workspace").string();
+        openLogFile(m_workspace, false);
         m_tools = {
-            {"C++ compiler", "Compiles the native game", false, false, "not found"},
+            {"C compiler", "Compiles the native game and runtime", false, false, "not found"},
             {"GNU Make", "Runs the build rules", false, false, "not found"},
             {"OpenGL headers", "Compile the enhanced renderer", false, false, "not found"},
-            {"Python + PyYAML", "Translates ARM9 and ARM7 code", true, true, "Python 3.12.15 · PyYAML 6.0.2 · bundled"},
+            {"Python 3 + PyYAML", "Translates ARM9 and ARM7 code", false, false, "not found"},
             {"SDL2", "Window, sound and input", true, true, "SDL2 · bundled"}
         };
 
@@ -313,15 +345,17 @@ public:
                 }
             }
             if (snapshot.page == Page::Build) {
-                m_buildFinished = true;
-                m_buildSuccess = !m_previewFailed;
+                m_buildFinished = m_previewFailed;
+                m_buildSuccess = false;
                 m_buildRunning = !m_previewFailed;
+                m_buildCancelled = false;
                 m_stage = m_previewFailed ? 5 : 4;
                 m_log = m_previewFailed
-                    ? std::vector<std::string>{"== Checking ROM", "== Extracting game code", "== Recompiling ARM9",
-                                               "== Recompiling ARM7", "== Compiling game", "error: compiler returned exit code 1"}
-                    : std::vector<std::string>{"== Checking ROM", "== Extracting game code", "== Recompiling ARM9",
-                                               "== Recompiling ARM7", "== Compiling game", "== Assembling game folder"};
+                    ? std::vector<std::string>{"== Checking ROM", "== Extracting game code", "== Mapping ROM region",
+                                               "== Recompiling ARM9", "== Recompiling ARM7", "== Compiling game",
+                                               "error: compiler returned exit code 1"}
+                    : std::vector<std::string>{"== Checking ROM", "== Extracting game code", "== Mapping ROM region",
+                                               "== Recompiling ARM9", "== Recompiling ARM7"};
             }
             drawFrame(false);
             SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, kWidth, kHeight, 32, SDL_PIXELFORMAT_ARGB8888);
@@ -348,9 +382,9 @@ private:
     fs::path m_exeDir;
     fs::path m_payload;
     fs::path m_source;
-    std::string m_python;
     std::string m_workspace;
     std::string m_rom;
+    std::array<char, 4096> m_romBuffer{};
     SDL_Window *m_window = nullptr;
     SDL_Renderer *m_renderer = nullptr;
     Page m_page = Page::Rom;
@@ -361,6 +395,7 @@ private:
     std::atomic<bool> m_buildRunning{false};
     std::atomic<bool> m_buildFinished{false};
     std::atomic<bool> m_buildSuccess{false};
+    std::atomic<bool> m_buildCancelled{false};
     std::atomic<bool> m_installRunning{false};
     int m_exitCode = 0;
     int m_jobs = std::max(1, static_cast<int>(std::thread::hardware_concurrency()));
@@ -370,6 +405,8 @@ private:
     std::vector<std::string> m_log;
     std::mutex m_logMutex;
     std::mutex m_errorMutex;
+    std::ofstream m_logFile;
+    std::string m_logFeedback;
     std::thread m_worker;
     std::thread m_installWorker;
     std::atomic<pid_t> m_childPid{0};
@@ -387,6 +424,34 @@ private:
 
     void clearError() { setError({}); }
 
+    bool openLogFile(const std::string &workspace, bool truncate) {
+        if (workspace.empty()) {
+            setError("The workspace path is empty; build logs cannot be saved.");
+            return false;
+        }
+        std::error_code ec;
+        fs::create_directories(fs::path(workspace), ec);
+        if (ec) {
+            setError("Cannot create the workspace for log.txt: " + ec.message());
+            return false;
+        }
+        const fs::path logPath = fs::path(workspace) / "log.txt";
+        std::lock_guard<std::mutex> lock(m_logMutex);
+        if (m_logFile.is_open()) {
+            m_logFile.flush();
+            m_logFile.close();
+        }
+        const auto mode = std::ios::out | (truncate ? std::ios::trunc : std::ios::app);
+        m_logFile.open(logPath, mode);
+        if (!m_logFile) {
+            setError("Cannot write the build log: " + logPath.string());
+            return false;
+        }
+        m_logFile << "\n=== DQIX Enhanced launcher session ===\n";
+        m_logFile.flush();
+        return true;
+    }
+
     std::string errorCopy() {
         std::lock_guard<std::mutex> lock(m_errorMutex);
         return m_error;
@@ -394,6 +459,7 @@ private:
 
     void applyStyle() {
         ImGuiStyle &style = ImGui::GetStyle();
+        style.ScaleAllSizes(1.04f);
         style.WindowRounding = 19.0f;
         style.ChildRounding = 13.0f;
         style.FrameRounding = 8.0f;
@@ -433,17 +499,41 @@ private:
     }
 
     void addLog(const std::string &line) {
+        std::string value = line;
+        while (!value.empty() && (value.back() == '\n' || value.back() == '\r'))
+            value.pop_back();
+        if (value.empty()) return;
         std::lock_guard<std::mutex> lock(m_logMutex);
-        m_log.push_back(trim(line));
-        if (m_log.size() > 400) m_log.erase(m_log.begin(), m_log.begin() + 100);
-        const std::string value = trim(line);
-        if (value.find("Checking ROM") != std::string::npos) m_stage = 0;
-        else if (value.find("Extracting") != std::string::npos) m_stage = 1;
-        else if (value.find("Mapping region") != std::string::npos) m_stage = 2;
-        else if (value.find("Recompiling ARM9") != std::string::npos) m_stage = 3;
-        else if (value.find("Recompiling ARM7") != std::string::npos) m_stage = 4;
-        else if (value.find("Compiling") != std::string::npos) m_stage = 5;
-        else if (value.find("Assembling") != std::string::npos) m_stage = 6;
+        m_log.push_back(value);
+        if (m_logFile.is_open()) {
+            m_logFile << value << '\n';
+            m_logFile.flush();
+        }
+        const std::string stageLine = trim(value);
+        if (stageLine.find("Checking ROM") != std::string::npos) m_stage = 0;
+        else if (stageLine.find("Extracting") != std::string::npos) m_stage = 1;
+        else if (stageLine.find("Mapping ROM region") != std::string::npos) m_stage = 2;
+        else if (stageLine.find("Recompiling ARM9") != std::string::npos) m_stage = 3;
+        else if (stageLine.find("Recompiling ARM7") != std::string::npos) m_stage = 4;
+        else if (stageLine.find("Compiling") != std::string::npos) m_stage = 5;
+        else if (stageLine.find("Assembling") != std::string::npos) m_stage = 6;
+    }
+
+    void copyBuildLog() {
+        const auto lines = logCopy();
+        if (lines.empty()) {
+            m_logFeedback = "No build output to copy yet.";
+            return;
+        }
+        std::string content;
+        for (const auto &line : lines) {
+            content += line;
+            content.push_back('\n');
+        }
+        if (SDL_SetClipboardText(content.c_str()) == 0)
+            m_logFeedback = "Build log copied to the clipboard.";
+        else
+            m_logFeedback = std::string("Could not copy the log: ") + SDL_GetError();
     }
 
     std::vector<std::string> logCopy() {
@@ -451,31 +541,76 @@ private:
         return m_log;
     }
 
+    std::string buildFailureSummary() {
+        const auto lines = logCopy();
+        for (const auto &line : lines) {
+            if (line.find("error:") != std::string::npos ||
+                line.rfind("ERROR:", 0) == 0)
+                return line;
+        }
+        return {};
+    }
+
     void startBuild() {
-        if (m_source.empty() || m_rom.empty()) return;
+        if (m_buildRunning) return;
+        if (m_source.empty()) {
+            setError("The source payload is missing. Reinstall or re-extract the Linux release.");
+            addLog("ERROR: source payload is missing.");
+            return;
+        }
+        std::error_code romError;
+        if (m_rom.empty() || !fs::is_regular_file(m_rom, romError) || romError) {
+            setError("Select an existing Dragon Quest IX .nds ROM before building.");
+            addLog("ERROR: no readable ROM file is selected.");
+            return;
+        }
+        const std::string compiler = cCompiler();
+        if (compiler.empty() || !toolsReady()) {
+            setError("Required build tools are missing. Open Tools and check the requirements.");
+            addLog("ERROR: required build tools are missing.");
+            m_page = Page::Tools;
+            return;
+        }
         if (m_worker.joinable()) m_worker.join();
         m_buildRunning = true;
         m_buildFinished = false;
         m_buildSuccess = false;
+        m_buildCancelled = false;
         m_stage = 0;
         clearError();
+        m_logFeedback.clear();
+        m_page = Page::Build;
+        std::error_code ec;
+        fs::create_directories(m_workspace, ec);
+        if (ec) {
+            m_buildRunning = false;
+            m_buildFinished = true;
+            setError("Cannot create the workspace: " + ec.message());
+            addLog("ERROR: " + errorCopy());
+            return;
+        }
+        const std::string source = m_source.string();
+        const std::string rom = fs::absolute(m_rom).string();
+        const std::string workspace = fs::absolute(m_workspace).string();
+        if (!openLogFile(workspace, false)) {
+            m_buildRunning = false;
+            m_buildFinished = true;
+            return;
+        }
         {
             std::lock_guard<std::mutex> lock(m_logMutex);
             m_log.clear();
         }
-        m_page = Page::Build;
-        std::error_code ec;
-        fs::create_directories(m_workspace, ec);
-        const std::string source = m_source.string();
-        const std::string rom = fs::absolute(m_rom).string();
-        const std::string workspace = fs::absolute(m_workspace).string();
-        const std::string python = m_python;
+        addLog("===== Build started =====");
+        const std::string python = "python3";
         const std::string payload = m_payloadAvailable ? m_payload.string() : "";
         const std::string jobs = std::to_string(m_jobs);
-        m_worker = std::thread([this, source, rom, workspace, python, payload, jobs]() {
+        m_worker = std::thread([this, source, rom, workspace, python, payload, jobs, compiler]() {
             int pipefd[2];
             if (pipe(pipefd) != 0) {
-                setError(std::string("Could not open the build log: ") + std::strerror(errno));
+                const std::string message = std::string("Could not open the build log pipe: ") + std::strerror(errno);
+                addLog("ERROR: " + message);
+                setError(message);
                 m_buildRunning = false;
                 m_buildFinished = true;
                 return;
@@ -483,7 +618,7 @@ private:
             std::vector<std::string> args = {
                 "make", "-C", source, "-f", "Makefile", "build",
                 "ROM=" + rom, "WORKSPACE=" + workspace, "PYTHON=" + python,
-                "JOBS=" + jobs
+                "JOBS=" + jobs, "CC=" + compiler
             };
             if (!payload.empty()) args.push_back("PAYLOAD=" + payload);
             std::vector<char *> argv;
@@ -507,12 +642,15 @@ private:
             close(pipefd[1]);
             if (spawnError != 0) {
                 close(pipefd[0]);
-                setError(std::string("Could not start the build: ") + std::strerror(spawnError));
+                const std::string message = std::string("Could not start the build: ") + std::strerror(spawnError);
+                addLog("ERROR: " + message);
+                setError(message);
                 m_buildRunning = false;
                 m_buildFinished = true;
                 return;
             }
             m_childPid = pid;
+            if (m_buildCancelled.load()) kill(-pid, SIGTERM);
             FILE *stream = fdopen(pipefd[0], "r");
             if (stream) {
                 char *line = nullptr;
@@ -526,18 +664,42 @@ private:
                 close(pipefd[0]);
             }
             int status = 0;
-            waitpid(pid, &status, 0);
+            pid_t waited = -1;
+            do {
+                waited = waitpid(pid, &status, 0);
+            } while (waited < 0 && errno == EINTR);
             m_childPid = 0;
-            m_exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0);
-            m_buildSuccess = m_exitCode == 0;
+            if (waited < 0) {
+                m_exitCode = 127;
+                setError(std::string("Could not collect the build process status: ") + std::strerror(errno));
+                addLog("ERROR: " + errorCopy());
+            } else {
+                m_exitCode = WIFEXITED(status) ? WEXITSTATUS(status) :
+                    128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0);
+            }
+            const bool cancelled = m_buildCancelled.load();
+            const bool artifactsReady = gameArtifactsReady(workspace);
+            m_buildSuccess = !cancelled && m_exitCode == 0 && artifactsReady;
             m_buildFinished = true;
             m_buildRunning = false;
-            if (!m_buildSuccess)
-                setError("The build stopped. Open the log below for the compiler output.");
+            if (cancelled) {
+                setError("The build was cancelled. The partial output can be safely rebuilt.");
+                addLog("Build cancelled by the user.");
+            } else if (m_exitCode == 0 && !artifactsReady) {
+                setError("Make finished without producing all required game files. See log.txt.");
+                addLog("ERROR: build exited successfully but the game output is incomplete.");
+            } else if (!m_buildSuccess) {
+                setError("The build failed. Open log.txt for the complete compiler output.");
+                addLog("ERROR: build failed with exit code " + std::to_string(m_exitCode) + ".");
+            } else {
+                addLog("===== Build completed successfully =====");
+            }
         });
     }
 
     void cancelBuild() {
+        if (!m_buildRunning) return;
+        m_buildCancelled = true;
         const pid_t pid = m_childPid.load();
         if (pid > 0) kill(-pid, SIGTERM);
         addLog("Cancelling the build...");
@@ -545,42 +707,71 @@ private:
 
     void launchGame() {
         const fs::path workspace = fs::absolute(fs::path(m_workspace)).lexically_normal();
-        const fs::path script = workspace / "game/play.sh";
-        if (!fs::exists(script)) {
-            setError("The game has not been built in this workspace yet.");
+        if (!gameArtifactsReady(workspace)) {
+            setError("The game is not fully built in this workspace. Complete the Build step first.");
             return;
         }
-        const pid_t pid = fork();
-        if (pid == 0) {
-            const std::string dir = (fs::path(m_workspace) / "game").string();
-            chdir(dir.c_str());
-            execl("/bin/sh", "sh", script.c_str(), static_cast<char *>(nullptr));
-            _exit(127);
+        const std::string script = (workspace / "game/play.sh").string();
+        char *args[] = {const_cast<char *>("sh"), const_cast<char *>(script.c_str()), nullptr};
+        pid_t pid = 0;
+        const int spawnError = posix_spawn(&pid, "/bin/sh", nullptr, nullptr, args, environ);
+        if (spawnError != 0) {
+            setError(std::string("Could not launch the game: ") + std::strerror(spawnError));
+            addLog("ERROR: " + errorCopy());
+            return;
         }
-        if (pid < 0) setError(std::string("Could not launch the game: ") + std::strerror(errno));
+        addLog("Game process started.");
+        std::thread([pid]() {
+            int status = 0;
+            while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+        }).detach();
+    }
+
+    void openGameFolder() {
+        if (!executableOnPath("xdg-open")) {
+            setError("xdg-open is not available on this desktop. Open the game folder from your file manager.");
+            return;
+        }
+        const std::string directory = (fs::path(m_workspace) / "game").string();
+        char *args[] = {const_cast<char *>("xdg-open"), const_cast<char *>(directory.c_str()), nullptr};
+        pid_t pid = 0;
+        const int spawnError = posix_spawnp(&pid, "xdg-open", nullptr, nullptr, args, environ);
+        if (spawnError != 0) {
+            setError(std::string("Could not open the game folder: ") + std::strerror(spawnError));
+            return;
+        }
+        std::thread([pid]() {
+            int status = 0;
+            while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+        }).detach();
+    }
+
+    std::string cCompiler() const {
+        if (executableOnPath("cc")) return "cc";
+        if (executableOnPath("gcc")) return "gcc";
+        if (executableOnPath("clang")) return "clang";
+        return {};
     }
 
     std::vector<Tool> checkTools() const {
         std::vector<Tool> result;
-        const bool compiler = executableOnPath("g++") || executableOnPath("c++") || executableOnPath("clang++");
-        result.push_back({"C++ compiler", "Compiles the generated native game", compiler, false,
-                          compiler ? readPipe("c++ --version 2>/dev/null | head -1") : "not found"});
+        const std::string compiler = cCompiler();
+        result.push_back({"C compiler", "Compiles the generated game and runtime", !compiler.empty(), false,
+                          compiler.empty() ? "not found" : readPipe(compiler + " --version 2>/dev/null | head -1")});
         const bool make = executableOnPath("make");
         result.push_back({"GNU Make", "Runs the project's Makefile", make, false,
                           make ? readPipe("make --version 2>/dev/null | head -1") : "not found"});
         const bool glHeaders = fs::exists("/usr/include/GL/gl.h");
         result.push_back({"OpenGL development headers", "Compile the enhanced renderer", glHeaders, false,
                           glHeaders ? "found" : "missing GL/gl.h"});
-        result.push_back({"Python + PyYAML", "ARM9 / ARM7 code generator", fs::exists(m_payload / "tools/python/bin/python3") &&
-                          fs::exists(m_payload / "tools/python/lib/python3.12/site-packages/yaml/__init__.py"),
-                          true, "Python 3.12.15 · PyYAML 6.0.2 · bundled"});
+        const bool pythonYaml = executableOnPath("python3") &&
+            readPipe("python3 -c 'import yaml' 2>/dev/null; echo $?") == "0";
+        result.push_back({"Python 3 + PyYAML", "ARM9 / ARM7 code generator", pythonYaml, false,
+                          pythonYaml ? readPipe("python3 --version 2>/dev/null") + " · PyYAML available"
+                                     : "Python 3 or PyYAML not found"});
         result.push_back({"SDL2", "Launcher and game window / audio / input",
                           fs::exists(m_payload / "lib/libSDL2-2.0.so.0"), true, "bundled in payload"});
         if (!m_payloadAvailable) {
-            result[3].ready = executableOnPath("python3") &&
-                readPipe("python3 -c 'import yaml; print(yaml.__version__)' 2>/dev/null").size() > 0;
-            result[3].included = false;
-            result[3].detail = result[3].ready ? readPipe("python3 --version 2>/dev/null") + " · PyYAML found" : "Python 3 + PyYAML not found";
             result[4].ready = executableOnPath("sdl2-config");
             result[4].included = false;
             result[4].detail = result[4].ready ? readPipe("sdl2-config --version 2>/dev/null") : "SDL2 development files not found";
@@ -590,14 +781,15 @@ private:
 
     bool toolsReady() {
         if (m_preview) return m_previewToolsReady;
-        return std::all_of(m_tools.begin(), m_tools.end(), [](const Tool &tool) { return tool.ready; });
+        return !m_tools.empty() &&
+            std::all_of(m_tools.begin(), m_tools.end(), [](const Tool &tool) { return tool.ready; });
     }
 
     void installForMe() {
         if (m_installRunning) return;
         const std::string command = installCommand();
         if (command.empty()) {
-            setError("This Linux distribution is not recognized. Install a C++17 compiler, GNU Make and OpenGL headers with its package manager, then press Check again.");
+            setError("This Linux distribution is not recognized. Install a C compiler, GNU Make and OpenGL headers with its package manager, then press Check again.");
             return;
         }
         const pid_t pid = fork();
@@ -662,27 +854,43 @@ private:
             ImGui::TextDisabled("No ROM selected yet");
         }
         ImGui::Spacing();
+        ImGui::BeginDisabled(m_buildRunning);
         if (ImGui::Button("Browse for ROM", ImVec2(170, 40))) {
             const std::string selected = chooseFile();
-            if (!selected.empty()) m_rom = selected;
+            if (!selected.empty()) {
+                m_rom = selected;
+                std::snprintf(m_romBuffer.data(), m_romBuffer.size(), "%s", m_rom.c_str());
+            }
         }
         ImGui::SameLine();
-        if (!m_rom.empty() && ImGui::Button("Clear", ImVec2(90, 40))) m_rom.clear();
+        if (!m_rom.empty() && ImGui::Button("Clear", ImVec2(90, 40))) {
+            m_rom.clear();
+            m_romBuffer[0] = '\0';
+        }
+        ImGui::EndDisabled();
         ImGui::EndChild();
+        ImGui::Spacing();
+        ImGui::Text("ROM path (you can paste or type it here)");
+        ImGui::SetNextItemWidth(-1);
+        ImGui::BeginDisabled(m_buildRunning);
+        if (ImGui::InputText("##rom-path", m_romBuffer.data(), m_romBuffer.size()))
+            m_rom = trim(m_romBuffer.data());
+        ImGui::EndDisabled();
         ImGui::Spacing();
         ImGui::TextColored(kMuted, "Supported cartridge versions");
         ImGui::BulletText("USA (YDQE)");
         ImGui::BulletText("Europe (YDQP)");
         ImGui::TextWrapped("The Japanese revision may be attempted, but is not a supported target.");
-        if (!m_rom.empty() && !fs::is_regular_file(m_rom))
-            ImGui::TextColored(kBad, "The selected file cannot be found.");
+        std::error_code romError;
+        if (!m_rom.empty() && (!fs::is_regular_file(m_rom, romError) || romError))
+            ImGui::TextColored(kBad, "This ROM path does not point to a readable file.");
     }
 
     void drawToolsPage() {
-        drawSectionTitle("Tools on this computer", "The release carries Python, PyYAML and SDL2. Your system supplies the C++ compiler, GNU Make and OpenGL development headers used to build the game from your ROM.");
+        drawSectionTitle("Tools on this computer", "Python 3 and PyYAML are provided by your Linux distribution. The release carries SDL2; your system supplies a C compiler, GNU Make and OpenGL development headers.");
         for (const auto &tool : m_tools) {
-            ImGui::BeginChild(("tool-" + tool.name).c_str(), ImVec2(0, 58), true);
-            ImGui::TextColored(tool.ready ? kGood : kWarn, "%s", tool.ready ? "●" : "○");
+            ImGui::BeginChild(("tool-" + tool.name).c_str(), ImVec2(0, 66), true);
+            ImGui::TextColored(tool.ready ? kGood : kWarn, "%s", tool.ready ? "[+]" : "[-]");
             ImGui::SameLine();
             ImGui::BeginGroup();
             ImGui::Text("%s", tool.name.c_str());
@@ -715,39 +923,55 @@ private:
         }
         ImGui::Text("Workspace folder");
         ImGui::SetNextItemWidth(-1);
+        ImGui::BeginDisabled(m_buildRunning);
         if (ImGui::InputText("##workspace", workspaceBuffer.data(), workspaceBuffer.size()))
             m_workspace = workspaceBuffer.data();
+        if (ImGui::IsItemDeactivatedAfterEdit()) openLogFile(m_workspace, false);
         if (ImGui::Button("Choose folder", ImVec2(145, 38))) {
             const std::string selected = chooseDirectory();
             if (!selected.empty()) {
                 m_workspace = selected;
                 std::snprintf(workspaceBuffer.data(), workspaceBuffer.size(), "%s", selected.c_str());
+                openLogFile(m_workspace, false);
             }
         }
+        ImGui::EndDisabled();
         ImGui::Spacing();
-        ImGui::Text("Compile jobs");
+        ImGui::Text("Native compile jobs");
         ImGui::SetNextItemWidth(-1);
+        ImGui::BeginDisabled(m_buildRunning);
         ImGui::SliderInt("##jobs", &m_jobs, 1, std::max(2, static_cast<int>(std::thread::hardware_concurrency())));
-        ImGui::TextDisabled("%d parallel jobs", m_jobs);
+        ImGui::EndDisabled();
+        ImGui::TextDisabled("%d parallel C compiler jobs", m_jobs);
+        ImGui::TextWrapped("ARM9 and ARM7 code generation currently runs sequentially; this setting controls native C compilation.");
         ImGui::Spacing();
         ImGui::TextWrapped("The default workspace is in your XDG data folder. Choose a different location if you want the game and saves elsewhere.");
     }
 
     void drawBuildPage() {
-        drawSectionTitle("Building DQIX Enhanced", "The launcher checks your ROM, extracts both DS CPUs, generates native C code and compiles the game. The first build takes longer; later builds reuse unchanged outputs.");
+        const bool buildFailed = m_previewFailed || (m_buildFinished && !m_buildSuccess && !m_buildCancelled);
+        const char *title = m_buildRunning ? "Building DQIX Enhanced" :
+            (buildFailed ? "Build failed" : (m_buildCancelled ? "Build cancelled" :
+             (m_buildFinished && m_buildSuccess ? "Build complete" : "Build your game")));
+        drawSectionTitle(title, "The launcher checks your ROM, extracts both DS CPUs, generates native C code and compiles the game. The first build takes longer; later builds reuse unchanged outputs.");
         static const std::array<const char *, 7> names = {
             "Check the ROM", "Extract game code", "Map the region", "Recompile ARM9", "Recompile ARM7", "Compile the game", "Assemble the game folder"
         };
-        ImGui::BeginChild("build-progress", ImVec2(0, 218), true);
+        ImGui::BeginChild("build-progress", ImVec2(0, 196), true);
         for (int i = 0; i < static_cast<int>(names.size()); ++i) {
-            const bool done = m_buildFinished && m_buildSuccess ? true : i < m_stage;
+            const bool done = (m_buildFinished && m_buildSuccess) || i < m_stage;
             const bool current = m_buildRunning && i == m_stage;
-            ImGui::TextColored(done ? kGood : (current ? kGold : kMuted), "%s", done ? "✓" : (current ? "●" : "○"));
+            const bool cancelled = m_buildCancelled && m_buildFinished && i == m_stage;
+            const bool failed = !done && !current && !cancelled &&
+                (m_previewFailed || (m_buildFinished && !m_buildSuccess)) && i == m_stage;
+            const ImVec4 statusColor = done ? kGood : ((current || cancelled) ? kGold : (failed ? kBad : kMuted));
+            const char *status = done ? "Done" : (current ? "Working" : (cancelled ? "Cancelled" : (failed ? "Failed" : "Waiting")));
+            ImGui::TextColored(statusColor, "%s", done ? "[x]" : (current ? "[>]" : (cancelled ? "[!]" : (failed ? "[x]" : "[ ]"))));
             ImGui::SameLine();
             ImGui::Text("%s", names[static_cast<size_t>(i)]);
             ImGui::SameLine();
             ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 120.0f);
-            ImGui::TextDisabled("%s", done ? "Done" : (current ? "Working…" : "Waiting"));
+            ImGui::TextColored(statusColor, "%s", status);
         }
         ImGui::EndChild();
         ImGui::Spacing();
@@ -757,13 +981,15 @@ private:
             if (ImGui::Button("Cancel build", ImVec2(135, 38))) cancelBuild();
         } else if (m_buildFinished && m_buildSuccess) {
             ImGui::TextColored(kGood, "Build finished. Your game is ready.");
-            if (ImGui::Button("Open game folder", ImVec2(160, 38))) {
-                const std::string command = "xdg-open \"" + (fs::path(m_workspace) / "game").string() + "\" >/dev/null 2>&1 &";
-                std::system(command.c_str());
-            }
+            if (ImGui::Button("Open game folder", ImVec2(160, 38))) openGameFolder();
         } else if (m_buildFinished || m_previewFailed) {
             const std::string buildError = errorCopy();
-            ImGui::TextColored(kBad, "%s", buildError.empty() ? "The build failed. Check the log below." : buildError.c_str());
+            const std::string failureDetail = buildFailureSummary();
+            ImGui::TextColored(m_buildCancelled ? kWarn : kBad, "%s",
+                               m_buildCancelled ? "Build cancelled. Some workspace files may be incomplete; run Build again before Play."
+                                                : (failureDetail.empty()
+                                                    ? (buildError.empty() ? "The build failed. Check log.txt below." : buildError.c_str())
+                                                    : failureDetail.c_str()));
             if (ImGui::Button("Build again", ImVec2(135, 38))) startBuild();
         } else {
             ImGui::TextWrapped("Ready to build. Your ROM and workspace are not uploaded anywhere.");
@@ -771,7 +997,17 @@ private:
         }
         ImGui::Spacing();
         ImGui::Text("Build log");
-        ImGui::BeginChild("build-log", ImVec2(0, 155), true, ImGuiWindowFlags_HorizontalScrollbar);
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 172.0f);
+        const auto availableLog = logCopy();
+        ImGui::BeginDisabled(availableLog.empty());
+        if (ImGui::Button("Copy build log", ImVec2(142, 32))) copyBuildLog();
+        ImGui::EndDisabled();
+        ImGui::TextDisabled("Complete log saved in the selected workspace as log.txt.");
+        if (!m_logFeedback.empty())
+            ImGui::TextColored(m_logFeedback.find("Could not") != std::string::npos ? kWarn : kGood,
+                               "%s", m_logFeedback.c_str());
+        ImGui::BeginChild("build-log", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
         const auto lines = logCopy();
         for (const auto &line : lines) ImGui::TextUnformatted(line.c_str());
         if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) ImGui::SetScrollHereY(1.0f);
@@ -779,8 +1015,11 @@ private:
     }
 
     void drawPlayPage() {
-        drawSectionTitle("Ready to play", "Your compiled game and save files live in the workspace you chose. The launcher does not upload or share them.");
-        const bool gameReady = fs::exists(fs::path(m_workspace) / "game/play.sh");
+        const bool gameReady = gameArtifactsReady(fs::path(m_workspace));
+        drawSectionTitle(gameReady ? "Ready to play" : "Game not built yet",
+                         gameReady
+                             ? "Your compiled game and save files live in the workspace you chose. The launcher does not upload or share them."
+                             : "Complete the Build step to generate the game files. Nothing can be launched until the executable, core library and ROM data are present.");
         ImGui::BeginChild("play-card", ImVec2(0, 220), true);
         ImGui::TextColored(gameReady ? kGood : kGold, "%s", gameReady ? "Your game is ready" : "No built game in this workspace yet");
         ImGui::Spacing();
@@ -790,7 +1029,7 @@ private:
         if (!gameReady && ImGui::Button("Go to Build", ImVec2(140, 40))) m_page = Page::Build;
         ImGui::EndChild();
         ImGui::Spacing();
-        ImGui::TextDisabled("To report a problem, attach launcher.log from the workspace and describe what happened.");
+        ImGui::TextDisabled("To report a problem, attach log.txt from the workspace root and describe what happened.");
     }
 
     void drawSidebar() {
@@ -809,6 +1048,13 @@ private:
             }
             ImGui::SetCursorPosX(12);
             ImGui::BeginChild("nav-item", ImVec2(194, 60), false);
+            const Page target = static_cast<Page>(i);
+            const bool requirementsMet =
+                target != Page::Build ||
+                (!m_source.empty() && !m_rom.empty() && fs::is_regular_file(m_rom) && toolsReady());
+            const bool enabled = !m_buildRunning ? (requirementsMet &&
+                (target != Page::Play || gameArtifactsReady(fs::path(m_workspace)))) : target == Page::Build;
+            ImGui::BeginDisabled(!enabled);
             ImDrawList *draw = ImGui::GetWindowDrawList();
             const ImVec2 p = ImGui::GetWindowPos();
             if (selected) {
@@ -824,7 +1070,8 @@ private:
             ImGui::SetCursorPos(ImVec2(42, 32));
             ImGui::TextDisabled("%s", subtitles[static_cast<size_t>(i)]);
             ImGui::SetCursorPos(ImVec2(0, 0));
-            if (ImGui::InvisibleButton("hitbox", ImVec2(194, 60))) m_page = static_cast<Page>(i);
+            if (ImGui::InvisibleButton("hitbox", ImVec2(194, 60))) m_page = target;
+            ImGui::EndDisabled();
             ImGui::EndChild();
             ImGui::PopStyleColor(selected ? 2 : 0);
             ImGui::PopID();
@@ -860,14 +1107,29 @@ private:
             m_page = static_cast<Page>(std::max(0, static_cast<int>(m_page) - 1));
         if (m_page != Page::Rom) ImGui::SameLine();
         ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 210.0f);
+        bool canContinue = false;
+        std::error_code romError;
+        const bool romReady = !m_rom.empty() && fs::is_regular_file(m_rom, romError) && !romError;
+        if (!m_buildRunning) {
+            switch (m_page) {
+            case Page::Rom: canContinue = romReady; break;
+            case Page::Tools: canContinue = toolsReady(); break;
+            case Page::Options: canContinue = romReady && !m_source.empty() && toolsReady(); break;
+            case Page::Build: canContinue = gameArtifactsReady(fs::path(m_workspace)); break;
+            case Page::Play: break;
+            }
+        }
         if (m_page != Page::Play) {
-            const bool canContinue = m_page != Page::Rom || !m_rom.empty();
-            if (!canContinue) ImGui::BeginDisabled();
-            if (primaryButton(m_page == Page::Build ? "Continue to Play" : "Continue", ImVec2(185, 44)))
-                m_page = static_cast<Page>(std::min(4, static_cast<int>(m_page) + 1));
-            if (!canContinue) ImGui::EndDisabled();
-        } else if (fs::exists(fs::path(m_workspace) / "game/play.sh")) {
+            if (canContinue) {
+                if (primaryButton(m_page == Page::Build ? "Continue to Play" : "Continue", ImVec2(185, 44)))
+                    m_page = static_cast<Page>(std::min(4, static_cast<int>(m_page) + 1));
+            } else {
+                ImGui::Dummy(ImVec2(185, 44));
+            }
+        } else if (gameArtifactsReady(fs::path(m_workspace))) {
             if (primaryButton("Play", ImVec2(185, 44))) launchGame();
+        } else {
+            ImGui::Dummy(ImVec2(185, 44));
         }
         ImGui::EndChild();
     }
@@ -900,7 +1162,7 @@ private:
 
         // DQ8's fixed header: emblem, project name and one-line explanation.
         ImGui::BeginChild("header", ImVec2(0, 104), false);
-        ImGui::SetCursorPos(ImVec2(27, 20));
+        ImGui::SetCursorPos(ImVec2(31, 38));
         ImDrawList *headerDraw = ImGui::GetWindowDrawList();
         const ImVec2 logo(ImGui::GetWindowPos().x + 42, ImGui::GetWindowPos().y + 47);
         headerDraw->AddCircleFilled(logo, 24.0f, IM_COL32(244, 203, 82, 34), 36);
@@ -918,7 +1180,8 @@ private:
 
         const float bodyHeight = ImGui::GetWindowHeight() - 184.0f;
         ImGui::BeginChild("body", ImVec2(0, bodyHeight), false);
-        ImGui::SetCursorPos(ImVec2(0, 0));
+        // The body child starts at local (0, 0): WindowPadding is explicitly zero above.
+        // Avoid a redundant SetCursorPos() here; child windows follow immediately.
         drawSidebar();
         ImGui::SameLine(0, 0);
         ImGui::BeginChild("main", ImVec2(0, 0), false);

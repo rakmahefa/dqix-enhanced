@@ -29,15 +29,31 @@ NET_LIBS = -lws2_32 -liphlpapi -lgdi32 -lwinhttp -lcomdlg32
 endif
 NET_LIBS ?=
 
-GENOBJ = $(patsubst $(GEN)/%.c,$(OBJ)/gen/%.o,$(wildcard $(GEN)/*.c))
-GEN7OBJ = $(patsubst $(GEN7)/%.c,$(OBJ)/gen7/%.o,$(wildcard $(GEN7)/*.c))
+empty :=
+space := $(empty) $(empty)
+escape_spaces = $(subst $(space),\$(space),$(1))
+GEN_RAW := $(GEN)
+GEN_ESC := $(call escape_spaces,$(GEN_RAW))
+GEN7_RAW := $(GEN7)
+GEN7_ESC := $(call escape_spaces,$(GEN7_RAW))
+OUT_RAW := $(OUT)
+OUT_ESC := $(call escape_spaces,$(OUT_RAW))
+CORE_RAW := $(CORE)
+CORE_ESC := $(call escape_spaces,$(CORE_RAW))
+
+# Recompiler output filenames are fixed module/address names with no spaces.
+# Discover basenames so generated source folders may live in workspaces with spaces.
+GEN_SOURCES := $(shell find "$(GEN_RAW)" -maxdepth 1 -type f -name '*.c' -printf '%f ' 2>/dev/null)
+GEN7_SOURCES := $(shell find "$(GEN7_RAW)" -maxdepth 1 -type f -name '*.c' -printf '%f ' 2>/dev/null)
+GENOBJ := $(addprefix $(OBJ)/gen/,$(patsubst %.c,%.o,$(GEN_SOURCES)))
+GEN7OBJ := $(addprefix $(OBJ)/gen7/,$(patsubst %.c,%.o,$(GEN7_SOURCES)))
 RTOBJ = $(patsubst runtime/%.c,$(OBJ)/rt/%.o,$(RT))
 
 # RES: optional extra objects for the program only, e.g. the Windows icon
 # resource the build makes from the ROM (tools/rom_icon.py)
 RES ?=
-$(OUT): $(GENOBJ) $(GEN7OBJ) $(RTOBJ) $(SLIRPOBJ) $(OBJ)/rt/exe_main.o $(RES)
-	$(CC) -o $@ $^ $(SDL_LIBS) -lm $(NET_LIBS) $(LDFLAGS)
+$(OUT_ESC): $(GENOBJ) $(GEN7OBJ) $(RTOBJ) $(SLIRPOBJ) $(OBJ)/rt/exe_main.o $(RES)
+	$(CC) -o "$@" $^ $(SDL_LIBS) -lm $(NET_LIBS) $(LDFLAGS)
 
 # The game as a library (CORE=dqixcore.dll / dqixcore.so): in a session the
 # other players' DSes run from copies of it on one thread (hosting.c). Same
@@ -48,9 +64,9 @@ CORE_LDFLAGS ?= -static-libgcc
 else
 CORE_LDFLAGS ?= -Wl,-Bsymbolic -lpthread
 endif
-core: $(CORE)
-$(CORE): $(GENOBJ) $(GEN7OBJ) $(CORE_RTOBJ) $(SLIRPOBJ)
-	$(CC) -shared -o $@ $^ -lm $(NET_LIBS) $(CORE_LDFLAGS)
+core: $(CORE_ESC)
+$(CORE_ESC): $(GENOBJ) $(GEN7OBJ) $(CORE_RTOBJ) $(SLIRPOBJ)
+	$(CC) -shared -o "$@" $^ -lm $(NET_LIBS) $(CORE_LDFLAGS)
 
 $(OBJ)/slirp/%.o: third_party/libslirp/%.c
 	@mkdir -p $(dir $@)
@@ -60,13 +76,13 @@ $(OBJ)/rt/net.o: runtime/net.c runtime/nds.h
 	@mkdir -p $(dir $@)
 	$(CC) -O2 -g -Wall $(PIC) -DLIBSLIRP_STATIC_BUILD $(DEFS) $(SLIRP_INC) -Iruntime -c $< -o $@
 
-$(OBJ)/gen/%.o: $(GEN)/%.c runtime/cpu.h
+$(OBJ)/gen/%.o: $(GEN_ESC)/%.c runtime/cpu.h
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(PIC) $(DEFS) -Iruntime -I$(GEN) -c $< -o $@
+	$(CC) $(CFLAGS) $(PIC) $(DEFS) -Iruntime -I"$(GEN_RAW)" -c "$<" -o "$@"
 
-$(OBJ)/gen7/%.o: $(GEN7)/%.c runtime/cpu.h
+$(OBJ)/gen7/%.o: $(GEN7_ESC)/%.c runtime/cpu.h
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(PIC) $(DEFS) -Iruntime -I$(GEN7) -c $< -o $@
+	$(CC) $(CFLAGS) $(PIC) $(DEFS) -Iruntime -I"$(GEN7_RAW)" -c "$<" -o "$@"
 
 $(OBJ)/rt/gl_render.o: runtime/gl_render.c runtime/gl_render.h runtime/gpu3d.h runtime/nds.h
 	@mkdir -p $(dir $@)
@@ -102,9 +118,9 @@ $(OBJ)/rt/relay.o: runtime/relay.h runtime/relay_url.h
 $(OBJ)/rt/music.o: runtime/stb_vorbis.h runtime/dr_flac.h runtime/music.h
 $(OBJ)/rt/%.o: runtime/%.c runtime/nds.h runtime/cpu.h runtime/coro.h runtime/frontend.h runtime/version.h runtime/air.h runtime/session.h
 	@mkdir -p $(dir $@)
-	$(CC) -O2 -g -Wall -Wextra -Wno-unused-parameter $(PIC) $(DETERMINISM) $(DEFS) -Iruntime -I$(GEN) -c $< -o $@
+	$(CC) -O2 -g -Wall -Wextra -Wno-unused-parameter $(PIC) $(DETERMINISM) $(DEFS) -Iruntime -I"$(GEN_RAW)" -c "$<" -o "$@"
 
 clean:
-	rm -rf $(OBJ) $(OUT) $(CORE)
+	rm -rf "$(OBJ)" "$(OUT)" "$(CORE)"
 
 .PHONY: core clean

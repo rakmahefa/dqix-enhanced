@@ -20,7 +20,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  semantic-tests:
+    name: Recompiler semantic tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install the supported ARM test toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential clang lld llvm
+          clang --version
+
+      - name: Run ARM and Thumb semantic tests
+        run: python3 tests/semantics/run.py 2000
+
   build:
+    needs: semantic-tests
     name: Build Linux ${{ matrix.arch }}
     strategy:
       fail-fast: false
@@ -43,29 +60,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             build-essential g++ make pkg-config \
-            clang lld llvm \
             libsdl2-dev libgl-dev \
-            python3 python3-pip python3-venv \
-            xvfb xauth
-
-      - name: Normalize LLVM tool names required by semantic tests
-        shell: bash
-        run: |
-          for tool in ld.lld llvm-objcopy llvm-readelf; do
-            if command -v "$tool" >/dev/null 2>&1; then
-              continue
-            fi
-            candidate="$(find /usr/bin -maxdepth 1 \\( -type f -o -type l \\) -name "$tool-[0-9]*" -print | sort -V | tail -n 1)"
-            if [[ -z "$candidate" ]]; then
-              echo "Required LLVM tool not found: $tool" >&2
-              ls -1 /usr/bin/"$tool"* 2>/dev/null || true
-              exit 1
-            fi
-            sudo ln -s "$candidate" "/usr/local/bin/$tool"
-          done
-          for tool in clang ld.lld llvm-objcopy llvm-readelf gcc; do
-            command -v "$tool"
-          done
+            python3 python3-yaml \
+            xvfb xauth python3-pil
 
       - name: Verify runner architecture
         run: |
@@ -74,6 +71,7 @@ jobs:
             arm64)  test "$(uname -m)" = "aarch64" ;;
           esac
           python3 --version
+          python3 -c "import yaml; print('PyYAML', yaml.__version__)"
           make --version
           pkg-config --modversion sdl2
 
@@ -81,10 +79,6 @@ jobs:
         run: |
           python3 -m compileall -q recomp tools tests
           sh -n tools/play.sh
-
-      - name: Run recompiler semantic tests (x86_64 host)
-        if: matrix.arch == 'x86_64'
-        run: python3 tests/semantics/run.py 2000
 
       - name: Restore payload download cache
         uses: actions/cache@v4
@@ -108,6 +102,9 @@ jobs:
       - name: Compile native launcher
         run: make launcher PAYLOAD="$GITHUB_WORKSPACE/build/payload"
 
+      - name: Verify bundled SDL2 runtime path
+        run: readelf -d build/launcher/dqix-launcher | grep -F '$ORIGIN/payload/lib'
+
       - name: Verify launcher CLI
         run: |
           build/launcher/dqix-launcher --version
@@ -119,6 +116,9 @@ jobs:
           xvfb-run -a build/launcher/dqix-launcher \
             --preview "$GITHUB_WORKSPACE/build/launcher-screenshots"
 
+      - name: Convert launcher screenshots to PNG
+        run: python3 tools/launcher/convert-screenshots.py build/launcher-screenshots
+
       - name: Run packaging, payload and screenshot tests
         env:
           DQIX_PAYLOAD_DIR: ${{ github.workspace }}/build/payload
@@ -128,7 +128,7 @@ jobs:
       - name: Package launcher and payload release archive
         run: make release PAYLOAD="$GITHUB_WORKSPACE/build/payload"
 
-      - name: Upload Linux release archive and screenshots
+      - name: Upload Linux release archive
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -136,7 +136,16 @@ jobs:
           path: |
             build/release/DQIX-Enhanced-*.tar.gz
             build/release/SHA256SUMS-Linux-*.txt
-            build/launcher-screenshots/*.bmp
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload launcher PNG screenshots separately
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dqix-launcher-screenshots-${{ matrix.arch }}
+          path: build/launcher-screenshots/*.png
           if-no-files-found: warn
           retention-days: 14
           compression-level: 0
