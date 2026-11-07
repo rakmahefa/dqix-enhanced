@@ -50,6 +50,26 @@ class ReleasePayloadTests(unittest.TestCase):
             "bundled SDL2 headers are not self-contained:\n" + result.stderr,
         )
 
+        # Also syntax-check the exact translation unit that failed for users.
+        root = Path(__file__).resolve().parents[2]
+        frontend = root / "runtime/frontend_sdl.c"
+        frontend_result = subprocess.run(
+            compiler + [
+                "-fsyntax-only", "-fPIC", "-ftrivial-auto-var-init=zero",
+                "-Wno-unused-parameter", "-DRECOMP_TRACE",
+                "-I", str(include_dir), "-Iruntime", str(frontend),
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            frontend_result.returncode,
+            0,
+            "runtime/frontend_sdl.c does not compile against the bundled SDL2 headers:\\n"
+            + frontend_result.stderr,
+        )
+
     def test_source_snapshot_has_makefile_launcher_and_imgui(self) -> None:
         self.assertTrue((self.payload / "source/Makefile").is_file())
         self.assertTrue((self.payload / "source/third_party/imgui/imgui.h").is_file())
