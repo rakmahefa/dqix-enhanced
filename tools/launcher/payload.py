@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble the Linux release payload: source, portable Python/PyYAML and SDL2."""
+"""Assemble the Linux release payload: tracked source and SDL2."""
 
 from __future__ import annotations
 
