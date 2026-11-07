@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <new>
 #include <sstream>
 #include <vector>
 #include <string>
@@ -66,9 +67,11 @@ int main() {
     {
         ScopedPerfLogger scope("test.scoped");
         perf_note_memory_lookup(9);
-        int* value = new int(7);
-        assert(*value == 7);
-        delete value;
+        /* Call the replaceable global allocation function explicitly so an
+         * optimizing compiler cannot elide the new-expression allocation. */
+        void* value = ::operator new(16);
+        assert(value != nullptr);
+        ::operator delete(value);
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 
@@ -101,7 +104,7 @@ int main() {
                 assert(std::stoull(columns[9]) >= 1);   // ARM7 lookups
                 assert(std::stoull(columns[10]) >= 1);  // emulated fallback calls
                 assert(std::stoull(columns[13]) >= 3);  // malloc + realloc + new
-                assert(std::stoull(columns[14]) >= 196);
+                assert(std::stoull(columns[14]) >= 208);
                 found_frame = true;
             } else if (line.compare(0, 6, "scope,") == 0) {
                 std::vector<std::string> columns;
@@ -112,7 +115,7 @@ int main() {
                 assert(columns[5].find("test.scoped") != std::string::npos);
                 assert(std::stoull(columns[7]) >= 1);
                 assert(std::stoull(columns[13]) >= 1);
-                assert(std::stoull(columns[14]) >= 4);
+                assert(std::stoull(columns[14]) >= 16);
                 found_scope = true;
             }
         }
