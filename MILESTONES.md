@@ -77,8 +77,10 @@ measured optimisation plan.
 
 ### Exit criteria (cycle 1)
 
-- [ ] CI green on `upstream-dev` with the current matrix; no red check without
-      an issue number.
+- [x] CI green on `upstream-dev` with the current matrix; no red check without
+      an issue number. _(Linux launcher and release #36, commit `b0ab4cd`,
+      success in 1 m 46 s. macOS CI does not run on this branch: it triggers on
+      `main`/`stable` only — M5 decides whether that is intended.)_
 - [ ] P0 = 0 and P1 triaged with an owner. _(P0 = 0; both P1s triaged, owners
       still to name.)_
 - [x] `docs/PERF.md` exists with at least one number per hotspot and a ranked
@@ -87,9 +89,9 @@ measured optimisation plan.
       the ones we deliberately decide not to fix, with the reason.
       _(`docs/REVIEW.md`.)_
 
-**Cycle-1 status:** open on two items — the hosted CI run for this commit, and
-an owner for each of the two P1 defects (turnstile, cut letters). M2 may start
-in parallel: it works on the same files and does not depend on either item.
+**Cycle-1 status:** open on one item — an owner for each of the two P1 defects
+(turnstile, cut letters). M2 may start in parallel: it works on the same files
+and does not depend on it.
 
 ### Escalation
 
@@ -364,7 +366,7 @@ at M2, not at M1.
 
 | Milestone | Evidence | Value / link | Date |
 |-----------|----------|--------------|------|
-| M1 | CI run | local `make test` + `make launcher` green on Ubuntu 24.04 (2026-11-27); hosted run pending | 2026-11-27 |
+| M1 | CI run | local `make test` + `make launcher` green on Ubuntu 24.04; hosted “Linux launcher and release” #36 on `b0ab4cd` success (1 m 46 s) | 2026-11-27 |
 | M1 | `docs/PERF.md` baseline | `make test` 2 s; `make launcher` 26 s / 6.5 MB; `wfc_frame` 0.017 ms/frame; `ram_hash` 0.46 ms / 2 s | 2026-11-27 |
 | M1 | code review | `docs/REVIEW.md`: 9 files, 0 P0, 2 P1 (roadmap), 11 P2 findings with decisions | 2026-11-27 |
 | M2 | fixes closed / proofs | | |
