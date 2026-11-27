@@ -1,16 +1,37 @@
 # DQIX Enhanced
 
+[![Join the Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2FCczgRv36NK%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&label=Discord&suffix=%20members&logo=discord&logoColor=white&color=5865F2&style=for-the-badge)](https://discord.gg/CczgRv36NK)
+
 **Dragon Quest IX: Sentinels of the Starry Skies, as a native PC game.**
 
 This project turns your own copy of Dragon Quest IX (the USA or European DS
-cartridge's ROM) into a real Windows program, built on your PC from your ROM. Nothing
+cartridge's ROM) into a real PC program, built on your PC from your ROM. Nothing
 from the game is included here: no code, no graphics, no music. It isn't an
 emulator running the DS's code. The game's code has been recompiled into
 native PC code, with the DS's hardware rebuilt around it. So it can play
 exactly like the original, and it can also do things the DS never could.
 
-**Join the community on Discord: https://discord.gg/CczgRv36NK** for help,
-news, and friends to play with.
+**Join over 1,000 players on Discord: https://discord.gg/CczgRv36NK** for
+help, news, and friends to play with.
+
+## Why DQIX Enhanced
+
+- **The original Dragon Quest IX recompilation.**
+- **Play together online.** Tag mode and co-op with up to 4 friends over the
+  internet, joining with a code.
+- **The online world, restored.** A built-in Nintendo Wi-Fi replacement and
+  DQVC, with the downloadable quests and special guests, even offline.
+- **Exactly like the DS, or better.** Classic mode matches a real DS pixel for
+  pixel; Enhanced draws the 3D up to 12x sharper, with HD text and mods.
+- **Play on one screen.** Widescreen turns the DS's two screens into one wide
+  view of the world, with the other screen small in a corner or hidden, and
+  **Dynamic Widescreen** (experimental) keeps the map in the corner while the
+  game's own windows, menus and battle panels move clear of it.
+- **Always improving.** Contributors add new features and fixes frequently:
+  Linux, macOS, HD text and more.
+- **Built from your own cartridge.** Nothing from the game is included, and
+  it runs natively on Windows, Linux (beta) and macOS (experimental), with
+  the Steam Deck on the way.
 
 ## Screenshots
 
@@ -86,6 +107,9 @@ original)
   party's panels sit stacked in the bottom left.
 - **Single screen**: one screen as big as it gets, switched with a trigger.
 - **Top screen in the corner**: the same, with the field as on the DS.
+- **Transmog** (Mods menu): a character looks as if they wore other
+  equipment, chosen in `transmog.ini`, while what they really wear and every
+  number stay the same (see [docs/MODS.md](docs/MODS.md)).
 - Coming: a free camera (see the roadmap).
 
 **Multiplayer, from anywhere**
