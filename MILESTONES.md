@@ -55,13 +55,15 @@ measured optimisation plan.
 - [x] **Triage.** Every open bug/report is labelled P0 (data loss, crash,
       broken session), P1 (wrong behaviour, visible regression), P2 (cosmetic,
       enhancement gap). Untriaged reports count as P1.
-- [x] **Code review of the risky core.** (`docs/REVIEW.md`; findings written
-      down with a decision each, including the ones we chose not to fix.) Read and note findings for at least:
+- [x] **Code review of the risky core.** Read and note findings for at least:
       `runtime/air.c`, `runtime/session.c`, `runtime/wifi.c`, `runtime/gpu3d.c`,
       `runtime/gl_render.c`, `runtime/wfc.c`, `runtime/relay.c`,
       `runtime/menu_ingame.c`, `tools/relay/worker.js`. For each: invariants,
       error paths, resource ownership, thread/ordering assumptions, missing
-      tests.
+      tests. _(`docs/REVIEW.md`: invariants and weak points per module, a
+      decision for each finding including the ones we choose not to fix.
+      `wifi.c` and `frontend_sdl.c` were not read this cycle — first in line
+      for cycle 2._)
 - [~] **Hotspot inventory.** Where the time actually goes: recompile stage,
       C compile/link, startup, frame time (Classic/Enhanced/widescreen),
       session latency, relay round-trip, launcher build step.
@@ -361,7 +363,8 @@ at M2, not at M1.
 - Cycle: **1**
 - Opened: **2026-11-27**
 - Target release train: _v35 → v36_
-- Current milestone: **M1 → M2** (M1's work is done; two evidence items open)
+- Current milestone: **M2** (M1's work is done; one exit item stays open —
+  naming an owner for each of the two P1 defects)
 - Owner of the cycle: _TBD_
 
 ## Evidence log (cycle 1)
