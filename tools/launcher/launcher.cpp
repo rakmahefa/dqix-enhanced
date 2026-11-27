@@ -155,17 +155,6 @@ std::string defaultWorkspace() {
     return (root / "dqix-enhanced" / "workspace").string();
 }
 
-std::string pageName(Page page) {
-    switch (page) {
-    case Page::Rom: return "Your ROM";
-    case Page::Tools: return "Tools";
-    case Page::Options: return "Options";
-    case Page::Build: return "Build";
-    case Page::Play: return "Play";
-    }
-    return {};
-}
-
 bool gameArtifactsReady(const fs::path &workspace) {
     const fs::path game = workspace / "game";
     const fs::path executable = game / "dqix";

@@ -328,7 +328,10 @@ static int ws_recv(Ws* w, uint8_t** out, size_t* len) {
             free(p); continue;
         }
         if (op == 10) { free(p); continue; }
-        msg = realloc(msg, mlen + (size_t)n + 1);
+        if (mlen + (size_t)n > (16u << 20)) { free(p); free(msg); return 0; }   /* whole message cap, same as a single fragment */
+        void* _tmp = realloc(msg, mlen + (size_t)n + 1);
+        if (!_tmp) { free(p); free(msg); return 0; }
+        msg = _tmp;
         memcpy(msg + mlen, p, (size_t)n); mlen += (size_t)n; free(p);
         if (fin) { *out = msg; *len = mlen; return 1; }
     }

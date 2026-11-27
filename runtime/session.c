@@ -133,6 +133,7 @@ static uint64_t g_hash_next = HASH_EVERY;   /* my next fingerprint to send */
 typedef struct { int k; uint64_t frame, hash; } PendingHash;
 static PendingHash g_pending[64];
 static int g_npending;
+static uint64_t g_pending_dropped;   /* fingerprints dropped because the pending buffer (64) was full */
 
 int session_hidden(void) { return g_hidden; }
 int session_running(void) { return g_running; }
@@ -874,7 +875,10 @@ static void got_input(int from_peer, Rd* r) {
 static void got_hash(int from_peer, Rd* r) {
     int k = r_u8(r); uint64_t frame = r_u64(r), h = r_u64(r);
     if (r->bad || k < 0 || k >= g_n) return;
-    if (k != g_me && g_npending < 64) { g_pending[g_npending].k = k; g_pending[g_npending].frame = frame; g_pending[g_npending].hash = h; g_npending++; }
+    if (k != g_me) {
+        if (g_npending < 64) { g_pending[g_npending].k = k; g_pending[g_npending].frame = frame; g_pending[g_npending].hash = h; g_npending++; }
+        else { g_pending_dropped++; flog("sync: pending fingerprint buffer full, dropped frame %llu from player %d (total dropped %llu)", (unsigned long long)frame, k + 1, (unsigned long long)g_pending_dropped); }
+    }
     if (g_host) {
         Buf b = { 0 }; b_put(&b, r->d, r->n);
         for (int i = 1; i < SESSION_MAX; i++) if (i != from_peer && g_peer[i].s != BADSOCK && g_peer[i].hello) send_msg(&g_peer[i], M_HASH, &b);

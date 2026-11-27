@@ -432,13 +432,17 @@ static void now_str(char* s) {
     strftime(s, 20, "%Y%m%d%H%M%S", tm);
 }
 
-/* the reply to one request; returns a malloc'd buffer */
+/* Builds the HTTP response for a request. `req` must be NUL-terminated (the
+ * caller, tcp_recv, terminates c->req after every chunk), so sscanf/strstr
+ * are safe. Returns a malloc'd buffer (or NULL on allocation failure, in
+ * which case the connection is dropped by the caller). */
 static char* http(const char* req, int reqlen, int* outlen) {
     char method[8] = "", path[128] = "";
     sscanf(req, "%7s %127s", method, path);
     const char* body = strstr(req, "\r\n\r\n");
     body = body ? body + 4 : req + reqlen;
     char* out = malloc(4096 + 65536);
+    if (!out) return NULL;
     char text[4096] = ""; const char* ctype = "text/plain"; const char* extra = "";
     char* bin = NULL; int binlen = 0, status = 200;
     char extrab[256] = "";

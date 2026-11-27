@@ -114,19 +114,30 @@ land the M1 optimisation plan with numbers attached.
 
 ### Work
 
-- [ ] **Fix the cycle's bug set.** Cycle 1 scope comes from `ROADMAP.md`:
+- [~] **Fix the cycle's bug set.** Cycle 1 scope comes from `ROADMAP.md`:
       the Gortress turnstile drawn displaced (core, also Classic), letters cut
       short in battle panels ("Lv '1"), the Zoom-menu smear, the flicker after
       the attribute-points menu, the paler sky at the battle sides, the Upover
       inn light. Each fix: reproduction first, then the fix, then the proof.
-- [ ] **Improve the code you touched.** Dead code and stale comments removed,
+      _Blocked: every one of these needs a ROM to reproduce and a reference
+      emulator frame to prove. The tree still has none (`rom/` ships only a
+      README). The instrumentation (`front.log`, `DQIX_SYNCLOG`) is ready; the
+      fixes start as soon as a cartridge image is available._
+- [~] **Improve the code you touched.** Dead code and stale comments removed,
       error paths made explicit, duplicated logic folded, tests added for the
       module's boundaries. No drive-by refactor of untouched modules.
-- [ ] **Implement the optimisations** in `docs/PERF.md` order: before/after
+      _M2 so far: `pageName` deleted (warning gone), `got_hash` reports dropped
+      fingerprints instead of hiding them, `ws_recv` caps a whole message at
+      16 MiB and checks `realloc`, `http()` documents its NUL-termination
+      contract and checks `malloc`. `make test` green after each._
+- [~] **Implement the optimisations** in `docs/PERF.md` order: before/after
       numbers recorded, revert anything that does not clear its threshold.
       Candidate set: the 528 slow jump stubs, compile parallelism and
       incremental rebuilds, relay message bundling and host fan-out, four-player
       lag sources.
+      _Done: rank 2 (launcher incremental build) — 26 s → 3.8 s rebuild, 0.07 s
+      warm. Remaining ranks 1 and 3 need a ROM/session; rank 4 needs an idle
+      session to measure._
 - [ ] **Guard the gains.** Any optimisation that changes observable behaviour
       gets a golden frame or replay fingerprint; Classic output stays
       pixel-identical.
@@ -374,8 +385,8 @@ at M2, not at M1.
 | M1 | CI run | local `make test` + `make launcher` green on Ubuntu 24.04; hosted “Linux launcher and release” #36 on `b0ab4cd` and #38 on `0faacb4`, both success (~2 min) | 2026-11-27 |
 | M1 | `docs/PERF.md` baseline | `make test` 2 s; `make launcher` 26 s / 6.5 MB; `wfc_frame` 0.017 ms/frame; `ram_hash` 0.46 ms / 2 s | 2026-11-27 |
 | M1 | code review | `docs/REVIEW.md`: 9 files, 0 P0, 2 P1 (roadmap), 11 P2 findings with decisions | 2026-11-27 |
-| M2 | fixes closed / proofs | | |
-| M2 | optimisations landed (before → after) | | |
+| M2 | hardenings / code improvements | `pageName` warning removed; `got_hash` drop counter in `front.log`; `ws_recv` whole-message cap + `realloc` check; `http()` allocation check + contract comment. `make test` green (26 semantic cases, 13 packaging tests, 2 skipped) | 2026-11-27 |
+| M2 | optimisations landed (before → after) | launcher incremental build: 26 s clean → 3.8 s rebuild after `launcher.cpp`, 0.07 s warm; artifact unchanged (6.5 MB, `--help`/`--version`) | 2026-11-27 |
 | M3 | golden corpus run | | |
 | M4 | flagship + measured cost | | |
 | M5 | published artifacts + checksums | | |

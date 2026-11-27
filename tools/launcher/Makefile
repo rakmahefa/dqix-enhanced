@@ -21,13 +21,22 @@ SDL_LIBS := $(shell pkg-config --libs sdl2)
 endif
 
 IMGUI_ESC := $(call escape_spaces,$(IMGUI_DIR))
-SOURCES := \
-	$(IMGUI_ESC)/imgui.cpp \
-	$(IMGUI_ESC)/imgui_draw.cpp \
-	$(IMGUI_ESC)/imgui_tables.cpp \
-	$(IMGUI_ESC)/imgui_widgets.cpp \
-	$(IMGUI_ESC)/backends/imgui_impl_sdl2.cpp \
-	$(IMGUI_ESC)/backends/imgui_impl_sdlrenderer2.cpp
+OBJ_DIR := $(BUILD_DIR)/obj
+
+LAUNCHER_SRC := launcher.cpp
+IMGUI_SRCS := \
+	$(IMGUI_DIR)/imgui.cpp \
+	$(IMGUI_DIR)/imgui_draw.cpp \
+	$(IMGUI_DIR)/imgui_tables.cpp \
+	$(IMGUI_DIR)/imgui_widgets.cpp \
+	$(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp \
+	$(IMGUI_DIR)/backends/imgui_impl_sdlrenderer2.cpp
+
+# Object files: one per source, so unchanged ImGui sources are not recompiled.
+LAUNCHER_OBJ := $(OBJ_DIR)/launcher.o
+IMGUI_OBJS := $(patsubst $(IMGUI_DIR)/%.cpp,$(OBJ_DIR)/imgui/%.o,$(IMGUI_SRCS))
+OBJS := $(LAUNCHER_OBJ) $(IMGUI_OBJS)
+DEPS := $(OBJS:.o=.d)
 
 TARGET := $(BUILD_DIR)/dqix-launcher
 TARGET_ESC := $(call escape_spaces,$(TARGET))
@@ -39,10 +48,21 @@ check:
 	@test -f "$(IMGUI_DIR)/imgui.h" || { echo "Dear ImGui submodule is missing. Run: git submodule update --init --recursive"; exit 1; }
 	@pkg-config --exists sdl2 || test -n "$(PAYLOAD_ABS)" || { echo "SDL2 development files are missing."; exit 1; }
 
-$(TARGET_ESC): launcher.cpp $(SOURCES) | check
+$(TARGET_ESC): $(OBJS) | check
 	@mkdir -p "$(BUILD_DIR)"
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SDL_CFLAGS) -o "$@" launcher.cpp "$(IMGUI_DIR)/imgui.cpp" "$(IMGUI_DIR)/imgui_draw.cpp" "$(IMGUI_DIR)/imgui_tables.cpp" "$(IMGUI_DIR)/imgui_widgets.cpp" "$(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp" "$(IMGUI_DIR)/backends/imgui_impl_sdlrenderer2.cpp" $(SDL_LIBS) -pthread
+	$(CXX) $(CXXFLAGS) -o "$@" $(OBJS) $(SDL_LIBS) -pthread
 	@chmod 0755 "$@"
 
+# Pattern rules: compile each source to its own object with dependency tracking.
+$(OBJ_DIR)/launcher.o: launcher.cpp | check
+	@mkdir -p "$(OBJ_DIR)"
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SDL_CFLAGS) -MMD -MP -c -o "$@" launcher.cpp
+
+$(OBJ_DIR)/imgui/%.o: $(IMGUI_DIR)/%.cpp | check
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SDL_CFLAGS) -MMD -MP -c -o "$@" "$<"
+
+-include $(DEPS)
+
 clean:
-	rm -f "$(TARGET)"
+	rm -rf "$(BUILD_DIR)"

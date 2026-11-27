@@ -76,10 +76,11 @@ usually byte-identical in behaviour).
 
 - **P1 — desync detection can go silent.** `got_hash` keeps at most 64 pending
   fingerprints (`g_pending[64]`); beyond that a new one is dropped without a
-  trace. A long stall is exactly when many arrive at once, so the moment
-  detection matters most is the moment it can thin out. Decision: count the
-  drops and report them (a line in `front.log`, not a player-facing warning),
-  M2 alongside the lag work.
+  trace.   A long stall is exactly when many arrive at once, so the moment
+  detection matters most is the moment it can thin out. **Fixed in M2:**
+  `got_hash` counts the drops and writes one `front.log` line per dropped
+  fingerprint (frame, player, running total); the player-facing behaviour is
+  unchanged.
 - **P2 — the network thread wakes every millisecond.** `net_thread` ends each
   pass with `sleep_ms(1)`, doing `peer_io` on up to four sockets, `send_mine`,
   `check_hashes`, `check_children` and `watch` each time. That is 1000 wakeups
@@ -108,8 +109,9 @@ space legitimately.
   is capped at 16 MiB, but a message made of many fragments is reallocated
   without a total limit, and the payload is then `realloc`'d again per
   fragment. A hostile or broken relay can make the client allocate until the
-  OS says no. Decision: cap a whole message at 16 MiB too, and treat exceeding
-  it as "the relay connection ended", M3 (a hardening, nobody has hit it).
+  OS says no. **Fixed in M2:** a whole message is capped at 16 MiB and the
+  connection is treated as ended if it exceeds that; the same edit checks the
+  `realloc` result.
 - **P2 — allocation results are not checked** in `send_msg`, `flush` and
   `flush_all_host`. A failed `malloc` there is a crash at the exact moment the
   machine is already under pressure. Decision: fold into the same hardening
@@ -134,10 +136,10 @@ and only in main RAM.
   one-line diagnostic when a `https://` string exists unaligned but was not
   patched (M3).
 - **P2 — `http()` does not check its allocation** (`malloc(4096 + 65536)`) and
-  assumes the request buffer is NUL-terminated (`sscanf`, `strstr`). The
-  caller does terminate it today; the assumption is undocumented. Decision:
-  document it at the function, check the allocation — M2, it is a two-line
-  change in a file M2 will touch anyway.
+  assumes the request buffer is NUL-terminated (`sscanf`, `strstr`). **Fixed
+  in M2:** the function documents the NUL-termination contract (the caller
+  terminates after every chunk) and returns `NULL` when its allocation fails;
+  the caller then drops the connection rather than crashing.
 - **Note.** `wfc_frame`'s scan measures 0.017 ms per frame (see
   `docs/PERF.md`), i.e. ~0.1 % of a frame. It is not a hotspot; do not
   "optimise" it into a cache without a new measurement.
@@ -176,6 +178,6 @@ and only in main RAM.
 - **P2 — `pageName(Page)` is defined and never used** (`launcher.cpp:158`), so
   every build prints
   `warning: 'std::string pageName(Page)' defined but not used`. The build does
-  not use `-Werror`, so it is invisible in CI. Decision: M2 — either use it for
-  the page titles it was written for or delete it; do not add `-Werror` until
-  the tree is warning-clean.
+  not use `-Werror`, so it is invisible in CI. **Fixed in M2:** deleted; the
+  sidebar keeps its own display names. Do not add `-Werror` until the tree is
+  warning-clean.

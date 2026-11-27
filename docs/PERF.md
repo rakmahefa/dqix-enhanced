@@ -26,14 +26,14 @@ inputs. Two seconds for that is cheap; the CI runtime is dominated elsewhere.
 
 | Build | Time | Artifact | Notes |
 |---|---|---|---|
-| `make launcher` (7 translation units, one `g++ -O2` line) | 26 s | `dqix-launcher`, 6.5 MB, dynamically linked against SDL2 | single-shot, no parallelism; ImGui is compiled from source every time |
+| `make launcher` (7 translation units) | **27 s clean, 3.8 s after touching `launcher.cpp`, 0.07 s warm** | `dqix-launcher`, 6.5 MB, dynamically linked against SDL2 | per-file objects with `-MMD -MP` dependency tracking (M2); unchanged ImGui objects are not recompiled |
 | `make build` (recompiler + native compile of generated C) | **not measured** | — | needs a ROM; `rom/` ships only a README |
 
-`make launcher` is 26 s of pure serial compilation of 6 ImGui sources that
-never change. That is the cheapest, most reversible win on the board: split it
-into objects (or cache `third_party/imgui/*.o` keyed by the submodule commit)
-and the launcher step drops to roughly the cost of `launcher.cpp` alone. Same
-artifact, no behavioural change, no maintenance burden. **Rank 2 below.**
+`make launcher` used to be 26 s of pure serial compilation of 6 ImGui sources
+that never change. M2 split it into per-file objects with `-MMD -MP`
+dependency tracking: a clean build is unchanged (27 s, same artifact), a
+rebuild after touching `launcher.cpp` is 3.8 s, and a no-op rebuild is 0.07 s.
+Same artifact, no behavioural change. **Rank 2 below — done.**
 
 A bare container also needs `libsdl2-dev` **and** `libx11-dev` (ImGui's SDL2
 backend includes `SDL_syswm.h`, which includes `X11/Xlib.h`). The CI image has
@@ -90,15 +90,13 @@ dropped from the list rather than estimated.
    constants; revert both. *Proof:* count the relay messages the client sends
    in 60 s of a 4-player session, before and after, and log the input→motion
    latency from `front.log`'s timestamps. **This is M2's headline.**
-2. **Launcher build: compile ImGui once.** *Baseline:* 26 s for `make
-   launcher` on this machine, 7 TUs in one command. *Expected:* most of the
-   26 s is ImGui; per-file objects with normal `make` dependency tracking
-   should leave a few seconds on a rebuild and the same single compile on a
-   clean tree, plus a cacheable step in CI. *Risk:* none to the artifact; only
-   the Makefile changes. *Rollback:* the current one-liner is four lines of
-   Makefile. *Proof:* `make launcher` from clean and from warm, before and
-   after, and the identical binary (same size, same `nm` symbol set, smoke
-   screenshots unchanged).
+2. **Launcher build: compile ImGui once.** **DONE (M2).** *Baseline:* 26 s
+   for `make launcher` on this machine, 7 TUs in one command. *After:* per-file
+   objects (`-MMD -MP`): 27 s clean, **3.8 s** after touching `launcher.cpp`,
+   **0.07 s** warm. *Risk:* none to the artifact; only the Makefile changed.
+   *Rollback:* restore the one-command link line. *Proof:* `make launcher`
+   from clean and from warm, before and after; the binary is still 6.5 MB and
+   `--help`/`--version` answer.
 3. **The 528 slow jump stubs.** *Baseline:* unmeasured (needs a ROM and a
    scene that jumps a lot). *Expected:* the roadmap calls it the remaining
    dispatch overhead; realistic ceiling is a few percent of frame time in
