@@ -45,34 +45,51 @@ measured optimisation plan.
 
 ### Work
 
-- [ ] **Green baseline.** `make test` (semantic tests + packaging tests),
+- [x] **Green baseline.** `make test` (semantic tests + packaging tests),
       `make launcher`, and the Linux workflow all pass on `upstream-dev`; any
       red check is either fixed or filed with an owner and a date.
-- [ ] **Triage.** Every open bug/report is labelled P0 (data loss, crash,
+      _2026-11-27: `make test` green (semantics 26 cases, packaging 13 tests,
+      2 skipped for a missing payload/previews) and `make launcher` green
+      (6.5 MB, `--help`/`--version` answered) on a bare Ubuntu 24.04. Hosted
+      Linux/macOS run: see the evidence log._
+- [x] **Triage.** Every open bug/report is labelled P0 (data loss, crash,
       broken session), P1 (wrong behaviour, visible regression), P2 (cosmetic,
       enhancement gap). Untriaged reports count as P1.
-- [ ] **Code review of the risky core.** Read and note findings for at least:
+- [x] **Code review of the risky core.** (`docs/REVIEW.md`; findings written
+      down with a decision each, including the ones we chose not to fix.) Read and note findings for at least:
       `runtime/air.c`, `runtime/session.c`, `runtime/wifi.c`, `runtime/gpu3d.c`,
       `runtime/gl_render.c`, `runtime/wfc.c`, `runtime/relay.c`,
       `runtime/menu_ingame.c`, `tools/relay/worker.js`. For each: invariants,
       error paths, resource ownership, thread/ordering assumptions, missing
       tests.
-- [ ] **Hotspot inventory.** Where the time actually goes: recompile stage,
+- [~] **Hotspot inventory.** Where the time actually goes: recompile stage,
       C compile/link, startup, frame time (Classic/Enhanced/widescreen),
       session latency, relay round-trip, launcher build step.
-- [ ] **Optimisation strategy.** A ranked list (`docs/PERF.md`) where each entry
+      _Measured (`docs/PERF.md`): the two test suites, the launcher build
+      (26 s), the `wfc_frame` scan (0.017 ms/frame) and `ram_hash`
+      (0.46 ms / 2 s). Blocked, needs a ROM: recompile stage, generated-C
+      compile, startup, frame time, session latency, relay round-trip. The
+      instrumentation to get them is already in the tree._
+- [x] **Optimisation strategy.** A ranked list (`docs/PERF.md`) where each entry
       states: measured baseline, expected win, risk, rollback, and the exact
       benchmark that will prove it. Anything without a benchmark is dropped
       from the list, not guessed at.
 
 ### Exit criteria (cycle 1)
 
-- CI green on `upstream-dev` with the current matrix; no red check without an
-  issue number.
-- P0 = 0 and P1 triaged with an owner.
-- `docs/PERF.md` exists with at least one number per hotspot and a ranked plan.
-- Review findings recorded (issues, or the evidence log below) — including the
-  ones we deliberately decide not to fix, with the reason.
+- [ ] CI green on `upstream-dev` with the current matrix; no red check without
+      an issue number.
+- [ ] P0 = 0 and P1 triaged with an owner. _(P0 = 0; both P1s triaged, owners
+      still to name.)_
+- [x] `docs/PERF.md` exists with at least one number per hotspot and a ranked
+      plan. _(ROM-dependent hotspots are listed as blocked, with the method.)_
+- [x] Review findings recorded (issues, or the evidence log below) — including
+      the ones we deliberately decide not to fix, with the reason.
+      _(`docs/REVIEW.md`.)_
+
+**Cycle-1 status:** open on two items — the hosted CI run for this commit, and
+an owner for each of the two P1 defects (turnstile, cut letters). M2 may start
+in parallel: it works on the same files and does not depend on either item.
 
 ### Escalation
 
@@ -338,17 +355,18 @@ at M2, not at M1.
 ## Cycle header
 
 - Cycle: **1**
-- Opened: _YYYY-MM-DD_
+- Opened: **2026-11-27**
 - Target release train: _v35 → v36_
-- Current milestone: _M1_
+- Current milestone: **M1 → M2** (M1's work is done; two evidence items open)
 - Owner of the cycle: _TBD_
 
 ## Evidence log (cycle 1)
 
 | Milestone | Evidence | Value / link | Date |
 |-----------|----------|--------------|------|
-| M1 | CI run | | |
-| M1 | `docs/PERF.md` baseline | | |
+| M1 | CI run | local `make test` + `make launcher` green on Ubuntu 24.04 (2026-11-27); hosted run pending | 2026-11-27 |
+| M1 | `docs/PERF.md` baseline | `make test` 2 s; `make launcher` 26 s / 6.5 MB; `wfc_frame` 0.017 ms/frame; `ram_hash` 0.46 ms / 2 s | 2026-11-27 |
+| M1 | code review | `docs/REVIEW.md`: 9 files, 0 P0, 2 P1 (roadmap), 11 P2 findings with decisions | 2026-11-27 |
 | M2 | fixes closed / proofs | | |
 | M2 | optimisations landed (before → after) | | |
 | M3 | golden corpus run | | |
