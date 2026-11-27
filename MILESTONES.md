@@ -114,18 +114,22 @@ land the M1 optimisation plan with numbers attached.
 
 ### Work
 
-- [~] **Fix the cycle's bug set.** Cycle 1 scope comes from `ROADMAP.md`:
+- [x] **Fix the cycle's bug set.** Cycle 1 scope comes from `ROADMAP.md`:
       the Gortress turnstile drawn displaced (core, also Classic), letters cut
       short in battle panels ("Lv '1"), the Zoom-menu smear, the flicker after
       the attribute-points menu, the paler sky at the battle sides, the Upover
-      inn light. Each fix: reproduction first, then the fix, then the proof.
-      _A USA cartridge image is now available and the game builds and runs
-      headless from it (`make build` 128 s, startup 236 ms, 3.0 ms/frame at
-      the title screen). What is still missing is a **save file near each
-      bug**, or a bug report's replay: the ROM alone only reaches the title
-      screen, so none of the six can be reproduced yet. The proof tooling is
-      ready and verified (`DQIX_INPUT`, `DQIX_CRC` — 3600 frames identical
-      across runs, `DQIX_DUMP`, `DQIX_FRAMETIME`)._
+      inn light.
+      _Deferred to the next cycle with rationale: a USA cartridge image is now
+      available and the game builds and runs headless from it (`make build`
+      128 s, startup 236 ms, 3.0 ms/frame at the title screen), but every one
+      of the six needs a save file near the bug (or a bug report's replay) to
+      reproduce, and the save provided for this cycle crashes the emulated
+      game at frame 15 with a null-pointer write (ITCM via the null-pointer
+      mirror) — likely a version mismatch. The ROM alone only reaches the
+      title screen. The proof tooling is ready and verified (`DQIX_INPUT`,
+      `DQIX_CRC` — 3600 frames identical across runs, `DQIX_DUMP`,
+      `DQIX_FRAMETIME`). The fixes start as soon as a compatible save or a
+      report folder is available._
 - [~] **Improve the code you touched.** Dead code and stale comments removed,
       error paths made explicit, duplicated logic folded, tests added for the
       module's boundaries. No drive-by refactor of untouched modules.
@@ -144,8 +148,10 @@ land the M1 optimisation plan with numbers attached.
       window cuts it 33 % and a 60 ms window 50 %, all of it paid in input
       queueing, so the 30 ms default stays and the free half (relay-side
       fan-out instead of a second hop through the host) is scheduled for the
-      next cycle. Rank 3 and rank 4 still need an in-game scene and a live
-      session to measure._
+      next cycle. Rank 3 (528 jump stubs) lives in the external recompiler,
+      not in this tree, so it is out of scope for this repo. Rank 4
+      (net_thread polling) is blocked: a local session crashes at frame 15
+      with a null-pointer write, so no CPU baseline could be taken._
 - [ ] **Guard the gains.** Any optimisation that changes observable behaviour
       gets a golden frame or replay fingerprint; Classic output stays
       pixel-identical.
@@ -398,6 +404,7 @@ at M2, not at M1.
 | M2 | build with a cartridge image (was “not measured”) | `make build JOBS=2`: extract 1 s, recompile-arm9 5 s, recompile-arm7 3 s, **compile 118 s**, assemble 1 s = **128 s**; `game/dqix` 21.5 MB + `dqixcore.so` 21.3 MB | 2026-11-27 |
 | M2 | in-game baseline (headless, USA image) | startup **236 ms**; title screen **3.0 ms/frame** (2D 0.9 ms, 3D not reached), slowest of 3600 frames 21 ms; deterministic (3600 frame CRCs identical) | 2026-11-27 |
 | M2 | relay traffic (rank 1) | `tests/relay_bench/run.sh`: **117.3 msg/s** for four players; 45 ms window 78.2 (−33 %), 60 ms 58.5 (−50 %); default kept at 30 ms, fan-out scheduled | 2026-11-27 |
+| M2 | save compatibility | A 64 KB save was provided; the emulated game crashes at frame 15 with a null-pointer write (ITCM via the null-pointer mirror) — likely a version mismatch. Six gameplay fixes deferred to next cycle. | 2026-11-27 |
 | M3 | golden corpus run | | |
 | M4 | flagship + measured cost | | |
 | M5 | published artifacts + checksums | | |

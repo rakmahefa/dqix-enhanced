@@ -164,13 +164,17 @@ dropped from the list rather than estimated.
    *Rollback:* the stub generation is a recompiler table entry. *Proof:* the
    semantic suite plus a replay fingerprint of a scene that exercises them,
    before and after, and frame time in that replay.
-4. **`net_thread`'s 1 ms polling.** *Baseline:* unmeasured; structurally it is
-   1000 wakeups/s per player doing four non-blocking socket reads, a send pass
-   and three housekeeping calls. *Expected:* an idle co-op session should cost
-   almost nothing; this is a wakeup and CPU-budget win, not a latency win.
-   *Risk:* low, but a `select` timeout is exactly where a latency regression
-   hides. *Rollback:* one loop body. *Proof:* CPU time of an idle 2-player
-   session over 60 s, plus unchanged input latency in the same log.
+4. **`net_thread`'s 1 ms polling.** *Baseline:* blocked. A local two-player
+   session (`DQIX_SESSION=local:2`) crashes at frame 15 with a null-pointer
+   write (ITCM via the null-pointer mirror) — the same fault as the provided
+   save, likely a version mismatch — so no CPU baseline could be taken on this
+   host. Structurally it is 1000 wakeups/s per player doing four non-blocking
+   socket reads, a send pass and three housekeeping calls. *Expected:* an idle
+   co-op session should cost almost nothing; this is a wakeup and CPU-budget
+   win, not a latency win. *Risk:* low, but a `select` timeout is exactly
+   where a latency regression hides. *Rollback:* one loop body. *Proof:* CPU
+   time of an idle 2-player session over 60 s, plus unchanged input latency in
+   the same log. **Deferred.**
 5. **`wfc_frame` scan (0.017 ms/frame).** Measured. **Dropped** — the win is
    0.1 % and any cache is a correctness risk.
 6. **`ram_hash` (0.46 ms / 2 s).** Measured. **Dropped** — 0.02 %, and this is
