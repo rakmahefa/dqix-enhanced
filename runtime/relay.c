@@ -73,7 +73,9 @@ static void rand_bytes(uint8_t* b, size_t n) {
 
 enum { RM_OPEN = 0, RM_DATA = 1, RM_CLOSE = 2, RM_OK = 3, RM_ERROR = 4, RM_KEEP = 5,
        RM_MULTI = 6 };   /* host -> relay: every friend's bytes in one message ([id, len lo, len hi, bytes]...): the relay counts each message it gets */
+#ifndef COALESCE_MS
 #define COALESCE_MS 30         /* gather a connection's bytes this long before sending (fewer relay messages) */
+#endif                         /* tests/relay_bench measures what a wider window buys and costs */
 #define KEEPALIVE_MS 25000
 
 static void (*g_log)(const char* line);

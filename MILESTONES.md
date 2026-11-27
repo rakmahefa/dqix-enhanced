@@ -119,10 +119,13 @@ land the M1 optimisation plan with numbers attached.
       short in battle panels ("Lv '1"), the Zoom-menu smear, the flicker after
       the attribute-points menu, the paler sky at the battle sides, the Upover
       inn light. Each fix: reproduction first, then the fix, then the proof.
-      _Blocked: every one of these needs a ROM to reproduce and a reference
-      emulator frame to prove. The tree still has none (`rom/` ships only a
-      README). The instrumentation (`front.log`, `DQIX_SYNCLOG`) is ready; the
-      fixes start as soon as a cartridge image is available._
+      _A USA cartridge image is now available and the game builds and runs
+      headless from it (`make build` 128 s, startup 236 ms, 3.0 ms/frame at
+      the title screen). What is still missing is a **save file near each
+      bug**, or a bug report's replay: the ROM alone only reaches the title
+      screen, so none of the six can be reproduced yet. The proof tooling is
+      ready and verified (`DQIX_INPUT`, `DQIX_CRC` — 3600 frames identical
+      across runs, `DQIX_DUMP`, `DQIX_FRAMETIME`)._
 - [~] **Improve the code you touched.** Dead code and stale comments removed,
       error paths made explicit, duplicated logic folded, tests added for the
       module's boundaries. No drive-by refactor of untouched modules.
@@ -136,7 +139,12 @@ land the M1 optimisation plan with numbers attached.
       incremental rebuilds, relay message bundling and host fan-out, four-player
       lag sources.
       _Done: rank 2 (launcher incremental build) — 26 s → 3.8 s rebuild, 0.07 s
-      warm. Remaining ranks 1 and 3 need a ROM/session; rank 4 needs an idle
+      warm. Rank 1 measured and decided: 117.3 relay messages/s for four
+      players (100,000 exhausted in 14 minutes of co-op); a 45 ms coalescing
+      window cuts it 33 % and a 60 ms window 50 %, all of it paid in input
+      queueing, so the 30 ms default stays and the free half (relay-side
+      fan-out instead of a second hop through the host) is scheduled for the
+      next cycle. Rank 3 and rank 4 still need an in-game scene and a live
       session to measure._
 - [ ] **Guard the gains.** Any optimisation that changes observable behaviour
       gets a golden frame or replay fingerprint; Classic output stays
@@ -387,6 +395,9 @@ at M2, not at M1.
 | M1 | code review | `docs/REVIEW.md`: 9 files, 0 P0, 2 P1 (roadmap), 11 P2 findings with decisions | 2026-11-27 |
 | M2 | hardenings / code improvements | `pageName` warning removed; `got_hash` drop counter in `front.log`; `ws_recv` whole-message cap + `realloc` check; `http()` allocation check + contract comment. `make test` green (26 semantic cases, 13 packaging tests, 2 skipped) | 2026-11-27 |
 | M2 | optimisations landed (before → after) | launcher incremental build: 26 s clean → 3.8 s rebuild after `launcher.cpp`, 0.07 s warm; artifact unchanged (6.5 MB, `--help`/`--version`) | 2026-11-27 |
+| M2 | build with a cartridge image (was “not measured”) | `make build JOBS=2`: extract 1 s, recompile-arm9 5 s, recompile-arm7 3 s, **compile 118 s**, assemble 1 s = **128 s**; `game/dqix` 21.5 MB + `dqixcore.so` 21.3 MB | 2026-11-27 |
+| M2 | in-game baseline (headless, USA image) | startup **236 ms**; title screen **3.0 ms/frame** (2D 0.9 ms, 3D not reached), slowest of 3600 frames 21 ms; deterministic (3600 frame CRCs identical) | 2026-11-27 |
+| M2 | relay traffic (rank 1) | `tests/relay_bench/run.sh`: **117.3 msg/s** for four players; 45 ms window 78.2 (−33 %), 60 ms 58.5 (−50 %); default kept at 30 ms, fan-out scheduled | 2026-11-27 |
 | M3 | golden corpus run | | |
 | M4 | flagship + measured cost | | |
 | M5 | published artifacts + checksums | | |
