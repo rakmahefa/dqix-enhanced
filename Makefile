@@ -55,7 +55,7 @@ SDL_CFLAGS ?= -I$(call escape_spaces,$(PAYLOAD_ABS))/include/SDL2
 SDL_LIBS ?= -L$(call escape_spaces,$(PAYLOAD_ABS))/lib -lSDL2
 endif
 
-.PHONY: help check-rom extract region recompile-arm9 recompile-arm7 compile assemble build run test launcher screenshots release clean golden golden-check options
+.PHONY: help check-rom extract region recompile-arm9 recompile-arm7 compile assemble build run test launcher screenshots release clean golden golden-check options map
 help:
 	printf '%s\n' 'DQIX Enhanced — build targets' '' \
 	  '  make build ROM=/path/to/dqix.nds [WORKSPACE=/path] [JOBS=N]' \
@@ -215,6 +215,9 @@ release: launcher
 options:
 	$(PYTHON) "$(ROOT)/tools/options_model.py" --write
 	$(PYTHON) "$(ROOT)/tools/options_model.py"
+
+map:
+	$(PYTHON) "$(ROOT)/tools/map_index.py"
 
 golden:
 	"$(ROOT)/tests/golden/run.sh"
