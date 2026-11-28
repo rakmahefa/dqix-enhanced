@@ -52,10 +52,20 @@ class GoldenCorpusTests(unittest.TestCase):
 
     def test_matrix_cells_reference_existing_cases(self) -> None:
         ids = {c["id"] for c in self.manifest["cases"]}
+        declared = set(self.manifest["assertions"])
         for cell in self.manifest["matrix"]:
             self.assertIn(cell["case_a"], ids, cell["combo"])
             self.assertIn(cell["case_b"], ids, cell["combo"])
-            self.assertIn(cell["assertion"], {"crc_equal", "crc_differs"})
+            # every assertion kind must be documented in the manifest, so a
+            # typo or an undeclared kind fails here instead of passing silently
+            self.assertIn(cell["assertion"], declared, cell["combo"])
+            self.assertTrue(cell.get("note"), cell["combo"])
+
+    def test_crc_scope_documented(self) -> None:
+        self.assertIn("crc_scope", self.manifest)
+        self.assertIn("g_screen", self.manifest["crc_scope"])
+        # options applied after composition: identity is the requirement
+        self.assertIn("crc_equal_postprocess", self.manifest["assertions"])
 
     def test_gen_cases_produces_files(self) -> None:
         subprocess.run([sys.executable, str(GOLDEN / "gen_cases.py")], check=True)

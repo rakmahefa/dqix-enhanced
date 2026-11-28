@@ -38,6 +38,7 @@
     "music_pack_volume": "music_pack_volume",
     "discord": "discord"
   },
+  "crc_scope": "One line per frame: frame number and a 64-bit hash of engine A's composed 256x192 picture (runtime/gpu2d.c writes it from g_screen). It contains nothing that is drawn after composition: no GL post-process (DS Lite filter), no HD letter atlas, no window layout. Options in that class must leave it byte-identical; their own effect is checked with DQIX_GL_DUMP on a GL-capable machine.",
   "cases": [
     { "id": "classic_title", "description": "Classic mode, default layout, title screen (pixel-identical reference)", "frames": 300, "settings": { "mode": "classic" }, "input": "", "tags": ["classic", "title"] },
     { "id": "classic_enhanced_opts", "description": "Classic mode with every enhanced option forced on (must be ignored)", "frames": 300, "settings": { "mode": "classic", "smooth_textures": 1, "outlines": "medium", "soft_shadows": 1, "smooth_shading": 1, "hd_text": 1, "hd_text_shadows": 1, "texture_packs": 1, "music_packs": 1, "transmog": 1, "upscale_textures": 1, "widescreen_battle_hud": 1, "layout": "wide_dynamic" }, "input": "", "tags": ["classic", "interaction"] },
@@ -63,13 +64,14 @@
   "matrix": [
     { "combo": "Classic x any enhanced option", "case_a": "classic_title", "case_b": "classic_enhanced_opts", "assertion": "crc_equal", "note": "enhanced options ignored in Classic" },
     { "combo": "Classic x widescreen", "case_a": "classic_title", "case_b": "classic_wide", "assertion": "crc_equal", "note": "widescreen disabled in Classic" },
-    { "combo": "dslite_filter x lcd_colors", "case_a": "enhanced_filter", "case_b": "enhanced_filter_nocolor", "assertion": "crc_differs", "note": "color correction changes output" },
-    { "combo": "hd_text x hd_text_shadows", "case_a": "enhanced_hdtext", "case_b": "enhanced_hdtext_shadows", "assertion": "crc_differs", "note": "shadows on HD letters" },
-    { "combo": "widescreen x single_screen", "case_a": "layout_wide_basic", "case_b": "widescreen_single", "assertion": "crc_differs", "note": "widescreen wins: single_screen ignored, small screen hidden instead" }
+    { "combo": "dslite_filter x lcd_colors", "case_a": "enhanced_filter", "case_b": "enhanced_filter_nocolor", "assertion": "crc_equal_postprocess", "note": "the colour correction is a fragment shader over the composed screens (gl_render.c, u_lcdcolor): the emulated framebuffer is untouched, so the CRCs must match" },
+    { "combo": "hd_text x hd_text_shadows", "case_a": "enhanced_hdtext", "case_b": "enhanced_hdtext_shadows", "assertion": "crc_equal_postprocess", "note": "shadows are decided when the HD letters are drawn by the GL pass (text_hd.c g_tx_shadows): without GL nothing is redrawn, and the DS picture stays the same" },
+    { "combo": "widescreen x single_screen", "case_a": "layout_wide_basic", "case_b": "widescreen_single", "assertion": "crc_equal_postprocess", "note": "widescreen wins (single = g_single && !wide), so single_screen changes which screen the window shows, not what the consoles draw" }
   ],
   "assertions": {
     "crc_equal": "The two cases' frame CRC files are byte-identical (Classic stays pixel-identical / option ignored).",
-    "crc_differs": "The two cases' frame CRC files differ (the option changes visible output).",
+    "crc_differs": "The two cases' frame CRC files differ (the option changes the composed framebuffer).",
+    "crc_equal_postprocess": "The two cases' frame CRC files are byte-identical *because the option is applied after composition* (GL shader, GL letter pass, window layout). Identity is the requirement, not an accident: such an option must never reach into the emulated framebuffer. Its own effect is out of the CRC's reach and is checked with DQIX_GL_DUMP on a GL-capable machine.",
     "frame_exists": "At least one .ppm frame was captured for the case.",
     "crc_nonempty": "The case's CRC file is non-empty."
   }

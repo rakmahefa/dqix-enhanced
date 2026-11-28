@@ -48,3 +48,7 @@ upload-to-github.bat
 /update/
 # a test build Claude puts here for trying a fix (not part of the project)
 /testbuild/
+
+# Generated per-case files for the golden corpus harness (tests/golden/gen_cases.py)
+/tests/golden/cases/
+/tests/golden/corpus/

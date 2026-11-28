@@ -47,6 +47,7 @@ for case in m["cases"]:
     # the game reads ./settings.ini from its cwd, so run from a per-case dir.
     work = os.path.join(out, "work")
     os.makedirs(work, exist_ok=True)
+    os.makedirs(os.path.join(work, "frames"), exist_ok=True)
     shutil.copyfile(ini, os.path.join(work, "settings.ini"))
     # empty input file is fine
     if os.path.getsize(inp) > 0:

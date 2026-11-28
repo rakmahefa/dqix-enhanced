@@ -78,4 +78,12 @@ the golden corpus will assert.
   `layout` (Dynamic Widescreen) is also experimental and is labelled
   `(Experimental)` inline in the README and the in-game menu. Adding or
   promoting an experimental option means editing that list in the same PR.
+- Three rows act **after** the DS screens are composed and therefore cannot
+  show up in the golden corpus' frame CRC (`tests/golden/corpus.json`): `dslite_filter` ×
+  `lcd_colors` (fragment shader), `hd_text` × `hd_text_shadows` (the GL letter
+  pass) and widescreen × `single_screen` (which screen the window shows). Those
+  cells are asserted `crc_equal_postprocess`: identity is the requirement there
+  — the option must not change the emulated picture — and their own effect is
+  checked with `DQIX_GL_DUMP` on a GL-capable machine or a window screenshot.
+  See `tests/golden/README.md`, "What the CRC covers".
 - Every new enhancement must enter this table in the same PR that adds it.

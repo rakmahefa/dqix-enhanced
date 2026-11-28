@@ -4,7 +4,14 @@
 Checks:
   - every case has a non-empty CRC file (crc_nonempty)
   - every case has at least one captured frame (frame_exists)
-  - every interaction-matrix cell (crc_equal / crc_differs)
+  - every interaction-matrix cell (crc_equal / crc_differs /
+    crc_equal_postprocess)
+
+`crc_scope` in the manifest says what the CRC covers: engine A's composed
+256x192 picture (runtime/gpu2d.c, from g_screen). Anything drawn after that
+(GL post-process, HD letter atlas, window layout) cannot appear in it, so the
+options in that class are asserted `crc_equal_postprocess`: they must leave the
+emulated framebuffer alone, which is exactly what identity proves.
 
 Exits 0 on success, 1 on any failure, 2 if the corpus is not captured yet
 (so CI can skip gracefully).
@@ -12,13 +19,14 @@ Exits 0 on success, 1 on any failure, 2 if the corpus is not captured yet
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 MANIFEST = HERE / "corpus.json"
 CORPUS = HERE / "corpus"
+
+EQUAL_KINDS = ("crc_equal", "crc_equal_postprocess")
 
 
 def main():
@@ -27,7 +35,9 @@ def main():
         print("golden corpus: not captured yet (run tests/golden/run.sh); skipping")
         return 2
 
+    known_kinds = set(manifest.get("assertions", {}))
     failures = []
+    counts = {kind: 0 for kind in EQUAL_KINDS + ("crc_differs",)}
     # per-case basic checks
     for case in manifest["cases"]:
         cid = case["id"]
@@ -43,6 +53,10 @@ def main():
     for cell in manifest["matrix"]:
         cid_a = cell["case_a"]
         cid_b = cell["case_b"]
+        assertion = cell["assertion"]
+        if known_kinds and assertion not in known_kinds:
+            failures.append(f"{cell['combo']}: unknown assertion {assertion}")
+            continue
         pa = CORPUS / cid_a / "crc.txt"
         pb = CORPUS / cid_b / "crc.txt"
         if not (pa.is_file() and pb.is_file()):
@@ -50,8 +64,8 @@ def main():
             continue
         a = pa.read_bytes()
         b = pb.read_bytes()
-        assertion = cell["assertion"]
-        if assertion == "crc_equal":
+        counts[assertion] = counts.get(assertion, 0) + 1
+        if assertion in EQUAL_KINDS:
             if a != b:
                 failures.append(f"{cell['combo']}: expected identical CRCs but they differ")
         elif assertion == "crc_differs":
@@ -65,7 +79,14 @@ def main():
         for f in failures:
             print("  - " + f)
         return 1
-    print(f"golden corpus: all {len(manifest['cases'])} cases and {len(manifest['matrix'])} matrix cells OK")
+    equal = counts.get("crc_equal", 0)
+    post = counts.get("crc_equal_postprocess", 0)
+    differs = counts.get("crc_differs", 0)
+    print(
+        f"golden corpus: all {len(manifest['cases'])} cases and "
+        f"{len(manifest['matrix'])} matrix cells OK "
+        f"({equal} crc_equal, {post} crc_equal_postprocess, {differs} crc_differs)"
+    )
     return 0
 
 
