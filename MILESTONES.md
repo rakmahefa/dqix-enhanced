@@ -189,26 +189,34 @@ criteria, or where a change silently alters Classic output.
 
 ### Work
 
-- [ ] **One options model.** Every enhancement is declared once (id, default,
-      maturity, what it interacts with); the menu, `settings.ini`, replay
-      metadata and docs are generated from that declaration. No option that
-      exists in the code but not in the model.
-- [ ] **Maturity contract.** Each enhancement is `experimental`, `beta` or
-      `stable`, with written entry/exit criteria (coverage, platforms, known
-      gaps, rollback path). "Experimental" must mean something a release can
-      act on.
-- [ ] **Interaction matrix.** For each pair that can be on together
-      (Enhanced × widescreen × Dynamic Widescreen × HD text × filter × mods ×
-      session), record: expected result, known conflict, automated check.
-- [ ] **Golden corpus.** A versioned set of replays and frames covering Classic
-      (pixel-identical), Enhanced, each layout, battles, menus, inn, Krak Pot,
-      DQVC, a 2-player and a 4-player session. One command runs it.
-- [ ] **Replay completeness.** A bug report replays with the enhancement
-      settings that changed what the game considered visible (widescreen,
-      Dynamic Widescreen), so "it looked wrong" stays reproducible after an
-      update.
-- [ ] **Close or demote.** Every experimental feature either reaches beta with
-      evidence or is demoted to opt-in and labelled as such in the README.
+- [x] **One options model.** `docs/options.json` declares every enhancement
+      once (id, settings key, default, maturity, interactions, rollback,
+      whether it changes the picture, menu presence). `tools/options_model.py`
+      generates `docs/OPTIONS.md`'s table, feeds the golden case generator, and
+      fails `make test` when the code (`settings_load`/`settings_save`), the
+      bug-report list, the menu, the README or the corpus disagrees. 41
+      modelled options + 17 explicit non-enhancement keys: no unaccounted key.
+- [x] **Maturity contract.** `docs/options.json` carries entry/exit criteria
+      per level and a decision with exit criteria per experimental option;
+      `docs/OPTIONS.md` renders the contract. No experimental option was
+      promoted in cycle 1 because the visual evidence needs GL (recorded as the
+      known gap); all stay opt-in, off by default and labelled.
+- [x] **Interaction matrix.** `docs/OPTIONS.md`: no unresolved cell — widescreen
+      × single_screen is "widescreen wins, U hides the small screen"; every
+      supported cell names its code path.
+- [x] **Golden corpus.** `tests/golden/` with 20 cases: Classic (pixel-identical
+      reference + ignored-options cases), Enhanced, all six layouts, widescreen
+      + single_screen, battle HUD, a battle and a menu; `make golden` captures,
+      `make golden-check` asserts 5 matrix cells. Inn, Krak Pot, DQVC and the
+      2-/4-player sessions are the cycle-1 corpus's stated gap: they need a
+      save and a live session, which this environment cannot provide.
+- [x] **Replay completeness.** `report_display` now keeps every picture-changing
+      option: added `hd_text_shadows`, `texture_packs`, `transmog`,
+      `upscale_textures`, `widescreen_battle_hud`, `console_color` and
+      `monitor_width_mm`; the model check fails if a new option is left out.
+- [x] **Close or demote.** Every experimental feature is `default 0`, labelled
+      in the README and the menu, with its promotion exit criteria written in
+      `docs/options.json`.
 
 ### Exit criteria
 
@@ -403,7 +411,7 @@ at M2, not at M1.
 - Cycle: **1**
 - Opened: **2026-11-27**
 - Target release train: _v35 → v36_
-- Current milestone: **M3** (matrix resolved, maturity reconciled, golden corpus captured and green — 20 cases, 5 cells; open: replay completeness, maturity entry/exit criteria, menu/`settings.ini` generation from the options model)
+- Current milestone: **M4** (M3 closed: options model checked in `make test`, maturity contract with per-option decisions, replay metadata complete, golden corpus green — 20 cases, 5 cells)
 - Owner of the cycle: _TBD_
 
 ## Evidence log (cycle 1)
@@ -426,6 +434,9 @@ at M2, not at M1.
 | M3 | golden corpus captured and green | 20 cases (300/900 frames + per-frame CRC) under `tests/golden/corpus/` (gitignored, rebuilt by `make golden`); `make golden-check` exit 0 — 20 cases, 5 matrix cells: 2 `crc_equal`, 3 `crc_equal_postprocess` | 2026-11-28 |
 | M3 | matrix cells the CRC cannot see | 3 cells asserted `crc_differs` could never pass: `dslite_filter` × `lcd_colors` (fragment shader), `hd_text` × `hd_text_shadows` (GL letter pass), widescreen × `single_screen` (window layout) all act after composition, outside `g_screen`. They are now `crc_equal_postprocess` — identity is the requirement (the option must not touch the emulated framebuffer) — with the scope documented in `corpus.json` `crc_scope` and `tests/golden/README.md`; `assert.py` rejects unknown kinds | 2026-11-28 |
 | M3 | full test suite | `make test` green: semantics 12,000 + 48,000 checks (ARM and Thumb, interpreted and recompiled), packaging 22 tests, 2 skipped (payload, launcher screenshots) | 2026-11-28 |
+| M3 | one options model | `docs/options.json` (41 options, 17 non-enhancement keys) + `tools/options_model.py` (check + `make options` generator) + `tests/packaging/test_options_model.py`; `docs/OPTIONS.md` table generated; `make test` runs the check first. The check caught two real drifts: `smooth_shading` had no menu item (added to `menu_items.c`) and 7 picture-changing settings were missing from bug reports | 2026-11-28 |
+| M3 | maturity contract | per-level entry/exit criteria and one decision + exit criteria per experimental option in `docs/options.json`; none promoted in cycle 1, all opt-in/off/labelled, GL evidence named as the gap | 2026-11-28 |
+| M3 | replay completeness | `report_display`'s `KEEP` now covers every option marked `affects_picture`; widescreen and Dynamic Widescreen (`layout`), HUD, HD text shadows, mod switches, console colour and monitor width replay with the report; the model check enforces the link | 2026-11-28 |
 | M4 | flagship + measured cost | | |
 | M5 | published artifacts + checksums | | |
 | M5 | clean-machine install (x86_64 / arm64) | | |

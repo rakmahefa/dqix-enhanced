@@ -126,6 +126,9 @@ newest work)
 - **Widescreen battle HUD**: the party's panels and commands stacked in the
   bottom left over the 3D in Basic Widescreen (Modern > Widescreen: battle
   HUD; `widescreen_battle_hud = 1` in settings.ini).
+- **Dynamic Widescreen**: the field never moves and the game's own windows move
+  right of the map; the value `wide_dynamic` of `layout`
+  (`layout = wide_dynamic` in settings.ini, or View > Dynamic Widescreen).
 
 **Multiplayer, from anywhere**
 - **Tag mode** (canvassing for guests) and **co-op** (visiting and inviting

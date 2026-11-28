@@ -1279,10 +1279,11 @@ static void report_window_shot(int w, int h) {
  * is on screen, nothing personal (no names, addresses or Wi-Fi ID). */
 static void settings_save(void);
 static void report_display(const char* dir) {
-    static const char* KEEP[] = { "mode", "render_scale", "smooth_textures", "outlines", "soft_shadows", "smooth_shading", "hd_text", "widescreen_popout", "window_scale", "layout",
+    static const char* KEEP[] = { "mode", "render_scale", "smooth_textures", "outlines", "soft_shadows", "smooth_shading", "hd_text", "hd_text_shadows",
+        "texture_packs", "transmog", "upscale_textures", "widescreen_popout", "widescreen_battle_hud", "window_scale", "layout",
         "single_screen", "small_screen_corner", "small_screen_size", "small_screen_hidden", "small_screen_opacity", "swap_screens",
         "second_window", "second_window_fullscreen", "walk_any_direction", "fullscreen", "dslite_filter", "lcd_colors", "pixel_grid",
-        "motion_blur", "backlight", "screen_gap", "console", "integer_scaling", "actual_size" };
+        "motion_blur", "backlight", "screen_gap", "console", "console_color", "integer_scaling", "actual_size", "monitor_width_mm" };
     char path[400]; snprintf(path, sizeof path, "%s/display.txt", dir);
     FILE* out = fopen(path, "w");
     if (!out) return;

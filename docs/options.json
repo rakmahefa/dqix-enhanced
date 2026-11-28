@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "description": "The options model. Every enhancement the game ships is declared here once: settings key, default, maturity, what it interacts with, rollback, whether it changes the picture the player sees, and where it appears in the menu. docs/OPTIONS.md's table is generated from this file; tools/options_model.py checks it against the code (settings_load/settings_save, the bug-report display list, the menu), the README's experimental list and the golden corpus.",
+  "maturity_levels": {
+    "experimental": {
+      "meaning": "Opt-in, off by default, labelled in the README and the menu. It may change or be removed between versions.",
+      "entry": [
+        "The option is declared here with default 0 and appears in the README's experimental list and in the in-game/Windows menu.",
+        "A rollback exists (set it back to 0) and is recorded in this file.",
+        "Its state is captured in bug reports (report_display) when it can change the picture."
+      ],
+      "exit": [
+        "Its effect is covered by an automated or recorded check on a GL-capable machine (DQIX_GL_DUMP or a window screenshot) for the golden corpus cases it touches.",
+        "It changed no frame CRC of any golden case it must not affect (identity where the CRC is in scope).",
+        "No open bug against it for one full cycle of nightly use, with the known gaps below unchanged or closed.",
+        "It has a stable default story: promoting it is a one-line edit of default + maturity here, with the README list updated in the same PR."
+      ],
+      "known_gaps": "No per-option window screenshots in CI yet (no GL in the automated environment): the visual half of the exit bar is run by hand on a GL machine."
+    },
+    "beta": {
+      "meaning": "On by default where it makes sense, with documented gaps. Rollback is tested.",
+      "entry": [
+        "Promoted from experimental by meeting the experimental exit criteria.",
+        "Its default is either 0 with a menu item that explains it, or 1 where the README says so.",
+        "Known gaps are listed in docs/OPTIONS.md and the README's notes."
+      ],
+      "exit": [
+        "A golden-corpus case exercises it (directly or through a matrix cell).",
+        "No known conflict in the interaction matrix.",
+        "Its measured cost (frame time, memory) is recorded in docs/PERF.md or MILESTONES.md."
+      ],
+      "known_gaps": "Beta options whose effect is post-composition are golden-checked only for identity (crc_equal_postprocess)."
+    },
+    "stable": {
+      "meaning": "On by default, golden-checked, no known conflicts.",
+      "entry": [
+        "Promoted from beta by meeting the beta exit criteria.",
+        "Covered by at least one golden case or matrix cell.",
+        "Rollback documented here and reversible from settings.ini alone."
+      ],
+      "exit": "A regression demotes it to beta in the same PR that records the regression in MILESTONES.md.",
+      "known_gaps": "None recorded."
+    }
+  },
+  "options": [
+    { "id": "mode", "settings_key": "mode", "default": "classic", "maturity": "stable", "interacts_with": [], "rollback": "set to classic", "affects_picture": true, "menu_label": "Classic: exactly like the DS", "note": "Root toggle: Classic = the DS's own 3D renderer (pixel-exact), Enhanced = 3D on the GPU." },
+    { "id": "render_scale", "settings_key": "render_scale", "default": "auto", "maturity": "stable", "interacts_with": ["mode", "outlines", "soft_shadows", "smooth_shading"], "rollback": "set to 1", "affects_picture": true, "menu_label": "3D &resolution (Enhanced)", "note": "Enhanced only; the old resolution_3d key is read for compatibility." },
+    { "id": "smooth_textures", "settings_key": "smooth_textures", "default": "0", "maturity": "stable", "interacts_with": ["mode", "render_scale", "texture_packs"], "rollback": "set to 0", "affects_picture": true, "menu_label": "Smooth textures (Enhanced)" },
+    { "id": "outlines", "settings_key": "outlines", "default": "thin", "maturity": "stable", "interacts_with": ["mode", "render_scale"], "rollback": "set to ds", "affects_picture": true, "menu_label": "Character &outlines (Enhanced)" },
+    { "id": "soft_shadows", "settings_key": "soft_shadows", "default": "0", "maturity": "beta", "interacts_with": ["mode", "render_scale"], "rollback": "set to 0", "affects_picture": true, "menu_label": "Soft s&hadows and glows (Enhanced)", "note": "Beta: shows at 2x and above; the DS's stepped shading is the reference." },
+    { "id": "smooth_shading", "settings_key": "smooth_shading", "default": "0", "maturity": "beta", "interacts_with": ["mode", "render_scale"], "rollback": "set to 0", "affects_picture": true, "menu_label": "Smooth s&hading (Enhanced)", "note": "Beta: toon table drawn as a ramp at 2x and above." },
+    { "id": "hd_text", "settings_key": "hd_text", "default": "0", "maturity": "beta", "interacts_with": ["mode", "hd_text_shadows"], "rollback": "set to 0", "affects_picture": true, "menu_label": "&HD text: the letters at full resolution (Enhanced, new)" },
+    { "id": "hd_text_shadows", "settings_key": "hd_text_shadows", "default": "0", "maturity": "experimental", "interacts_with": ["hd_text"], "rollback": "set to 0", "affects_picture": true, "menu_absent_reason": "settings.ini only: it refines HD text, whose menu item already exists", "note": "GL letter pass; nothing is redrawn without GL." },
+    { "id": "texture_packs", "settings_key": "texture_packs", "default": "0", "maturity": "beta", "interacts_with": ["mode", "smooth_textures", "upscale_textures"], "rollback": "set to 0", "affects_picture": true, "menu_label": "&Texture packs (the pictures in the textures folder)", "note": "The switch is recorded in bug reports; the pack files themselves are the player's." },
+    { "id": "music_packs", "settings_key": "music_packs", "default": "0", "maturity": "beta", "interacts_with": ["music_pack_volume", "music_song_names"], "rollback": "set to 0", "affects_picture": false, "menu_label": "&Music packs (the recordings in the music folder)" },
+    { "id": "music_song_names", "settings_key": "music_song_names", "default": "0", "maturity": "stable", "interacts_with": ["music_packs"], "rollback": "set to 0", "affects_picture": false, "menu_label": "&Show each song's name as it starts" },
+    { "id": "transmog", "settings_key": "transmog", "default": "0", "maturity": "beta", "interacts_with": [], "rollback": "set to 0", "affects_picture": true, "menu_label": "Tr&ansmog: characters look as if they wore other equipment", "note": "The switch is recorded in bug reports; transmog.ini is the player's." },
+    { "id": "dslite_filter", "settings_key": "dslite_filter", "default": "0", "maturity": "stable", "interacts_with": ["lcd_colors", "pixel_grid", "motion_blur", "backlight"], "rollback": "set to 0", "affects_picture": true, "menu_label": "&DS Lite screen", "note": "Post-composition GL shader; the CRC must stay identical (crc_equal_postprocess)." },
+    { "id": "lcd_colors", "settings_key": "lcd_colors", "default": "0", "maturity": "stable", "interacts_with": ["dslite_filter"], "rollback": "set to 0", "affects_picture": true, "menu_label": "LCD &colours" },
+    { "id": "pixel_grid", "settings_key": "pixel_grid", "default": "0", "maturity": "stable", "interacts_with": ["dslite_filter", "window_scale"], "rollback": "set to 0", "affects_picture": true, "menu_label": "&Pixel grid (at 3x and larger)" },
+    { "id": "motion_blur", "settings_key": "motion_blur", "default": "0", "maturity": "experimental", "interacts_with": ["dslite_filter"], "rollback": "set to 0", "affects_picture": true, "menu_label": "&Motion blur (experimental)", "note": "DS Lite ghosting, post-composition." },
+    { "id": "backlight", "settings_key": "backlight", "default": "max", "maturity": "stable", "interacts_with": ["dslite_filter"], "rollback": "set to max", "affects_picture": true, "menu_label": "&Backlight", "note": "Value name: low, medium, high or max (max is the undimmed picture)." },
+    { "id": "screen_gap", "settings_key": "screen_gap", "default": "0", "maturity": "stable", "interacts_with": ["layout", "console"], "rollback": "set to 0", "affects_picture": true, "menu_label": "&Gap between the screens" },
+    { "id": "console", "settings_key": "console", "default": "0", "maturity": "stable", "interacts_with": ["console_color", "screen_gap"], "rollback": "set to 0", "affects_picture": true, "menu_label": "Show the DS &Lite" },
+    { "id": "console_color", "settings_key": "console_color", "default": "dslite_black.png", "maturity": "stable", "interacts_with": ["console"], "rollback": "set to dslite_black.png", "affects_picture": true, "menu_label": "Console &colour", "note": "A built-in colour name or a photo file name from the skins folder." },
+    { "id": "integer_scaling", "settings_key": "integer_scaling", "default": "0", "maturity": "stable", "interacts_with": ["window_scale", "actual_size"], "rollback": "set to 0", "affects_picture": true, "menu_label": "&Integer scaling" },
+    { "id": "actual_size", "settings_key": "actual_size", "default": "0", "maturity": "stable", "interacts_with": ["monitor_width_mm", "integer_scaling"], "rollback": "set to 0", "affects_picture": true, "menu_label": "&Actual size (as big as a real DS Lite)" },
+    { "id": "monitor_width_mm", "settings_key": "monitor_width_mm", "default": "0", "maturity": "stable", "interacts_with": ["actual_size"], "rollback": "set to 0 (automatic)", "affects_picture": true, "menu_absent_reason": "settings.ini only: an override for when the monitor reports its size wrongly" },
+    { "id": "window_scale", "settings_key": "window_scale", "default": "2", "maturity": "stable", "interacts_with": ["integer_scaling", "pixel_grid", "actual_size"], "rollback": "set to 2", "affects_picture": true, "menu_label": "&Window size" },
+    { "id": "layout", "settings_key": "layout", "default": "stacked", "maturity": "stable", "interacts_with": ["mode", "single_screen", "widescreen_popout", "widescreen_battle_hud", "small_screen_corner", "small_screen_size", "small_screen_opacity"], "rollback": "set to stacked", "affects_picture": true, "menu_label": "S&tacked", "note": "Values: stacked, side_by_side, corner, wide, wide_dynamic (experimental value), two_windows." },
+    { "id": "single_screen", "settings_key": "single_screen", "default": "0", "maturity": "stable", "interacts_with": ["layout"], "rollback": "set to 0", "affects_picture": true, "menu_label": "Single scr&een (widescreen: hide the small screen)", "note": "Widescreen wins: in a wide layout it hides the small screen instead (see the interaction matrix)." },
+    { "id": "small_screen_corner", "settings_key": "small_screen_corner", "default": "0", "maturity": "stable", "interacts_with": ["layout"], "rollback": "set to 0", "affects_picture": true, "menu_label": "Top left" },
+    { "id": "small_screen_size", "settings_key": "small_screen_size", "default": "1", "maturity": "stable", "interacts_with": ["layout"], "rollback": "set to 1", "affects_picture": true, "menu_label": "Small" },
+    { "id": "small_screen_hidden", "settings_key": "small_screen_hidden", "default": "0", "maturity": "stable", "interacts_with": ["layout", "single_screen"], "rollback": "set to 0", "affects_picture": true, "menu_label": "Single scr&een (widescreen: hide the small screen)" },
+    { "id": "small_screen_opacity", "settings_key": "small_screen_opacity", "default": "50", "maturity": "stable", "interacts_with": ["layout"], "rollback": "set to 50", "affects_picture": true, "menu_label": "100% (solid)" },
+    { "id": "swap_screens", "settings_key": "swap_screens", "default": "0", "maturity": "stable", "interacts_with": ["layout"], "rollback": "set to 0", "affects_picture": true, "menu_label": "Swa&p the screens (widescreen: hold to see the other)" },
+    { "id": "widescreen_popout", "settings_key": "widescreen_popout", "default": "0", "maturity": "beta", "interacts_with": ["layout"], "rollback": "set to 0", "affects_picture": true, "menu_label": "In its own &window (a clean field)", "note": "Needs a wide layout." },
+    { "id": "widescreen_battle_hud", "settings_key": "widescreen_battle_hud", "default": "0", "maturity": "experimental", "interacts_with": ["layout"], "rollback": "set to 0", "affects_picture": true, "menu_label": "Widescreen: battle &HUD over the 3D (experimental: the party's panels in the bottom left)", "note": "Panel geometry is found from the bottom screen's pixels." },
+    { "id": "second_window", "settings_key": "second_window", "default": "0,0,0,0", "maturity": "stable", "interacts_with": ["layout"], "rollback": "set to 0,0,0,0", "affects_picture": true, "menu_absent_reason": "the second window is dragged and resized, not set from a menu" },
+    { "id": "second_window_fullscreen", "settings_key": "second_window_fullscreen", "default": "0", "maturity": "stable", "interacts_with": ["second_window"], "rollback": "set to 0", "affects_picture": true, "menu_absent_reason": "a toggle on the second window itself" },
+    { "id": "fullscreen", "settings_key": "fullscreen", "default": "0", "maturity": "stable", "interacts_with": ["window_scale", "integer_scaling"], "rollback": "set to 0", "affects_picture": true, "menu_label": "&Fullscreen" },
+    { "id": "walk_any_direction", "settings_key": "walk_any_direction", "default": "0", "maturity": "stable", "interacts_with": [], "rollback": "set to 0", "affects_picture": false, "menu_label": "Walk in any &direction with the left stick" },
+    { "id": "upscale_textures", "settings_key": "upscale_textures", "default": "0", "maturity": "experimental", "interacts_with": ["texture_packs", "mode"], "rollback": "set to 0", "affects_picture": true, "menu_label": "&Upscale the 3D textures (xBR: smooth slopes and curves, experimental)" },
+    { "id": "music_pack_volume", "settings_key": "music_pack_volume", "default": "100", "maturity": "stable", "interacts_with": ["music_packs"], "rollback": "set to 100", "affects_picture": false, "menu_absent_reason": "settings.ini only: a level against the game's own sounds" },
+    { "id": "discord", "settings_key": "discord", "default": "0", "maturity": "beta", "interacts_with": [], "rollback": "set to 0", "affects_picture": false, "menu_label": "Show on &Discord what I'm playing" },
+    { "id": "downloadable_content", "settings_key": "downloadable_content", "default": "0", "maturity": "stable", "interacts_with": [], "rollback": "set to 0", "affects_picture": false, "menu_label": "&Unlock all downloadable content now (without Sellma)", "note": "Changes game state, not the picture; kept out of the frame CRC on purpose." }
+  ],
+  "experimental_decisions": [
+    {
+      "option": "hd_text_shadows",
+      "decision": "keep opt-in (no promotion this cycle)",
+      "why": "Its effect is drawn by the GL letter pass, which this cycle could not run (no display/OpenGL). Promoting on no evidence would make \"beta\" meaningless.",
+      "exit_criteria": [
+        "Capture the corpus's HD-text cases with DQIX_GL_DUMP on a GL machine and record the shadows' presence.",
+        "Confirm the HD-text corpus CRCs stay identical with the option on (they currently do, crc_equal_postprocess).",
+        "One nightly cycle with no shadow/outline defect reported."
+      ]
+    },
+    {
+      "option": "motion_blur",
+      "decision": "keep opt-in (no promotion this cycle)",
+      "why": "A post-composition artistic effect with no reference frame to compare against; its cost is a GL pass whose timing was not measured on a GL machine.",
+      "exit_criteria": [
+        "Window screenshots (before/after) on a GL machine for a field and a battle frame.",
+        "Frame-time cost measured and recorded in docs/PERF.md.",
+        "No frame CRC drift with the option on."
+      ]
+    },
+    {
+      "option": "upscale_textures",
+      "decision": "keep opt-in (no promotion this cycle)",
+      "why": "Its output depends on the player's texture packs, so a corpus run without packs says nothing about it; the xBR pass is a known one-off cost at load.",
+      "exit_criteria": [
+        "A corpus case that runs with a small bundled pack and records load time and memory.",
+        "GL capture showing the upscaled result on a road/battle texture.",
+        "No crash or leak across a full session with packs on."
+      ]
+    },
+    {
+      "option": "widescreen_battle_hud",
+      "decision": "keep opt-in (no promotion this cycle)",
+      "why": "It infers battle panels from the bottom screen's pixels; a non-battle window with the same lines could be misread. The golden corpus has battles but no GL window capture of the HUD.",
+      "exit_criteria": [
+        "Wide-layout window capture of a battle with and without the HUD (DQIX_WINSHOT_AT).",
+        "An audit of non-battle frames where the detector fires (false positives recorded).",
+        "The battle corpus CRCs stay identical with the option on."
+      ]
+    },
+    {
+      "option": "layout",
+      "value": "wide_dynamic",
+      "decision": "keep the value experimental, inside a stable option",
+      "why": "Dynamic Widescreen moves the game's own windows; it is exercised by the corpus (identity of the DS picture) but its window composition is only visible on a GL machine.",
+      "exit_criteria": [
+        "Window captures of a field, a menu and a battle in wide_dynamic.",
+        "No CRC drift against the non-dynamic wide case.",
+        "One nightly cycle without a layout report."
+      ]
+    }
+  ],
+  "non_enhancement_keys": {
+    "resolution_3d": "Legacy alias of render_scale, read for settings files from before v29.",
+    "small_screen_opacity_chosen": "Bookkeeping so a saved 100% opacity is not mistaken for the old default.",
+    "console_color_chosen": "Bookkeeping so the default skin is not read as a player choice.",
+    "volume": "Audio level, not an enhancement of the picture.",
+    "mute": "Audio mute.",
+    "language": "The game's own language (European version).",
+    "discord_app_id": "Discord application id override for developers.",
+    "wireless": "Network switch.",
+    "wfc_server": "Network server choice.",
+    "wireless_mac": "This copy's identity on the network.",
+    "player_name": "Personal: session name.",
+    "session_port": "Hosting port.",
+    "session_consoles": "How friends' consoles run on this PC.",
+    "update_check": "Update lookup.",
+    "update_skip": "Update version to skip.",
+    "confirm_quit": "Quit confirmation.",
+    "fast_forward": "Fast-forward key mode."
+  }
+}

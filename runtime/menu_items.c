@@ -60,6 +60,7 @@ const MenuItem g_menu_items[] = {
         END,
         IT(MI_HD_TEXT, "&HD text: the letters at full resolution (Enhanced, new)", "F1"),
         IT(MI_SOFT_SHADOWS, "Soft s&hadows and glows (Enhanced)", NULL),
+        IT(MI_SMOOTH_SHADE, "Smooth s&hading (Enhanced)", NULL),
     END,
     SUB("&Screen"),
         IT(MI_LCD, "&DS Lite screen", "F6"),
