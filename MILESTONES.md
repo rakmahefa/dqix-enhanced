@@ -388,8 +388,7 @@ at M2, not at M1.
 - Cycle: **1**
 - Opened: **2026-11-27**
 - Target release train: _v35 → v36_
-- Current milestone: **M2** (M1's work is done; one exit item stays open —
-  naming an owner for each of the two P1 defects)
+- Current milestone: **M3** (interaction matrix resolved; maturity reconciled; golden corpus harness in place, capture pending a built game)
 - Owner of the cycle: _TBD_
 
 ## Evidence log (cycle 1)
@@ -407,6 +406,8 @@ at M2, not at M1.
 | M2 | save compatibility | A 64 KB save was provided; the emulated game crashes at frame 15 with a null-pointer write (ITCM via the null-pointer mirror) — likely a version mismatch. Six gameplay fixes deferred to next cycle. | 2026-11-27 |
 | M3 | interaction matrix | `docs/OPTIONS.md`: no unresolved cell left — widescreen × single_screen resolved as "widescreen wins, U hides the small screen" (`frontend_sdl.c` `canvas_layout_for`, `MI_SINGLE`); every `supported` cell names its code path | 2026-11-28 |
 | M3 | experimental labels | `README.md` **Experimental options** list covers the three `experimental` rows (`hd_text_shadows`, `motion_blur`, `upscale_textures`); `make test` green (`tests/packaging` 13 tests, 2 skipped) | 2026-11-28 |
+| M3 | maturity reconciliation | `docs/OPTIONS.md`, `README.md`, `runtime/menu_items.c`: `widescreen_battle_hud` beta->experimental; `layout` notes `wide_dynamic` experimental; README experimental list + battle HUD; menu labels motion blur/upscale experimental. `make test` green | 2026-11-28 |
+| M3 | golden corpus harness | `tests/golden/` (corpus.json 20 cases, interaction matrix, gen_cases.py, run.sh, assert.py) + `tests/packaging/test_golden_corpus.py`; `make golden` / `make golden-check`; corpus not yet captured (no game binary in this env) | 2026-11-28 |
 | M3 | golden corpus run | | |
 | M4 | flagship + measured cost | | |
 | M5 | published artifacts + checksums | | |

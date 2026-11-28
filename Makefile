@@ -55,7 +55,7 @@ SDL_CFLAGS ?= -I$(call escape_spaces,$(PAYLOAD_ABS))/include/SDL2
 SDL_LIBS ?= -L$(call escape_spaces,$(PAYLOAD_ABS))/lib -lSDL2
 endif
 
-.PHONY: help check-rom extract region recompile-arm9 recompile-arm7 compile assemble build run test launcher screenshots release clean
+.PHONY: help check-rom extract region recompile-arm9 recompile-arm7 compile assemble build run test launcher screenshots release clean golden golden-check
 help:
 	printf '%s\n' 'DQIX Enhanced — build targets' '' \
 	  '  make build ROM=/path/to/dqix.nds [WORKSPACE=/path] [JOBS=N]' \
@@ -210,6 +210,12 @@ screenshots: launcher
 release: launcher
 	$(PYTHON) "$(ROOT)/tools/launcher/package.py" --repo "$(ROOT)" --launcher "$(BUILD_DIR)/launcher/dqix-launcher" \
 		--payload "$(PAYLOAD_ABS)" --out "$(BUILD_DIR)/release"
+
+golden:
+	"$(ROOT)/tests/golden/run.sh"
+
+golden-check:
+	"$(PYTHON)" "$(ROOT)/tests/golden/assert.py"
 
 clean:
 	echo "Removing generated files from $(WORKSPACE_ABS)"

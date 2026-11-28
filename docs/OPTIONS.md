@@ -36,10 +36,10 @@ option that exists in code but not here is a bug.
 | `console` | `console` | `0` | stable | — | set to 0 |
 | `integer_scaling` | `integer_scaling` | `0` | stable | — | set to 0 |
 | `actual_size` | `actual_size` | `0` | stable | — | set to 0 |
-| `layout` | `layout` | `normal` | stable | widescreen, dynamic widescreen | set to `normal` |
+| `layout` | `layout` | `normal` | stable | widescreen; the `wide_dynamic` value is experimental (Dynamic Widescreen) | set to `normal` |
 | `single_screen` | `single_screen` | `0` | stable | layout | set to 0 |
 | `widescreen_popout` | `widescreen_popout` | `0` | beta | layout=wide | set to 0 |
-| `widescreen_battle_hud` | `widescreen_battle_hud` | `0` | beta | layout=wide | set to 0 |
+| `widescreen_battle_hud` | `widescreen_battle_hud` | `0` | experimental | layout=wide | set to 0 |
 | `walk_any_direction` | `walk_any_direction` | `0` | stable | — | set to 0 |
 | `upscale_textures` | `upscale_textures` | `0` | experimental | texture_packs | set to 0 |
 | `music_pack_volume` | `music_pack_volume` | `100` | stable | music_packs | set to 100 |
@@ -74,6 +74,8 @@ the golden corpus will assert.
 - Options with maturity `experimental` must be labelled as such in the README
   and are opt-in; `README.md` has an **Experimental options** list for exactly
   the rows marked `experimental` here (`hd_text_shadows`, `motion_blur`,
-  `upscale_textures`). Adding or promoting an experimental option means editing
-  that list in the same PR.
+  `upscale_textures`, `widescreen_battle_hud`). The `wide_dynamic` value of
+  `layout` (Dynamic Widescreen) is also experimental and is labelled
+  `(Experimental)` inline in the README and the in-game menu. Adding or
+  promoting an experimental option means editing that list in the same PR.
 - Every new enhancement must enter this table in the same PR that adds it.
