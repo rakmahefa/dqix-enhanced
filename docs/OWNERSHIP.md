@@ -9,9 +9,9 @@ exactly one category, declared in `tools/ownership.py` and checked by
 |---|---|---|
 | `upstream` | consumed from the base project; edits must be additive, marked and listed here | 301 |
 | `shared` | base-project file this fork edits on purpose — the only files allowed to conflict in a sync | 7 |
-| `fork` | this fork's own file; upstream has no equivalent | 38 |
+| `fork` | this fork's own file; upstream has no equivalent | 39 |
 | `deleted-upstream` | deliberately removed and must stay removed | 0 tracked (none, by design; see below) |
-| **total** | | **346** |
+| **total** | | **347** |
 
 ## Rules
 
@@ -43,6 +43,7 @@ with no match fails the check, as does a deleted path that returns.
 | `tools/options_model.py` | `fork` | options model check and generator (M3) |
 | `tools/ownership.py` | `fork` | ownership map check and generator (M5) |
 | `.github/workflows/checks.yml` | `fork` | fast required checks on every push (M5) |
+| `.github/workflows/rakmahefa_matrix.yml` | `fork` | this fork's own CI: Linux x86_64 with the portable payload (M5) |
 | `Makefile` | `shared` | root targets; this fork adds test/options/map/golden/release |
 | `README.md` | `shared` | player documentation; this fork adds options and download notes |
 | `.gitignore` | `shared` | this fork ignores the golden corpus and build output |

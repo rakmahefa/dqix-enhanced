@@ -58,6 +58,7 @@ RULES: list[tuple[str, str, str]] = [
     ("tools/options_model.py", "fork", "options model check and generator (M3)"),
     ("tools/ownership.py", "fork", "ownership map check and generator (M5)"),
     (".github/workflows/checks.yml", "fork", "fast required checks on every push (M5)"),
+    (".github/workflows/rakmahefa_matrix.yml", "fork", "this fork's own CI: Linux x86_64 with the portable payload (M5)"),
 
     # base-project files edited on purpose: the allowed conflict set
     ("Makefile", "shared", "root targets; this fork adds test/options/map/golden/release"),
