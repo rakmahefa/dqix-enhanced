@@ -78,7 +78,7 @@ the DS's screen.
   optional smooth textures. Switch between Classic and Enhanced at any
   time (F5).
 - **The DS Lite look** (on at first): a screen filter with the DS Lite's
-  colours, pixel grid, motion blur and backlight levels, and the screens
+  colours, pixel grid, motion blur (experimental) and backlight levels, and the screens
   inside a photo of a real DS Lite (or a drawn one in six colours), even at
   actual size. F6 switches the screen filter, F7 the console.
 - Any window size, fullscreen, screens stacked or side by side, and sharp
@@ -111,6 +111,18 @@ original)
   equipment, chosen in `transmog.ini`, while what they really wear and every
   number stay the same (see [docs/MODS.md](docs/MODS.md)).
 - Coming: a free camera (see the roadmap).
+
+**Experimental options** (off by default, opt-in; they can change or be
+removed between versions, and they are the first to break when used with the
+newest work)
+- **HD text shadows**: with HD text on (Graphics > HD text, F1), the letters'
+  original DS shadows and outlines are drawn back under the HD letters, which
+  are left out by default (`hd_text_shadows = 1` in settings.ini).
+- **Motion blur**: the DS Lite filter's screen ghosting, for the DS's slow LCD
+  (Graphics menu, next to the screen filter's other parts;
+  `motion_blur = 1` in settings.ini).
+- **Upscaled 3D textures**: xBR upscaling of the 3D textures, for smoother
+  slopes and curves (Mods menu; `upscale_textures = 1` in settings.ini).
 
 **Multiplayer, from anywhere**
 - **Tag mode** (canvassing for guests) and **co-op** (visiting and inviting

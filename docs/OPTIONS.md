@@ -48,7 +48,9 @@ option that exists in code but not here is a bug.
 ## Interaction matrix
 
 Conflicts are either fixed or documented as unsupported. Unresolved cells are
-marked `?` and block M3 exit.
+marked `?` and block M3 exit. No cell is unresolved as of cycle 1; each
+`supported` cell names the code path that defines the behaviour, which is what
+the golden corpus will assert.
 
 | combo | result | status |
 |---|---|---|
@@ -61,7 +63,7 @@ marked `?` and block M3 exit.
 | Enhanced × mods (music) | OGG/FLAC replaces game songs | supported |
 | Classic × mods (texture) | mods disabled (Classic only) | supported |
 | Classic × widescreen | widescreen disabled | supported |
-| widescreen × single_screen | ? | unresolved |
+| widescreen × single_screen | widescreen wins: `single_screen` is ignored (it only applies to the stacked, side-by-side and corner layouts) and U / the left trigger hides the small screen instead, i.e. `small_screen_hidden` (`MI_SINGLE` ticks and toggles that one in widescreen) | supported (`frontend_sdl.c`: `single = g_single && !wide` in `canvas_layout_for`; `menu_check(MI_SINGLE, wide ? g_small_hide : g_single)`; switching to a wide layout clears `g_single`) |
 | hd_text × hd_text_shadows | shadows on HD letters | supported |
 | dslite_filter × lcd_colors | color correction | supported |
 
@@ -70,5 +72,8 @@ marked `?` and block M3 exit.
 - `mode` is the root toggle: Classic = DS's own 3D renderer (pixel-exact),
   Enhanced = 3D on the GPU at 1-4x.
 - Options with maturity `experimental` must be labelled as such in the README
-  and are opt-in.
+  and are opt-in; `README.md` has an **Experimental options** list for exactly
+  the rows marked `experimental` here (`hd_text_shadows`, `motion_blur`,
+  `upscale_textures`). Adding or promoting an experimental option means editing
+  that list in the same PR.
 - Every new enhancement must enter this table in the same PR that adds it.
