@@ -152,6 +152,19 @@ newest work)
 - F10 saves a bug report with a screenshot and everything needed to
   replay what happened.
 
+## Which download?
+
+| Your computer | Take this | What it is |
+|---|---|---|
+| Linux (x86_64 or ARM64) | `DQIX-Enhanced-<version>-Linux-<arch>.tar.gz`, with `SHA256SUMS-Linux-<arch>.txt` beside it, from the [releases page](https://github.com/rakmahefa/dqix-enhanced/releases) | the launcher and its payload: the product this project ships |
+| Windows 10 or 11 (64-bit) | `DQIX-Enhanced-<version>-Windows-x64.zip` from the [releases page](https://github.com/rakmahefa/dqix-enhanced/releases) | the project source, built on your PC by `Install Dragon Quest IX.bat` — not the Linux launcher |
+| macOS | the repository's source snapshot | build from source; experimental |
+
+Only the Linux archive is the launcher artifact. The other downloads are
+source snapshots that build the game on your machine, because there is no
+packaged launcher for those systems yet. None of them contain the game or a
+ROM.
+
 ## Getting started
 
 ### Linux (x86_64 and ARM64)
@@ -167,10 +180,9 @@ European version, others can be tried; the European one plays in the language
 chosen in Game > Language), Windows 10 or 11 (64-bit), about 3 GB of free space, and the internet the
 first time.
 
-1. Download the latest **stable** release from the
-   **[Releases page](https://github.com/sackchief/dqix-enhanced/releases)**
-   (*Source code (zip)*) and unzip it. The **Nightly** release there is the
-   newest work, less tested.
+1. Download `DQIX-Enhanced-<version>-Windows-x64.zip` from the
+   **[releases page](https://github.com/rakmahefa/dqix-enhanced/releases)** and
+   unzip it. The **Nightly** release there is the newest work, less tested.
 2. Double-click **`Install Dragon Quest IX.bat`**. A setup window walks you
    through it: choose your ROM (the `.nds`, or a `.zip` with it inside; it
    says which version it is), where to put

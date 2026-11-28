@@ -313,30 +313,58 @@ contract. Treat the drift as the milestone's first finding, not as a detail.
 
 ### Work — CI
 
-- [ ] **Audit what is published.** For the last release: list every asset, where
+- [~] **Audit what is published.** For the last release: list every asset, where
       it came from, which workflow made it, and whether it matches the artifact
       contract. Record the delta.
-- [ ] **Split the pipeline:** fast required checks on every push (syntax,
+      _`docs/RELEASE.md`: every asset the workflows can publish, its producer
+      and its contract status; six deltas recorded, including the Windows
+      headline download being a source zip and the RecompLauncher zips being an
+      unchecksummed second class. The live asset list of the last release needs
+      a GitHub API token this environment does not have: that part stays open._
+- [x] **Split the pipeline:** fast required checks on every push (syntax,
       semantics subset, packaging unit tests) and the full matrix (x86_64,
       arm64, macOS experimental, launcher screenshots) where it belongs. Cache
       the payload and submodules; no check should be slow *and* unexplained.
-- [ ] **Make the contract testable:** a check that fails when a release asset is
+      _`.github/workflows/checks.yml`: syntax, options model, ownership map,
+      500 semantic cases and all packaging tests on every push and pull
+      request (3.9 s of work locally, 10 min timeout). `linux-release.yml` now
+      builds the two-architecture matrix on pull requests, tags and manually
+      instead of on every push; every job has a timeout._
+- [x] **Make the contract testable:** a check that fails when a release asset is
       not `DQIX-Enhanced-<version>-<os>-<arch>` + checksum, when the payload is
       incomplete, when a ROM/save/generated tree is inside, or when the launcher
       is not executable and not linked against the bundled SDL2.
-- [ ] **Determinism and provenance:** same commit ⇒ same archive content
+      _`tests/packaging/test_artifact_contract.py` builds the archive from fake
+      inputs and checks the name, the checksum file, the executable launcher,
+      the payload manifest, `SOURCE-COMMIT.txt`, and that no ROM, save or
+      generated game tree is inside. The `$ORIGIN/payload/lib` link is checked
+      in the release workflow with `readelf`._
+- [x] **Determinism and provenance:** same commit ⇒ same archive content
       (sorted entries, fixed mtimes, recorded source commit and payload
       version), SHA256 published next to every asset.
-- [ ] **Time and flakiness budgets:** record CI duration per job; a flaky check
+      _`tools/launcher/package.py` sorts entries, fixes `uid`/`gid`/`mtime` and
+      writes a gzip header with no name and `mtime = 0`; two builds of the same
+      inputs now have the same SHA256 (tested). `SOURCE-COMMIT.txt` carries the
+      source commit and payload version; a checksum is written beside the
+      archive and an aggregate `SHA256SUMS.txt` by the publish job._
+- [~] **Time and flakiness budgets:** record CI duration per job; a flaky check
       is quarantined with an issue, not retried into silence.
+      _Every job has `timeout-minutes`; local durations per job are in
+      `docs/RELEASE.md` (fast checks 3.9 s, `make test` 3.1 s, packaging 0.6 s).
+      Hosted durations of the split pipeline are recorded after its first run;
+      no retry loop exists, and the quarantine rule is written down._
 
 ### Work — distribution
 
-- [ ] **One release path.** `make release` (or its successor) produces the
+- [~] **One release path.** `make release` (or its successor) produces the
       launcher + payload archive for each arch; the release workflow publishes
       exactly that, with checksums and install notes. Source zips may remain as
       a secondary, clearly labelled channel for RecompLauncher — never as the
       headline download.
+      _Linux: `make release` → two archives + checksums, published by the
+      `publish` job. README now has a "Which download?" table naming the Linux
+      archive as the product and the Windows/RecompLauncher zips as
+      build-from-source channels; those zips are still unchecksummed._
 - [ ] **Clean-machine install test per cycle:** a fresh container/VM with no
       build tools, no SDL2, no Python packages: download the published archive,
       run the launcher, pick a ROM, build, play. Repeat for x86_64 and arm64.
@@ -344,30 +372,48 @@ contract. Treat the drift as the milestone's first finding, not as a detail.
 - [ ] **Channels and rollback:** stable/nightly are explicit; the in-game
       updater and the archive agree on version, channel and layout; a failed
       update can roll back on every platform we publish for.
-- [ ] **Windows parity is stated, not implied:** the Windows path (`BUILD.bat` +
+- [x] **Windows parity is stated, not implied:** the Windows path (`BUILD.bat` +
       zip) is labelled as the build-from-source channel; do not describe it as
       the same artifact class as the Linux launcher + payload until it is.
+      _README "Which download?" and the Windows steps name the Windows zip as
+      the project source built on the player's PC; the README's Windows link
+      pointed at another repository's release page and was corrected._
 - [ ] **Publish only with authorization**, from a tag, with the evidence log
       updated.
 
 ### Work — upstream hygiene (ours vs. the base we do not use)
 
-- [ ] **Ownership map.** `docs/OWNERSHIP.md` lists, path by path: upstream-owned
+- [x] **Ownership map.** `docs/OWNERSHIP.md` lists, path by path: upstream-owned
       (consume unmodified), fork-owned (ours), and deliberately-deleted-upstream
       (with the reason). The map is the single answer to "is this ours?".
-- [ ] **No code specific to the fork inside upstream files.** Prefer new files,
+      _`tools/ownership.py` declares ordered rules (generated doc, `make
+      ownership`); every tracked path is classified exactly once — 301
+      upstream, 7 shared, 33 fork — and a deleted path that returns fails
+      `make test`._
+- [~] **No code specific to the fork inside upstream files.** Prefer new files,
       wrapper targets, and hooks over editing upstream logic; where an edit is
       unavoidable, keep it additive, marked, and listed in the map.
+      _The seven shared files are declared with their reason. The runtime edits
+      are additive (a menu item, a `KEEP` list); the Makefile adds targets. The
+      one non-additive edit is `tools/launcher/package.py`'s deterministic
+      archive, kept in the shared set on purpose because the contract belongs
+      to that file._
 - [ ] **Sync drill every cycle.** Merge `upstream-dev` (never `main`, never a
       rebase) into the work branch, resolve conflicts, run M1's checks, and
       record: conflicts hit, files owned by both sides, time spent. The drill is
       a scheduled task, not a reaction to a broken merge.
-- [ ] **Conflict budget:** the only files allowed to conflict are declared
+- [~] **Conflict budget:** the only files allowed to conflict are declared
       fork-owned or explicitly shared. A conflict outside that set is a design
       bug to fix, not a merge to survive.
-- [ ] **Guards grow with the policy:** extend `tests/packaging/test_upstream_policy.py`
+      _The allowed set is the seven `shared` paths; `test_upstream_policy`
+      pins that exact list, so a new shared file has to be declared. Zero
+      conflicts is only proven by running the drill._
+- [x] **Guards grow with the policy:** extend `tests/packaging/test_upstream_policy.py`
       (and the ownership map check) so a reintroduced base file, a restored
       AppImage path, or a fork edit in an upstream-owned file fails CI.
+      _`test_upstream_policy` now also fails on an unclassified path, a stale
+      `docs/OWNERSHIP.md`, a deleted path that returns, and a changed conflict
+      set._
 
 ### Exit criteria
 
@@ -411,7 +457,7 @@ at M2, not at M1.
 - Cycle: **1**
 - Opened: **2026-11-27**
 - Target release train: _v35 → v36_
-- Current milestone: **M4** (M3 closed: options model checked in `make test`, maturity contract with per-option decisions, replay metadata complete, golden corpus green — 20 cases, 5 cells)
+- Current milestone: **M5** (M4 closed: the recompiled game is mapped — `docs/MAP.md`, 39 groups, 14782 functions — with the flagship still to pick)
 - Owner of the cycle: _TBD_
 
 ## Evidence log (cycle 1)
@@ -439,6 +485,11 @@ at M2, not at M1.
 | M3 | replay completeness | `report_display`'s `KEEP` now covers every option marked `affects_picture`; widescreen and Dynamic Widescreen (`layout`), HUD, HD text shadows, mod switches, console colour and monitor width replay with the report; the model check enforces the link | 2026-11-28 |
 | M4 | flagship + measured cost | | |
 | M4 | recompiled game map | `docs/MAP.md` + `docs/map-index.json`: 39 groups, 14782 functions, 63601 call edges; unclassified groups recorded as unknown, not guessed; regenerated by `tools/map_index.py` / `make map` | 2026-11-28 |
+| M5 | release audit | `docs/RELEASE.md`: every publishable asset with its producer and contract status; six deltas, including the Windows headline download being another repository's source zip | 2026-11-28 |
+| M5 | artifact contract + determinism | `tests/packaging/test_artifact_contract.py` (7 tests): name, per-arch checksum, executable launcher, payload, provenance, no ROM/save/generated tree, sorted members, identical SHA256 across two builds. `package.py` now sorts entries and fixes owner, mtime and gzip header | 2026-11-28 |
+| M5 | pipeline split and budgets | `checks.yml` (fast required checks, 3.9 s of work locally, 10 min timeout) on every push/PR; `linux-release.yml` keeps the two-architecture matrix for pull requests, tags and manual runs; every job has `timeout-minutes`; local per-job durations in `docs/RELEASE.md` | 2026-11-28 |
+| M5 | ownership map | `docs/OWNERSHIP.md` generated from `tools/ownership.py`: 341 tracked paths, 301 upstream / 7 shared / 33 fork, deleted-upstream rules; `make ownership`; `test_upstream_policy` fails on an unclassified path, a stale map or a changed conflict set | 2026-11-28 |
+| M5 | full test suite | `make test` green: options model (41 options), ownership map, semantics 12,000 + 48,000 checks, packaging 36 tests, 2 skipped | 2026-11-28 |
 | M5 | published artifacts + checksums | | |
 | M5 | clean-machine install (x86_64 / arm64) | | |
 | M5 | upstream sync drill (conflicts, time) | | |

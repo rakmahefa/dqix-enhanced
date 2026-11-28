@@ -1,0 +1,57 @@
+name: Checks
+
+# Fast, required checks on every push and pull request. The full build matrix
+# (both architectures, launcher screenshots, release archive) lives in
+# linux-release.yml and runs on pull requests, tags and manually.
+
+on:
+  push:
+    branches:
+      - upstream-dev
+      - main
+      - stable
+      - "feat/**"
+  pull_request:
+    branches:
+      - upstream-dev
+      - main
+      - stable
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Fast required checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install the supported ARM toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential clang lld llvm python3-yaml
+          clang --version
+
+      - name: Check Python and shell syntax
+        run: |
+          python3 -m compileall -q recomp tools tests
+          sh -n tools/play.sh
+
+      - name: Check the options model and the ownership map
+        run: |
+          python3 tools/options_model.py
+          python3 tools/ownership.py
+
+      - name: Run a recompiler semantic subset
+        run: python3 tests/semantics/run.py 500
+
+      - name: Run packaging, contract and policy tests
+        run: python3 -m unittest discover -s tests/packaging -v

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
 import platform
@@ -17,6 +18,14 @@ def command(args: list[str], cwd: Path) -> str:
     return subprocess.run(
         args, cwd=cwd, check=True, capture_output=True, text=True
     ).stdout.strip()
+
+
+def normalise(info: tarfile.TarInfo) -> tarfile.TarInfo:
+    """Strip what changes between runs from an archive member."""
+    info.uid = info.gid = 0
+    info.uname = info.gname = ""
+    info.mtime = 0
+    return info
 
 
 def digest(path: Path) -> str:
@@ -88,9 +97,17 @@ def main() -> int:
         encoding="utf-8",
     )
 
+    # Same commit ⇒ same archive: entries sorted, owner and timestamps fixed,
+    # and a gzip header without a name or a current time.
     archive = out / f"DQIX-Enhanced-{version}-Linux-{arch}.tar.gz"
-    with tarfile.open(archive, "w:gz", compresslevel=6) as tar:
-        tar.add(staging, arcname="DQIX-Enhanced", recursive=True)
+    entries = [staging, *sorted(staging.rglob("*"), key=lambda p: p.relative_to(staging).as_posix())]
+    with archive.open("wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, compresslevel=6, mtime=0) as gz:
+            with tarfile.open(fileobj=gz, mode="w", format=tarfile.PAX_FORMAT) as tar:
+                for path in entries:
+                    relative = path.relative_to(staging).as_posix()
+                    arcname = "DQIX-Enhanced" if relative == "." else f"DQIX-Enhanced/{relative}"
+                    tar.add(path, arcname=arcname, recursive=False, filter=normalise)
     sums = out / f"SHA256SUMS-Linux-{arch}.txt"
     sums.write_text(f"{digest(archive)}  {archive.name}\n", encoding="ascii")
     print(f"release: {archive} ({archive.stat().st_size:,} bytes)")

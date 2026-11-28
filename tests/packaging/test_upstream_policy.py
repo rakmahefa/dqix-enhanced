@@ -1,9 +1,21 @@
-"""Guard the upstream branch cleanup against accidental AppImage resurrection."""
+"""Guard the upstream branch cleanup and the M5 ownership map."""
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
 import subprocess
 import unittest
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def load_ownership():
+    spec = importlib.util.spec_from_file_location("dqix_ownership", ROOT / "tools/ownership.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class UpstreamPolicyTests(unittest.TestCase):
@@ -43,6 +55,40 @@ class UpstreamPolicyTests(unittest.TestCase):
         self.assertNotIn("tools/build-game.sh", self.paths)
         self.assertIn("tools/where.sh", self.paths)
         self.assertIn("docs/TECHNICAL.md", self.paths)
+
+    def test_every_tracked_path_has_one_ownership_category(self) -> None:
+        ownership = load_ownership()
+        paths = ownership.tracked_paths()
+        problems = ownership.check(paths)
+        self.assertEqual(problems, [], "ownership map problems:\n" + "\n".join(problems))
+        for path in paths:
+            category, _ = ownership.classify(path)
+            self.assertIn(category, ownership.CATEGORIES, path)
+
+    def test_ownership_document_is_generated_from_the_rules(self) -> None:
+        ownership = load_ownership()
+        paths = ownership.tracked_paths()
+        document = (ROOT / "docs/OWNERSHIP.md").read_text(encoding="utf-8")
+        self.assertEqual(document, ownership.render(paths), "docs/OWNERSHIP.md is stale; run tools/ownership.py --write")
+
+    def test_conflict_set_is_declared_and_small(self) -> None:
+        ownership = load_ownership()
+        shared = sorted(
+            path for path in self.paths if ownership.classify(path)[0] == "shared"
+        )
+        self.assertEqual(
+            shared,
+            [
+                ".github/workflows/linux-release.yml",
+                ".gitignore",
+                "Makefile",
+                "README.md",
+                "runtime/frontend_sdl.c",
+                "runtime/menu_items.c",
+                "tools/launcher/package.py",
+            ],
+            "the set of files this fork edits upstream-side changed; update docs/OWNERSHIP.md and the policy",
+        )
 
 
 if __name__ == "__main__":

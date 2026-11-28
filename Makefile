@@ -55,12 +55,12 @@ SDL_CFLAGS ?= -I$(call escape_spaces,$(PAYLOAD_ABS))/include/SDL2
 SDL_LIBS ?= -L$(call escape_spaces,$(PAYLOAD_ABS))/lib -lSDL2
 endif
 
-.PHONY: help check-rom extract region recompile-arm9 recompile-arm7 compile assemble build run test launcher screenshots release clean golden golden-check options map
+.PHONY: help check-rom extract region recompile-arm9 recompile-arm7 compile assemble build run test launcher screenshots release clean golden golden-check options map ownership
 help:
 	printf '%s\n' 'DQIX Enhanced — build targets' '' \
 	  '  make build ROM=/path/to/dqix.nds [WORKSPACE=/path] [JOBS=N]' \
-	  '  make test' '  make launcher [PAYLOAD=build/payload]' \
-	  '  make screenshots' '  make clean [WORKSPACE=/path]' '' \
+	  		  '  make test' '  make launcher [PAYLOAD=build/payload]' \
+		  '  make screenshots' '  make map' '  make clean [WORKSPACE=/path]' '' \
 	  'Build outputs are written to WORKSPACE/build and WORKSPACE/game.'
 
 check-rom:
@@ -192,6 +192,7 @@ endif
 
 test:
 	$(PYTHON) "$(ROOT)/tools/options_model.py"
+	$(PYTHON) "$(ROOT)/tools/ownership.py"
 	$(PYTHON) "$(ROOT)/tests/semantics/run.py" 2000
 	$(PYTHON) -m unittest discover -s "$(ROOT)/tests/packaging" -v
 
@@ -218,6 +219,10 @@ options:
 
 map:
 	$(PYTHON) "$(ROOT)/tools/map_index.py"
+
+ownership:
+	$(PYTHON) "$(ROOT)/tools/ownership.py" --write
+	$(PYTHON) "$(ROOT)/tools/ownership.py"
 
 golden:
 	"$(ROOT)/tests/golden/run.sh"
