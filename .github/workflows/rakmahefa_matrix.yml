@@ -1,0 +1,164 @@
+# rakmahefa_matrix.yml — professional CI owned by the DQIX Enhanced fork.
+#
+# This is the project's own build pipeline, distinct from the upstream
+# linux-release.yml. It targets the single architecture we ship and test on
+# first (Linux x86_64) together with the portable runtime payload, and runs
+# the full verification suite. It is intentionally self-contained: one
+# workflow, explicit permissions, concurrency, timeouts, caching and
+# artifact retention, so a green run is meaningful on its own.
+name: Rakmahefa Matrix (Linux x86_64)
+
+on:
+  push:
+    branches:
+      - upstream-dev
+      - main
+      - stable
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - upstream-dev
+      - main
+      - stable
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rakmahefa-matrix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PAYLOAD_CACHE_KEY: dqix-linux-payload-x86_64-python-3.12
+
+jobs:
+  verify:
+    name: Verify (syntax, options, ownership, semantics)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install verification toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential clang lld llvm python3 python3-yaml python3-pil
+          clang --version
+          python3 --version
+
+      - name: Check Python and shell syntax
+        run: |
+          python3 -m compileall -q recomp tools tests
+          sh -n tools/play.sh
+
+      - name: Check the options model
+        run: python3 tools/options_model.py
+
+      - name: Check the ownership map
+        run: python3 tools/ownership.py
+
+      - name: Run recompiler semantic tests
+        run: python3 tests/semantics/run.py 2000
+
+      - name: Run packaging and policy tests
+        run: python3 -m unittest discover -s tests/packaging -v
+
+  build:
+    name: Build Linux x86_64 (payload + launcher)
+    needs: verify
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source and pinned submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential g++ make pkg-config \
+            libsdl2-dev libgl-dev \
+            python3 python3-yaml \
+            xvfb xauth python3-pil
+          test "$(uname -m)" = "x86_64"
+          python3 --version
+          make --version
+          pkg-config --modversion sdl2
+
+      - name: Restore payload download cache
+        uses: actions/cache@v4
+        with:
+          path: build/payload-cache
+          key: ${{ env.PAYLOAD_CACHE_KEY }}
+
+      - name: Build portable source and runtime payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            VERSION="$GITHUB_REF_NAME"
+          else
+            VERSION="${GITHUB_SHA:0:12}"
+          fi
+          python3 tools/launcher/payload.py \
+            --repo "$GITHUB_WORKSPACE" \
+            --out "$GITHUB_WORKSPACE/build/payload" \
+            --version "$VERSION"
+
+      - name: Compile native launcher
+        run: make launcher PAYLOAD="$GITHUB_WORKSPACE/build/payload"
+
+      - name: Verify bundled SDL2 runtime path
+        run: readelf -d build/launcher/dqix-launcher | grep -F '$ORIGIN/payload/lib'
+
+      - name: Verify launcher CLI
+        run: |
+          build/launcher/dqix-launcher --version
+          build/launcher/dqix-launcher --help
+
+      - name: Render launcher screenshots under Xvfb
+        run: |
+          mkdir -p build/launcher-screenshots
+          xvfb-run -a build/launcher/dqix-launcher \
+            --preview "$GITHUB_WORKSPACE/build/launcher-screenshots"
+
+      - name: Convert launcher screenshots to PNG
+        run: python3 tools/launcher/convert-screenshots.py build/launcher-screenshots
+
+      - name: Run packaging, payload and screenshot tests
+        env:
+          DQIX_PAYLOAD_DIR: ${{ github.workspace }}/build/payload
+          DQIX_LAUNCHER_SCREENSHOTS: ${{ github.workspace }}/build/launcher-screenshots
+        run: python3 -m unittest discover -s tests/packaging -v
+
+      - name: Package launcher and payload release archive
+        run: make release PAYLOAD="$GITHUB_WORKSPACE/build/payload"
+
+      - name: Upload Linux release archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dqix-linux-x86_64
+          path: |
+            build/release/DQIX-Enhanced-*.tar.gz
+            build/release/SHA256SUMS-Linux-*.txt
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload launcher screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dqix-launcher-screenshots-x86_64
+          path: build/launcher-screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
