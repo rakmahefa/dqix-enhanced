@@ -494,3 +494,202 @@ at M2, not at M1.
 | M5 | published artifacts + checksums | | |
 | M5 | clean-machine install (x86_64 / arm64) | | |
 | M5 | upstream sync drill (conflicts, time) | | |
+
+## Cycle 2 — prepared (not yet active)
+
+> Prepared on 2026-11-28. Not active until Cycle 1's M5 closes (clean-machine
+> install, sync drill, published artifacts recorded). Activation = uncheck
+> nothing here, copy this block over the M1–M5 body above, move every
+> escalation bar one step, and reset the cycle header.
+>
+> Scope rule for this cycle: only objectives this fork owns on `upstream-dev`,
+> and only work that can be completed and evidenced inside this development
+> environment. Items needing a compatible save, GL visual verification, a real
+> Steam Deck / Mac / Android device, or a GitHub token are either dropped or
+> carried as explicitly blocked with the unblock condition named. Bars raised
+> one step per the recycling rule.
+
+### Feasibility legend
+
+- `[local]` buildable and testable in this sandbox (ROM + clang + SDL2 present)
+- `[ci]` verifiable through GitHub Actions (push triggers both workflows)
+- `[blocked: save]` needs a save compatible with the ROM (current save crashes at frame 15)
+- `[blocked: visual]` needs an OpenGL/GL context or a human eye on pixels
+- `[blocked: device]` needs a real Steam Deck / Mac / Android / Windows tester
+- `[blocked: token]` needs a GitHub API token this environment lacks
+
+### M1 — Stabilise, review, decide (Cycle 2)
+
+**Goal:** a branch with no flaky check in 20 consecutive runs, a locked CI
+budget, and the modules Cycle 1 skipped (`wifi.c`, `frontend_sdl.c`) reviewed.
+
+- [ ] **Green baseline, higher bar.** `make test`, `make launcher` and both
+      workflows green on `upstream-dev`; no red check without an issue number.
+      _Cycle 1 bar was "green once"; Cycle 2 requires 20 consecutive green runs
+      of `checks.yml` before M1 closes (record the run id range)._
+- [ ] **Flakiness audit.** Run `checks.yml` 20 times on the same commit; record
+      pass/fail per run; any flaky step is quarantined with an issue number,
+      not retried into silence. `[ci]`
+- [ ] **CI budget locked.** Record hosted duration for every job (fast checks,
+      verify, build, semantic-tests) and set `timeout-minutes` to 2x the
+      measured value, no higher; document in `docs/RELEASE.md`. `[ci]`
+- [ ] **Review the skipped modules.** `runtime/wifi.c` and
+      `runtime/frontend_sdl.c` get the same treatment as Cycle 1's nine files
+      (invariants, error paths, ownership, thread/ordering, missing tests) in
+      `docs/REVIEW.md`. `[local]`
+- [ ] **Hotspot trend lines.** Every hotspot in `docs/PERF.md` gets a second
+      measurement point; ROM-dependent ones that are still blocked are listed
+      with the unblock condition, not left as "TBD". `[local]` for the ones
+      already measurable, `[blocked: save]` for the rest.
+- [ ] **Triage refresh.** Re-triage open reports; P0 = 0, P1 with owner and
+      date; untriaged counts as P1.
+
+### M2 — Fix, improve, optimise (Cycle 2)
+
+**Goal:** land the gameplay fixes the moment a compatible save or report
+arrives, and finish the optimisation work Cycle 1 measured but did not land.
+
+- [ ] **Gameplay bug set (blocked).** Gortress turnstile, "Lv '1", Zoom smear,
+      attribute-points flicker, paler battle sky, Upover inn light — each needs
+      a compatible save or an F10 report. Unblock: a save that boots past
+      frame 15, or a report folder. Until then, no closure on "cannot
+      reproduce" without a test that says so. `[blocked: save]`
+- [ ] **Coups de grâce investigation.** Add the test-only switch (force the
+      game's own check to pass on turn 1) plus a starting save, so the reported
+      bug becomes reproducible on demand. `[local]` for the switch,
+      `[blocked: save]` for the reproduction.
+- [ ] **Relay fan-out (half the messages).** Move the second hop through the
+      host to relay-side fan-out, as scheduled in Cycle 1; measure before/after
+      with `tests/relay_bench/run.sh`; revert if below threshold. `[local]`
+- [ ] **net_thread polling baseline.** Re-take the CPU baseline now that the
+      save situation is known; if still blocked, record the blocker and drop
+      from the plan rather than carry it silently. `[blocked: save]`
+- [ ] **Jump stubs (528).** Lives in the external recompiler, not this tree:
+      file an upstream issue with the measured cost; do not patch around it
+      here. `[local]` for the issue, external for the fix.
+- [ ] **Code hygiene on touched units.** Dead code and stale comments removed,
+      error paths explicit, no new warnings. `[local]`
+
+### M3 — Consolidate the enhancement layer (Cycle 2)
+
+**Goal:** drift-free enforcement and corpus coverage where the environment
+allows; no promotion of experimental options without GL evidence.
+
+- [ ] **Golden corpus gaps.** Inn, Krak Pot, DQVC and 2-/4-player sessions need
+      a save and a live session. Unblock with a compatible save and
+      `DQIX_SESSION=local:N`; until then they stay listed gaps, not "done".
+      `[blocked: save]`
+- [ ] **No promotion without evidence.** `hd_text_shadows`, `motion_blur`,
+      `upscale_textures` stay experimental until GL visual evidence exists;
+      record the gap explicitly instead of promoting on hope. `[blocked: visual]`
+- [ ] **Drift enforcement in CI.** The options model check and the ownership
+      check already fail `make test`; add a check that fails when a new
+      enhancement ships without a corpus entry or a matrix cell. `[local]`
+- [ ] **Interaction matrix stays closed.** Any new combination introduced by
+      Cycle 2 features gets a cell before the feature lands. `[local]`
+
+### M4 — Extend the enhancement layer (Cycle 2)
+
+**Goal:** one flagship that is actually shippable and verifiable here, plus at
+most one small item. Pick from the ranked backlog using the Cycle 1 criteria
+(players affected, distance from "the DS could not do this", risk, platform
+validation). Candidates feasible in this environment are marked `[local]`.
+
+Ranked candidates (feasibility tagged):
+
+1. `[local]` **Screenshots as you see them (F12):** whole window as PNG in a
+   `screenshots` folder, named by date/time. Testable via a golden/capture
+   harness and the existing screenshot converter. _Small item, good first ship._
+2. `[local]` **First-launch choice:** "Like the DS" vs "Enhanced (sharper 3D,
+   Basic Widescreen)", asked once on a new install; existing players keep
+   settings. Testable by deleting `settings.ini` and asserting defaults.
+3. `[local]` **Bug reports that still replay after an update:** keep the
+   build's widescreen settings that change what counts as in view; replay uses
+   them. Testable via the report replay harness.
+4. `[local]` **Boat steering with the stick:** any direction, like walking.
+   Needs the field-walk code path; testable headless via input injection.
+5. `[local]` **Relay improvements:** 2-3 frames of inputs per message, new
+   relay address file in the repo, caps per address/session length, "relay has
+   moved" message for old builds. Testable with the Node stand-in.
+6. `[local]` **Hand-written weekly DQVC news:** one message per sale in
+   Sellma's voice. Testable by comparing generated download bytes.
+7. `[local]` **Cheats (Mods > Cheats):** Action Replay codes, then simple
+   switches; off while playing with friends. Needs the menu framework.
+8. `[blocked: device]` **Steam Deck preset, controls, touchscreen, Game Mode.**
+9. `[blocked: device]` **Android build + touch-as-bottom-screen + GL ES shaders.**
+10. `[blocked: device]` **macOS native port.**
+11. `[blocked: visual]` **HD-2D / ray-traced lighting, HD battle HUD.**
+12. `[blocked: save]` **Join a session already started, hole punching, coups de grâce.**
+
+- [ ] **Pick the flagship** from the ranked list above with the four criteria
+      and record the decision in `docs/PERF.md`/`ROADMAP.md`. `[local]`
+- [ ] **Ship it as an enhancement:** in the options model, off by default while
+      experimental, in the interaction matrix, in the golden corpus, in
+      README/ROADMAP, with a documented rollback. `[local]`
+- [ ] **Measure its cost** (frame time, session latency, memory, build time,
+      relay traffic) before/after, recorded. `[local]`
+- [ ] **Prove the fallback:** turn it off and the game behaves exactly as
+      before; mismatched builds refuse to connect with a clear message.
+      `[local]`
+- [ ] **Document the player path:** enable steps, requirements, cost of
+      "experimental". `[local]`
+
+### M5 — CI, distribution, upstream hygiene (Cycle 2)
+
+**Goal:** finish Cycle 1's open items and raise the bar to one-command
+reproducible release with zero undeclared conflicts.
+
+- [ ] **Published artifacts + checksums recorded.** Fill the empty evidence row
+      for the first published release; list every asset, producer, contract
+      status. `[blocked: token]` for the live asset list; `[ci]` for the rest.
+- [ ] **Clean-machine install automated per arch.** A fresh container with no
+      build tools, no SDL2, no Python packages: download the published archive,
+      run the launcher, build, play. x86_64 and arm64. `[ci]`
+- [ ] **Channels and rollback.** Stable/nightly explicit; updater and archive
+      agree on version, channel and layout; failed update rolls back on every
+      published platform. `[local]` for the version/channel logic,
+      `[blocked: device]` for per-platform rollback proof.
+- [ ] **Sync drill (Cycle 1 carried over).** Merge `upstream-dev` into the work
+      branch, resolve, run `make test`, record conflicts/shared files/time.
+      `[local]`
+- [ ] **Conflict budget in CI.** Extend `test_upstream_policy` so a conflict
+      outside the declared set fails CI, not just the list. `[local]`
+- [ ] **One-command reproducible release.** `make release` (or successor) for
+      each arch from a clean checkout, same SHA256 on repeat, provenance
+      (source commit + payload version) inside the archive. `[local]` + `[ci]`
+- [ ] **Sync drill costs under a fixed time** with zero undeclared conflicts.
+      `[local]`
+
+### Exit criteria (Cycle 2)
+
+- `checks.yml` green 20 consecutive runs; CI budget documented and enforced.
+- Gameplay bugs closed with reproduction and regression proof, or carried
+  forward with a named blocker (no silent deferral).
+- The flagship ships in the options model, matrix and corpus, with measured
+  cost and a documented rollback; Classic output unchanged.
+- Published assets match the contract on every claimed arch, each checksummed.
+- Clean-machine install passes for x86_64 and arm64 in CI.
+- One sync drill completed with zero conflicts outside the declared set.
+- `docs/OWNERSHIP.md` matches the tree.
+
+### Escalation (Cycle 2)
+
+| Milestone | Bar |
+|-----------|-----|
+| M1 | 20 green runs; CI budget locked; skipped modules reviewed |
+| M2 | Bug fixes landed with proof, or explicitly blocked with owner |
+| M3 | Drift enforcement in CI; no promotion without evidence |
+| M4 | One flagship + one small item, both acceptance-tested |
+| M5 | Reproducible release in one command; sync drill under fixed time |
+
+### Notes on what this cycle deliberately does NOT do
+
+- No Steam Deck / Mac / Android / Windows-hardware validation (no device
+  access here) — those stay `[blocked: device]` and are not counted as
+  "done" on screenshots or logs alone.
+- No GL visual verification — experimental options are not promoted on
+  hope.
+- No gameplay-bug closure without a compatible save or report — the M2
+  proof standard is not relaxed.
+- No upstream roadmap items owned by other contributors — only this fork's
+  objectives on `upstream-dev`.
