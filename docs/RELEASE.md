@@ -70,7 +70,9 @@ the layout, the checksum and the reproducibility on fake inputs.
    checks workflow both died there. Fixed: the local file is checked only when
    it exists (the keys the game writes are already enforced against
    `settings_save`), and `test_options_model` now runs the check without a
-   `settings.ini` so this cannot come back.
+   `settings.ini` so this cannot come back. The fast checks also installed
+   PyYAML but not Pillow, so `test_screenshot_converter` failed to import;
+   `python3-pil` is installed with the rest of the test dependencies.
 7. **No live asset list in this audit.** The list above is what the workflows
    can publish. Reading the last real release's assets needs a GitHub API token,
    which this environment does not have; that part of the audit stays open.

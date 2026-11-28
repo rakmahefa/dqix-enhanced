@@ -37,7 +37,8 @@ jobs:
       - name: Install the supported ARM toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y build-essential clang lld llvm python3-yaml
+          sudo apt-get install --no-install-recommends -y \
+            build-essential clang lld llvm python3-yaml python3-pil
           clang --version
 
       - name: Check Python and shell syntax
