@@ -19,8 +19,8 @@ The checks enforce the M3 contract:
   * the maturity levels each carry entry/exit criteria, every experimental
     option has a recorded decision with exit criteria, and the README's
     experimental list covers exactly the experimental options;
-  * docs/OPTIONS.md's generated table, the tracked settings.ini and the golden
-    corpus' option map agree with the model.
+  * docs/OPTIONS.md's generated table, the local settings.ini (when there is
+    one) and the golden corpus' option map agree with the model.
 """
 from __future__ import annotations
 
@@ -197,9 +197,13 @@ def check() -> list[str]:
         if current != render_table(model):
             errors.append("docs/OPTIONS.md's table is stale (run tools/options_model.py --write)")
 
-    tracked = set(re.findall(r"(?m)^([a-z0-9_]+)\s*=", SETTINGS.read_text(encoding="utf-8")))
-    for key in sorted(declared - tracked):
-        errors.append(f"settings key {key!r} is missing from the tracked settings.ini")
+    # settings.ini is written by the game on first run and is not tracked, so a
+    # fresh checkout has none: check the local file only when it exists. The
+    # keys the game writes are enforced against settings_save above.
+    if SETTINGS.is_file():
+        local = set(re.findall(r"(?m)^([a-z0-9_]+)\s*=", SETTINGS.read_text(encoding="utf-8")))
+        for key in sorted(declared - local):
+            errors.append(f"settings key {key!r} is missing from the local settings.ini")
 
     corpus = json.loads(CORPUS.read_text(encoding="utf-8"))
     corpus_map = corpus.get("option_to_key", {})

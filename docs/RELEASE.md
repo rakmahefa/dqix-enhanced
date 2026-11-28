@@ -63,7 +63,15 @@ the layout, the checksum and the reproducibility on fake inputs.
    on `main`/`stable` only, so `upstream-dev` can break the macOS build
    unnoticed. Recorded, not changed: making it run on `upstream-dev` doubles
    macOS minutes and is a budget decision for the owner.
-6. **No live asset list in this audit.** The list above is what the workflows
+6. **CI was red on every push since M3, and the local runs said green.**
+   `tools/options_model.py` required a `settings.ini` that the game writes on
+   first run and `.gitignore` excludes, so it passed on a developer machine and
+   failed in a fresh checkout; the build workflow's packaging step and the new
+   checks workflow both died there. Fixed: the local file is checked only when
+   it exists (the keys the game writes are already enforced against
+   `settings_save`), and `test_options_model` now runs the check without a
+   `settings.ini` so this cannot come back.
+7. **No live asset list in this audit.** The list above is what the workflows
    can publish. Reading the last real release's assets needs a GitHub API token,
    which this environment does not have; that part of the audit stays open.
 
