@@ -91,9 +91,12 @@ wall clock, 2026-11-28:
 | macOS recompiler + runtime | `macos-ci.yml` | `main`/`stable`, manual | not measured (does not run on this branch) | none enforced |
 
 Every job now has `timeout-minutes`, so a hung check fails instead of burning
-the queue. Hosted durations: the M1 evidence (#36, #38) measured ~2 min for the
-previous single-purpose workflow; the first run of the split pipeline is the
-number to record here, and until it exists this table says **local only**.
+the queue. Hosted durations: run
+[46141445417](https://github.com/rakmahefa/dqix-enhanced/actions/runs/46141445417)
+on `99ebc25` completed the fast required checks in **43 s** (47 s including the
+queue), against a 10 min budget. The build matrix no longer runs on a push, so
+its hosted duration is recorded on the next pull request or tag run; the M1
+evidence (#36, #38) measured ~2 min for the previous single-purpose workflow.
 
 Flakiness policy: a check that fails without a code change is quarantined with
 an issue and removed from the required set; it is not silently retried. No
